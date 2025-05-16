@@ -59,5 +59,6 @@ public class XposedLoader implements IXposedHookLoadPackage {
             }
         });
 
+        XposedHelpers.findAndHookMethod("com.spotify.betamax.contextplayercoordinatorimpl.model", lpparam.classLoader, "")
     }
 }
