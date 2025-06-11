@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import com.lenerd46.spotifyplus.hooks.BeautifulLyricsHook;
 import com.lenerd46.spotifyplus.hooks.PremiumHook;
 import com.lenerd46.spotifyplus.hooks.ScriptManager;
 import com.lenerd46.spotifyplus.hooks.SettingsFlyoutHook;
@@ -49,16 +50,23 @@ public class XposedLoader implements IXposedHookLoadPackage {
             }
         });
 
+        XposedHelpers.findAndHookMethod("com.spotify.player.model.AutoValue_PlayerState$Builder", lpparam.classLoader, "build", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Object state = param.getResult();
+                References.playerState = new WeakReference<Object>(state);
+            }
+        });
+
         XposedHelpers.findAndHookMethod(Application.class, "attach", Context.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Context context = (Context) param.args[0];
                 new SettingsFlyoutHook(context).init(lpparam);
                 new ScriptManager().init(context, lpparam.classLoader);
+                new BeautifulLyricsHook().init(lpparam);
 //                new PremiumHook().init(lpparam);
             }
         });
-
-        XposedHelpers.findAndHookMethod("com.spotify.betamax.contextplayercoordinatorimpl.model", lpparam.classLoader, "")
     }
 }

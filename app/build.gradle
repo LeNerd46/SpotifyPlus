@@ -37,4 +37,7 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     compileOnly 'de.robv.android.xposed:api:82'
     implementation 'com.faendir.rhino:rhino-android:1.6.0'
+    implementation 'com.google.android.flexbox:flexbox:3.0.0'
+    implementation 'com.google.code.gson:gson:2.13.1'
+    implementation 'com.github.pemistahl:lingua:1.2.2'
 }
