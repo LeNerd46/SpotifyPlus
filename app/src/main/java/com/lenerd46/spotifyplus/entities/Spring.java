@@ -1,5 +1,7 @@
 package com.lenerd46.spotifyplus.entities;
 
+import de.robv.android.xposed.XposedBridge;
+
 public class Spring {
     public double velocity;
     public double dampingRatio;
@@ -87,7 +89,7 @@ public class Spring {
         this.position = newPosition;
         this.velocity = newVelocity;
 
-        this.sleeping = (Math.abs(finalPosition - newPosition) <= 0.1d);
+        this.sleeping = (Math.abs(finalPosition - newPosition) <= 0.3d);
 
         return newPosition;
     }
@@ -95,7 +97,7 @@ public class Spring {
     public void set(double value) {
         this.position = value;
         this.finalPosition = value;
-        this.velocity = value;
+        this.velocity = 0;
 
         this.sleeping = true;
     }

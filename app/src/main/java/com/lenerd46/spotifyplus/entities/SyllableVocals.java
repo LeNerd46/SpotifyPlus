@@ -1,14 +1,15 @@
 package com.lenerd46.spotifyplus.entities;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.graphics.Color;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import com.google.android.flexbox.FlexboxLayout;
 import com.lenerd46.spotifyplus.entities.lyrics.SyllableMetadata;
 import de.robv.android.xposed.XposedBridge;
+import org.mozilla.javascript.Evaluator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,11 +29,15 @@ public class SyllableVocals implements SyncableVocals {
     private LyricState state;
     private boolean isSleeping;
 
+
+    public final ActivityChangedSource activityChanged;
+
     public SyllableVocals(FlexboxLayout lineContainer, List<SyllableMetadata> syllables, boolean isBackground, boolean isRomanized, boolean oppositeAligned, Activity activity) {
         this.container = lineContainer;
         List<View> views = new ArrayList<>();
         this.activity = activity;
         this.syllables = new ArrayList<>();
+        activityChanged = new ActivityChangedSource();
 
         active = false;
         this.isBackground = isBackground;
@@ -72,7 +77,7 @@ public class SyllableVocals implements SyncableVocals {
             for(var syllableMetadata : syllableGroup) {
                 boolean isEmphasized = syllableMetadata.endTime - syllableMetadata.startTime >= 1 && (isRomanized ? syllableMetadata.romanizedText.length() <= 12 : syllableMetadata.text.length() <= 12);
 
-                TextView textView = new TextView(activity);
+                GradientTextView textView = new GradientTextView(activity);
 
                 List<AnimatedLetter> letters = new ArrayList<>();
                 LinearLayout emphasisGroup = new LinearLayout(activity);
@@ -106,7 +111,7 @@ public class SyllableVocals implements SyncableVocals {
                         double relativeTimestamp = 0;
 
                         for(var letter : letterTexts) {
-                            TextView letterView = new TextView(activity);
+                            GradientTextView letterView = new GradientTextView(activity);
                             letterView.setText(letter);
 
                             if(isBackground) { backgroundEmphasizedLyricLabelStyle(letterView); }  else { emphasizedLyricLabelStyle(letterView); }
@@ -143,7 +148,7 @@ public class SyllableVocals implements SyncableVocals {
                         double relativeTimestamp = 0;
 
                         for(var letter : letterTexts) {
-                            TextView letterView = new TextView(activity);
+                            GradientTextView letterView = new GradientTextView(activity);
                             letterView.setText(letter);
                             if(isBackground) { backgroundEmphasizedLyricLabelStyle(letterView); }  else { backgroundLyricLabelStyle(letterView); }
 
@@ -216,36 +221,41 @@ public class SyllableVocals implements SyncableVocals {
                 for(var syllable : this.syllables) {
                     if(syllable.type.equals("Letters")) {
                         for(var letter : syllable.letters) {
-                            TextView text = (TextView) letter.liveText.object;
-                            text.setTextColor(Color.argb(192, 255, 255, 255));
+                            GradientTextView text = (GradientTextView) letter.liveText.object;
+                            text.setTextColor(Color.argb(255, 255, 255, 255));
                         }
                     } else {
-                        TextView text = (TextView) syllable.liveText.object;
-                        text.setTextColor(Color.argb(192, 255, 255, 255));
+                        GradientTextView text = (GradientTextView) syllable.liveText.object;
+                        text.setTextColor(Color.argb(255, 255, 255, 255));
                     }
                 }
             } else if(this.state == LyricState.SUNG) {
                 for(var syllable : this.syllables) {
                     if(syllable.type.equals("Letters")) {
                         for(var letter : syllable.letters) {
-                            TextView text = (TextView) letter.liveText.object;
-                            text.setTextColor(Color.argb(166, 224, 224, 224));
+                            GradientTextView text = (GradientTextView) letter.liveText.object;
+                            text.setTextColor(Color.argb(120, 224, 224, 224));
+                            text.updateShadow(0f, 0f);
                         }
                     } else {
-                        TextView text = (TextView) syllable.liveText.object;
-                        text.setTextColor(Color.argb(166, 224, 224, 224));
+                        GradientTextView text = (GradientTextView) syllable.liveText.object;
+                        text.setTextColor(Color.argb(120, 224, 224, 224));
+                        text.updateShadow(0f, 0f);
                     }
                 }
             } else {
                 for(var syllable : this.syllables) {
                     if(syllable.type.equals("Letters")) {
                         for(var letter : syllable.letters) {
-                            TextView text = (TextView) letter.liveText.object;
+                            GradientTextView text = (GradientTextView) letter.liveText.object;
                             text.setTextColor(Color.argb(90, 255, 255, 255));
+                            text.updateShadow(0f, 0f);
+                            text.updateShadow(0f, 0f);
                         }
                     } else {
-                        TextView text = (TextView) syllable.liveText.object;
+                        GradientTextView text = (GradientTextView) syllable.liveText.object;
                         text.setTextColor(Color.argb(90, 255, 255, 255));
+                        text.updateShadow(0f, 0f);
                     }
                 }
             }
@@ -276,24 +286,28 @@ public class SyllableVocals implements SyncableVocals {
 
     private boolean updateLiveTextVisuals(LiveText liveText, boolean isEmphasized, double timeScale, double deltaTime) {
         double scale = liveText.springs.scale.update(deltaTime);
-        double yOffset = liveText.springs.yOffset.update(deltaTime) * 50;
-        double glow = liveText.springs.glow.update(deltaTime);
+        double yOffset = liveText.springs.yOffset.update(deltaTime) * 100;
+        double glow = Math.abs(liveText.springs.glow.update(deltaTime));
 
-        double gradientProgress = (int)Math.round(-20 + 120 * timeScale);
-        float shadowRadius = 4 * (2 * (float)glow * (isEmphasized ? 1.5f : 1f));
+        float gradientProgress = (int)Math.round(-20 + 120 * timeScale);
+        float shadowRadius = 4 * (2 * (float)glow * (isEmphasized ? 3f : 1f));
         float shadowOpacity = (float)Math.max(0, Math.min(1, glow * (isEmphasized ? 1f : 0.35f)));
 
-        if(liveText.object instanceof TextView) {
+        if(liveText.object instanceof GradientTextView) {
             if(Double.isNaN(scale) || Double.isInfinite(scale)) { return false; }
 
 //            XposedBridge.log("[SpotifyPlus] Scale: " + scale + " YOffset: " + yOffset + " Glow: " + glow + " Gradient: " + gradientProgress);
 
-            TextView textView = (TextView)liveText.object;
+            GradientTextView textView = (GradientTextView)liveText.object;
             textView.setScaleX((float)scale);
             textView.setScaleY((float)scale);
 
-            textView.setTranslationY((float)yOffset);
-            textView.setShadowLayer(shadowRadius, 2f, 2f, Color.argb(255 * shadowOpacity, 255, 255, 255));
+            textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
+            textView.setProgress(gradientProgress);
+
+//            XposedBridge.log("[SpotifyPlus] Shadow Opacity: " + shadowOpacity + " Shadow Radius: " + shadowRadius);
+            XposedBridge.log("[SpotifyPlus] Glow: " + glow);
+            textView.updateShadow(shadowOpacity, shadowRadius);
         }
 
         return liveText.springs.scale.sleeping && liveText.springs.yOffset.sleeping && liveText.springs.glow.sleeping;
@@ -322,16 +336,16 @@ public class SyllableVocals implements SyncableVocals {
             evaluateClassState();
 
             // Trigger scrolling event
+            activityChanged.invoke(container);
         }
 
         this.isSleeping = !shouldUpdateVisualState;
-        boolean isMoving = !this.isSleeping;
+        boolean isMoving = this.isSleeping == false;
 
         if(shouldUpdateVisualState || isMoving) {
             double timeScale = Math.max(0, Math.min((double)relativeTime / (double)this.duration, 1));
             boolean isSleeping = true;
-//            XposedBridge.log("[SpotifyPlus] Relative Time: " + relativeTime + " Time Scale: " + timeScale);
-            XposedBridge.log("[SpotifyPlus] Time Scale: " + timeScale);
+//            XposedBridge.log("[SpotifyPlus] Time Scale: " + timeScale + " Relative Time: " + relativeTime + " Song Timestamp: " + songTimestamp + " Delta Time: " + deltaTime + " Is Immediate: " + isImmediate + " Start Time: " + this.startTime + " Duration: " + this.duration);
 
             for(var syllable : this.syllables) {
                 double syllableTimeScale = Math.max(0, Math.min((double)(timeScale - syllable.startScale) / (double)syllable.durationScale, 1));
@@ -405,38 +419,34 @@ public class SyllableVocals implements SyncableVocals {
             Map.entry(1d, 0d) // Resting
     );
 
-    private void lyricLabelStyle(TextView text) {
+    private void lyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(26f);
         text.setPadding(0,0,1,0);
-        text.setShadowLayer(0f, 0f, 0f, Color.argb(0, 255, 255, 255));
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 0, dpToPx(2), 0);
         text.setLayoutParams(params);
     }
 
-    private void backgroundLyricLabelStyle(TextView text) {
+    private void backgroundLyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(16f);
         text.setPadding(0,0,1,0);
-        text.setShadowLayer(0f, 0f, 0f, Color.argb(0, 255, 255, 255));
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 0, dpToPx(2), 0);
         text.setLayoutParams(params);
     }
 
-    private void emphasizedLyricLabelStyle(TextView text) {
+    private void emphasizedLyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(26f);
-        text.setShadowLayer(0f, 0f, 0f, Color.argb(0, 255, 255, 255));
     }
 
-    private void backgroundEmphasizedLyricLabelStyle(TextView text) {
+    private void backgroundEmphasizedLyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(16f);
-        text.setShadowLayer(0f, 0f, 0f, Color.argb(0, 255, 255, 255));
     }
 
     int dpToPx(int dp) {
