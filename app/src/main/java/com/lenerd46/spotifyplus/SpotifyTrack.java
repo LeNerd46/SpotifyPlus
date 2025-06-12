@@ -8,8 +8,9 @@ public class SpotifyTrack {
     public final long position;
     public final String color;
     public final long lastUpdated;
+    public final String imageId;
 
-    public SpotifyTrack(String title, String artist, String album, String uri, long position, String color, long lastUpdated) {
+    public SpotifyTrack(String title, String artist, String album, String uri, long position, String color, long lastUpdated, String imageId) {
         this.title = title;
         this.artist = artist;
         this.album = album;
@@ -17,5 +18,6 @@ public class SpotifyTrack {
         this.position = position;
         this.color = color;
         this.lastUpdated = lastUpdated;
+        this.imageId = imageId.split(":").length > 0 ? imageId.split(":")[2] : null;
     }
 }

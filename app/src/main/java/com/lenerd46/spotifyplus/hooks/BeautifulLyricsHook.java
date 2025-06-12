@@ -1,6 +1,8 @@
 package com.lenerd46.spotifyplus.hooks;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -20,10 +22,7 @@ import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SpotifyPlayerState;
 import com.lenerd46.spotifyplus.SpotifyTrack;
-import com.lenerd46.spotifyplus.entities.ActivityChangedListener;
-import com.lenerd46.spotifyplus.entities.LyricUtilities;
-import com.lenerd46.spotifyplus.entities.SyllableVocals;
-import com.lenerd46.spotifyplus.entities.SyncableVocals;
+import com.lenerd46.spotifyplus.entities.*;
 import com.lenerd46.spotifyplus.entities.interludes.InterludeVisual;
 import com.lenerd46.spotifyplus.entities.lyrics.*;
 import de.robv.android.xposed.XC_MethodHook;
@@ -31,6 +30,8 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.XposedBridge;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -76,7 +77,8 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             XposedBridge.log("[SpotifyPlus] Album: " + track.album);
                             XposedBridge.log("[SpotifyPlus] Position: " + track.position / 1000);
                             XposedBridge.log("[SpotifyPlus] Color: " + track.color);
-                            overlay.setBackgroundColor(Color.parseColor("#" + track.color));
+                            // overlay.setBackgroundColor(Color.parseColor("#" + track.color));
+                            overlay.setBackgroundColor(Color.TRANSPARENT);
 
                             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
                             params.gravity = Gravity.CENTER;
@@ -91,13 +93,18 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             layout.setLayoutParams(matchParams);
                             scrollView.addView(layout);
 
-                            overlay.addView(scrollView);
+                            overlay.addView(scrollView, -2);
+                            FrameLayout blackBox = new FrameLayout(activity);
+                            blackBox.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                            blackBox.setBackgroundColor(Color.argb(51, 0, 0, 0));
+
+                            overlay.addView(blackBox, -1);
 
                             // overlay.addView(myText);
-                            root.addView(overlay);
+                            root.addView(overlay, -2);
                             XposedBridge.log("[SpotifyPlus] Loaded Beautiful Lyrics UI");
 
-                            RenderLyrics(activity, track, layout);
+                            RenderLyrics(activity, track, layout, overlay);
                         }
                         catch (Throwable t) {
                             XposedBridge.log(t);
@@ -124,7 +131,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
         });
     }
 
-    private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer) {
+    private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer, FrameLayout root) {
         List<Double> vocalGroupStartTimes = new ArrayList<>();
         List<View> lines = new ArrayList<>();
         boolean staticLyrics = false;
@@ -137,6 +144,15 @@ public class BeautifulLyricsHook extends SpotifyHook {
             String finalContent = "";
 
             try {
+                Bitmap albumArt = getBitmap(track.imageId);
+
+                if(albumArt != null) {
+                    AnimatedBackgroundView background = new AnimatedBackgroundView(activity, albumArt);
+                    background.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+                    activity.runOnUiThread(() -> root.addView(background, 0));
+                }
+
                 String id = track.uri.split(":")[2];
                 URL url = new URL("https://beautiful-lyrics.socalifornian.live/lyrics/" + id);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -319,8 +335,6 @@ public class BeautifulLyricsHook extends SpotifyHook {
                     double syncedTimestamp = (initialPosition + (updatedAt - startedSyncAt)) / 1000d;
                     double deltaTime = (updatedAt - lastUpdatedAt) / 1000d;
 
-                    XposedBridge.log("[SpotifyPlus] Delta Time: " + deltaTime);
-
                     update(vocalGroups, syncedTimestamp, deltaTime, Math.abs(syncedTimestamp - lastTimestamp) > 0.8d);
                     lastTimestamp = syncedTimestamp;
 
@@ -333,6 +347,31 @@ public class BeautifulLyricsHook extends SpotifyHook {
         });
 
         mainLoop.start();
+    }
+
+    private Bitmap getBitmap(String id) {
+        HttpURLConnection connection = null;
+        InputStream input = null;
+
+        try {
+            URL url = new URL("https://i.scdn.co/image/" + id);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setDoInput(true);
+            connection.connect();
+
+            input = connection.getInputStream();
+            return BitmapFactory.decodeStream(input);
+        } catch(IOException e) {
+            XposedBridge.log(e);
+            return null;
+        } finally {
+            if(input != null) {
+                try { input.close(); } catch(IOException e) {}
+            }
+            if(connection != null) {
+                connection.disconnect();
+            }
+        }
     }
 
     int dpToPx(int dp, Activity activity) {

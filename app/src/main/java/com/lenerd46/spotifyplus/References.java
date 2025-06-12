@@ -45,6 +45,7 @@ public class References {
                     String artist = md.get("artist_name");
                     String album = md.get("album_title");
                     String color = md.get("extracted_color");
+                    String imageId = md.get("image_large_url");
                     long position = 0;
                     long timestamp = 0;
 
@@ -56,7 +57,7 @@ public class References {
                         position = basePos + (System.currentTimeMillis() - timestamp);
                     }
 
-                    return new SpotifyTrack(title, artist, album, uri, position, color, timestamp);
+                    return new SpotifyTrack(title, artist, album, uri, position, color, timestamp, imageId);
                 } else {
                     XposedBridge.log("[SpotifyPlus] ContextTrack not found!");
                     return null;
