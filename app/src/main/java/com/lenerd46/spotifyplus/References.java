@@ -3,12 +3,16 @@ package com.lenerd46.spotifyplus;
 import android.app.Activity;
 import android.media.MediaPlayer;
 import android.util.Log;
+import com.lenerd46.spotifyplus.entities.PlayerStateUpdatedListener;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,6 +20,7 @@ import java.util.regex.Pattern;
 public class References {
     public static WeakReference<Activity> currentActivity = new WeakReference<>(null);
     public static WeakReference<Object> playerState = new WeakReference<>(null);
+    public static WeakReference<Object> playerStateWrapper = new WeakReference<>(null);
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     public static SpotifyTrack getTrackTitle(XC_LoadPackage.LoadPackageParam lpparam) {
         if(playerState == null || playerState.get() == null) return null;
@@ -32,6 +37,7 @@ public class References {
                     Object track = contextClass.cast(ct);
 
                     String uri = (String) XposedHelpers.callMethod(track, "uri");
+
                     @SuppressWarnings("unchecked")
                     Map<String, String> md = (Map<String, String>) XposedHelpers.callMethod(track, "metadata");
 
@@ -40,16 +46,17 @@ public class References {
                     String album = md.get("album_title");
                     String color = md.get("extracted_color");
                     long position = 0;
+                    long timestamp = 0;
 
                     Object posOpt = XposedHelpers.callMethod(state, "positionAsOfTimestamp");
                     Matcher m = DIGITS.matcher(posOpt.toString());
                     if(m.find()) {
                         long basePos = Long.parseLong(m.group());
-                        long ts = (Long) XposedHelpers.callMethod(state, "timestamp");
-                        position = basePos + (System.currentTimeMillis() - ts);
+                        timestamp = (Long) XposedHelpers.callMethod(state, "timestamp");
+                        position = basePos + (System.currentTimeMillis() - timestamp);
                     }
 
-                    return new SpotifyTrack(title, artist, album, uri, position, color);
+                    return new SpotifyTrack(title, artist, album, uri, position, color, timestamp);
                 } else {
                     XposedBridge.log("[SpotifyPlus] ContextTrack not found!");
                     return null;
@@ -61,6 +68,51 @@ public class References {
         } catch(Exception e) {
             Log.e("SpotifyPlus", "Error getting track information", e);
             return null;
+        }
+    }
+
+    public static long getCurrentPlaybackPosition() {
+        Object wrapper = References.playerStateWrapper == null ? null : References.playerStateWrapper.get();
+        if(wrapper == null) return -1;
+
+        Object state;
+        try {
+            state = XposedHelpers.callMethod(wrapper, "getState");
+            if(state == null) return -1;
+        } catch(Throwable t) { return -1; }
+
+        try {
+            Object progress = XposedHelpers.getObjectField(state, "c");
+
+            Class<?> clazz = progress.getClass();
+            if(!clazz.getName().startsWith("p.")) return -1;
+
+            try {
+                Object positionObj = XposedHelpers.getObjectField(progress, "a");
+                if(positionObj instanceof Long) {
+                    return (long)positionObj;
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[SpotifyPlus] Could not get 'a' field from" + clazz.getName());
+            }
+        } catch(Throwable t) {}
+
+        return -1;
+    }
+
+    private static final List<PlayerStateUpdatedListener> listeners = new ArrayList<>();
+
+    public static void registerPlayerStateListener(PlayerStateUpdatedListener listener) {
+        listeners.add(listener);
+    }
+
+    public static void unregisterPlayerStateListener(PlayerStateUpdatedListener listener) {
+        listeners.remove(listener);
+    }
+
+    public static void notifyPlayerStateChanged(Object playerState) {
+        for(PlayerStateUpdatedListener listener : listeners) {
+            listener.onPlayerStateUpdated(playerState);
         }
     }
 }

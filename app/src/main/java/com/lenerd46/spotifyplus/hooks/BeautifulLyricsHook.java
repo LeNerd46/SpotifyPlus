@@ -18,6 +18,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.References;
+import com.lenerd46.spotifyplus.SpotifyPlayerState;
 import com.lenerd46.spotifyplus.SpotifyTrack;
 import com.lenerd46.spotifyplus.entities.ActivityChangedListener;
 import com.lenerd46.spotifyplus.entities.LyricUtilities;
@@ -44,6 +45,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
     private static Map<FlexboxLayout, List<SyncableVocals>> vocalGroups;
     private volatile  boolean stop = false;
+    private Thread mainLoop;
 
     @Override
     protected void hook() {
@@ -55,18 +57,16 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                     final Activity activity = (Activity) param.thisObject;
 
+                    stop = false;
+                    lastUpdatedAt = 0;
+                    lastTimestamp = 0;
+
                     activity.runOnUiThread(() -> {
                         try {
                             ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
 
                             FrameLayout overlay = new FrameLayout(activity);
                             overlay.setLayoutParams(new ViewGroup.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-
-                            // Add Beautiful Lyrics UI!
-                            // TextView myText = new TextView(activity);
-                            // myText.setText("🎉 My custom UI!");
-                            // myText.setTextColor(0xFF000000);
-                            // myText.setTextSize(28f);
 
                             SpotifyTrack track = References.getTrackTitle(lpparm);
                             if(track == null) { XposedBridge.log("[SpotifyPlus] Failed to get current track"); return; }
@@ -106,6 +106,20 @@ public class BeautifulLyricsHook extends SpotifyHook {
                 } catch (Exception e) {
                     XposedBridge.log(e);
                 }
+            }
+        });
+
+        XposedHelpers.findAndHookMethod("com.spotify.lyrics.fullscreenview.page.LyricsFullscreenPageActivity", lpparm.classLoader, "onPause", new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                stop = true;
+
+                if(mainLoop != null && mainLoop.isAlive()) {
+                    mainLoop.interrupt();
+                    mainLoop = null;
+                }
+
+                XposedBridge.log("[SpotifyPlus] Stopped!");
             }
         });
     }
@@ -207,8 +221,12 @@ public class BeautifulLyricsHook extends SpotifyHook {
                                 // Event for auto scrolling
                                 SyllableVocals sv = new SyllableVocals(vocalGroupContainer, set.lead.syllables, false, false, set.oppositeAligned, activity);
                                 sv.activityChanged.addListener(view -> {
+                                    View lineView = (View) view.getParent();
                                     ScrollView scrollView = (ScrollView) lyricsContainer.getParent();
-                                    // scrollView.smoothScrollTo(0, view.getTop());
+                                    scrollView.post(() -> {
+                                        int scrollY = lineView.getTop() - (scrollView.getHeight() / 2) + (lineView.getHeight() / 2);
+                                        scrollView.smoothScrollTo(0, Math.max(scrollY, 0));
+                                    });
                                 });
 
                                 vocals.add(sv);
@@ -265,15 +283,17 @@ public class BeautifulLyricsHook extends SpotifyHook {
         }
     }
 
-    private static long lastUpdatedAt = 0;
-    private static double lastTimestamp = 0;
+    private long lastUpdatedAt = 0;
+    private double lastTimestamp = 0;
 
-    private void updateProgress(long initialPosition, double startedSyncAt, Map<FlexboxLayout, List<SyncableVocals>> vocalGroups) {
-        Thread thread = new Thread(() -> {
+    private void updateProgress(long initialPositionS, double startedSyncAtS, Map<FlexboxLayout, List<SyncableVocals>> vocalGroups) {
+        mainLoop = new Thread(() -> {
             try {
                 int[] syncTimings = { 50, 100, 150, 750 };
                 int syncIndex = 0;
                 long nextSyncAt = syncTimings[0];
+                long initialPosition = initialPositionS;
+                double startedSyncAt = startedSyncAtS;
 
                 while(!stop) {
                     long updatedAt = System.currentTimeMillis();
@@ -281,10 +301,25 @@ public class BeautifulLyricsHook extends SpotifyHook {
                     // If the song is currently playing
                     if(updatedAt > startedSyncAt + nextSyncAt) {
                         // Get the current position from Spotify
+                        long position = References.getCurrentPlaybackPosition();
+                        if(position != -1) {
+                            initialPosition = position;
+                            startedSyncAt = updatedAt;
+
+                            syncIndex++;
+
+                            if(syncIndex < syncTimings.length) {
+                                nextSyncAt = syncTimings[syncIndex];
+                            } else {
+                                nextSyncAt = 33;
+                            }
+                        }
                     }
 
                     double syncedTimestamp = (initialPosition + (updatedAt - startedSyncAt)) / 1000d;
                     double deltaTime = (updatedAt - lastUpdatedAt) / 1000d;
+
+                    XposedBridge.log("[SpotifyPlus] Delta Time: " + deltaTime);
 
                     update(vocalGroups, syncedTimestamp, deltaTime, Math.abs(syncedTimestamp - lastTimestamp) > 0.8d);
                     lastTimestamp = syncedTimestamp;
@@ -297,7 +332,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
             }
         });
 
-        thread.start();
+        mainLoop.start();
     }
 
     int dpToPx(int dp, Activity activity) {

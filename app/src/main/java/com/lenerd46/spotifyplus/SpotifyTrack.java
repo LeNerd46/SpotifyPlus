@@ -7,13 +7,15 @@ public class SpotifyTrack {
     public final String uri;
     public final long position;
     public final String color;
+    public final long lastUpdated;
 
-    public SpotifyTrack(String title, String artist, String album, String uri, long position, String color) {
+    public SpotifyTrack(String title, String artist, String album, String uri, long position, String color, long lastUpdated) {
         this.title = title;
         this.artist = artist;
         this.album = album;
         this.uri = uri;
         this.position = position;
         this.color = color;
+        this.lastUpdated = lastUpdated;
     }
 }

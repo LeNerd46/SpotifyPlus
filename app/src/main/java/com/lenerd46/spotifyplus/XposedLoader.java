@@ -54,7 +54,15 @@ public class XposedLoader implements IXposedHookLoadPackage {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Object state = param.getResult();
-                References.playerState = new WeakReference<Object>(state);
+                References.playerState = new WeakReference<>(state);
+                References.notifyPlayerStateChanged(state);
+            }
+        });
+
+        XposedHelpers.findAndHookMethod("p.lrh", lpparam.classLoader, "getState", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                References.playerStateWrapper = new WeakReference<>(param.thisObject);
             }
         });
 

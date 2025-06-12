@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.LinearLayout;
+import androidx.core.content.res.ResourcesCompat;
 import com.google.android.flexbox.FlexboxLayout;
 import com.lenerd46.spotifyplus.entities.lyrics.SyllableMetadata;
 import de.robv.android.xposed.XposedBridge;
@@ -306,7 +307,6 @@ public class SyllableVocals implements SyncableVocals {
             textView.setProgress(gradientProgress);
 
 //            XposedBridge.log("[SpotifyPlus] Shadow Opacity: " + shadowOpacity + " Shadow Radius: " + shadowRadius);
-            XposedBridge.log("[SpotifyPlus] Glow: " + glow);
             textView.updateShadow(shadowOpacity, shadowRadius);
         }
 
@@ -401,7 +401,7 @@ public class SyllableVocals implements SyncableVocals {
     }
 
     private final List<Map.Entry<Double, Double>> scaleRange = List.of(
-            Map.entry(0d, 0.95d), // Lowest
+            Map.entry(0d, 1d), // Lowest
             Map.entry(0.7d, 1.025d), // Highest
             Map.entry(1d, 1d) // Resting
     );
@@ -425,17 +425,17 @@ public class SyllableVocals implements SyncableVocals {
         text.setPadding(0,0,1,0);
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0, 0, dpToPx(2), 0);
+        params.setMargins(0, 0, dpToPx(5), 0);
         text.setLayoutParams(params);
     }
 
     private void backgroundLyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(16f);
-        text.setPadding(0,0,1,0);
+        text.setPadding(0,0,dpToPx(1),0);
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0, 0, dpToPx(2), 0);
+        params.setMargins(0, 0, dpToPx(5), 0);
         text.setLayoutParams(params);
     }
 
