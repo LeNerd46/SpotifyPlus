@@ -12,6 +12,7 @@ public class GradientTextView extends AppCompatTextView {
 
     private float shadowOpacity = 0f;
     private float shadowRadius = 0f;
+    private boolean isLine = false;
 
     public GradientTextView(Context context) {
         super(context);
@@ -29,21 +30,33 @@ public class GradientTextView extends AppCompatTextView {
     protected void onDraw(Canvas canvas) {
         Paint paint = getPaint();
         float width = paint.measureText(getText().toString());
+        float height = getHeight();
 
         final float fadeWidth = 0.5f;
+        final float fadeWidthLine = 0.5f;
         float gradientProgress = Math.max(0f, Math.min(progress, 1f));
 
-        float startFade = Math.max(0f, gradientProgress - fadeWidth / 2f);
-        float endFade = Math.min(1f, gradientProgress + fadeWidth / 2f);
+        float startFade = Math.max(0f, gradientProgress - (isLine ? fadeWidthLine : fadeWidth) / 2f);
+        float endFade = Math.min(1f, gradientProgress + (isLine ? fadeWidthLine : fadeWidth) / 2f);
 
         Shader textShader;
 
-        if(gradientProgress <= 0f) {
-            textShader = new LinearGradient(0, 0, width, 0, new int[] { gradientColors[1], gradientColors[1] }, null, Shader.TileMode.CLAMP);
-        } else if(gradientProgress >= 1f) {
-            textShader = new LinearGradient(0, 0, width, 0, new int[] { gradientColors[0], gradientColors[0] }, null, Shader.TileMode.CLAMP);
+        if(!isLine) {
+            if(gradientProgress <= 0f) {
+                textShader = new LinearGradient(0, 0, width, 0, new int[] { gradientColors[1], gradientColors[1] }, null, Shader.TileMode.CLAMP);
+            } else if(gradientProgress >= 1f) {
+                textShader = new LinearGradient(0, 0, width, 0, new int[] { gradientColors[0], gradientColors[0] }, null, Shader.TileMode.CLAMP);
+            } else {
+                textShader = new LinearGradient(0, 0, width, 0, gradientColors, new float[] { startFade, endFade }, Shader.TileMode.CLAMP);
+            }
         } else {
-            textShader = new LinearGradient(0, 0, width, 0, gradientColors, new float[] { startFade, endFade }, Shader.TileMode.CLAMP);
+            if(gradientProgress <= 0f) {
+                textShader = new LinearGradient(0, 0, 0, height, new int[] { gradientColors[1], gradientColors[1] }, null, Shader.TileMode.CLAMP);
+            } else if(gradientProgress >= 1f) {
+                textShader = new LinearGradient(0, 0, 0, height, new int[] { gradientColors[0], gradientColors[0] }, null, Shader.TileMode.CLAMP);
+            } else {
+                textShader = new LinearGradient(0, 0, 0, height, gradientColors, new float[] { startFade, endFade }, Shader.TileMode.CLAMP);
+            }
         }
 
         paint.setShader(textShader);
@@ -55,6 +68,10 @@ public class GradientTextView extends AppCompatTextView {
     public void setGradientColors(int[] gradientColors) {
         this.gradientColors = gradientColors;
         invalidate();
+    }
+
+    public void setLineState(boolean isLine) {
+        this.isLine = isLine;
     }
 
     public void updateShadow(float opacity, float radius) {

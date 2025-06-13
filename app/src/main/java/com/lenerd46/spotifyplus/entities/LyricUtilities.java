@@ -62,13 +62,15 @@ public class LyricUtilities {
             lyrics.language = getLanguage(textToProcess);
             lyrics.naturalAlignment = getNaturalAlignment(lyrics.language);
         } else if(lyrics.lyrics.lineLyrics instanceof LineSyncedLyrics) {
+
             try {
-                List<String> lines = new ArrayList<String>();
-                List<LineVocal> lineVocals = new ArrayList<LineVocal>();
+                List<String> lines = new ArrayList<>();
+                List<LineVocal> lineVocals = new ArrayList<>();
 
                 for(Object vocalGroup : lyrics.lyrics.lineLyrics.content) {
                     Gson gson = new Gson();
-                    LineVocal vocal = gson.fromJson(vocalGroup.toString(), LineVocal.class);
+                    JsonElement jsonElement = gson.toJsonTree(vocalGroup);
+                    LineVocal vocal = gson.fromJson(jsonElement, LineVocal.class);
 
                     if(vocal != null) {
                         lines.add(vocal.text);
@@ -82,7 +84,7 @@ public class LyricUtilities {
                     }
                 }
 
-                lyrics.lyrics.lineLyrics.content = new ArrayList<>(lines);
+                lyrics.lyrics.lineLyrics.content = new ArrayList<>(lineVocals);
                 String textToProcess = String.join("\n", lines);
 
                 lyrics.language = getLanguage(textToProcess);
@@ -96,7 +98,7 @@ public class LyricUtilities {
 
                 TimeMetadata time = new TimeMetadata();
                 time.startTime = 0;
-                time.endTime = firstVocalGroup.endTime - 0.25d;
+                time.endTime = firstVocalGroup.startTime - 0.25d;
 
                 if(firstVocalGroup.startTime >= 2) {
                     vocalTimes.add(0, time);
@@ -119,7 +121,7 @@ public class LyricUtilities {
 
                         TimeMetadata newTime = new TimeMetadata();
                         newTime.startTime = startingvocalGroup.endTime;
-                        newTime.endTime = endingVocalGroup.endTime;
+                        newTime.endTime = endingVocalGroup.startTime;
 
                         Interlude interlude = new Interlude();
                         interlude.time = newTime;

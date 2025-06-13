@@ -11,10 +11,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
-import android.widget.ScrollView;
+import android.widget.*;
 import com.google.android.flexbox.FlexWrap;
 import com.google.android.flexbox.FlexboxLayout;
 import com.google.gson.Gson;
@@ -65,6 +62,8 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                     activity.runOnUiThread(() -> {
                         try {
+                            activity.getWindow().setStatusBarColor(Color.TRANSPARENT);
+
                             ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
 
                             FrameLayout overlay = new FrameLayout(activity);
@@ -142,7 +141,6 @@ public class BeautifulLyricsHook extends SpotifyHook {
     private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer, FrameLayout root) {
         List<Double> vocalGroupStartTimes = new ArrayList<>();
         List<View> lines = new ArrayList<>();
-        boolean staticLyrics = false;
         vocalGroups = new HashMap<>();
 
         ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -188,6 +186,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
             handler.post(() -> {
                 JsonObject jsonObject = new JsonParser().parseString(content).getAsJsonObject();
                 String type = jsonObject.get("Type").getAsString();
+                boolean isStatic = false;
 
                 if(type.equals("Syllable")) {
                     Gson gson = new Gson();
@@ -246,6 +245,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                                 evenMoreTopGroup.setClipChildren(false);
 
                                 LinearLayout topGroup = new LinearLayout(activity);
+                                topGroup.setOrientation(LinearLayout.VERTICAL);
                                 topGroup.setClipToPadding(false);
                                 topGroup.setClipChildren(false);
                                 RelativeLayout.LayoutParams parms = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
@@ -307,9 +307,119 @@ public class BeautifulLyricsHook extends SpotifyHook {
                         i++;
                     }
                 } else if(type.equals("Line")) {
+                    Gson gson = new Gson();
 
+                    LineSyncedLyrics providerLyrics = gson.fromJson(content, LineSyncedLyrics.class);
+
+                    ProviderLyrics providerLyricsThing = new ProviderLyrics();
+                    providerLyricsThing.lineLyrics = providerLyrics;
+                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providerLyricsThing);
+
+                    LineSyncedLyrics lyrics = transformedLyrics.lyrics.lineLyrics;
+
+                    int i = 0;
+                    for(var vocalGroup : lyrics.content) {
+                        if(vocalGroup instanceof Interlude) {
+                            Interlude interlude = (Interlude) vocalGroup;
+
+                            RelativeLayout topGroup = new RelativeLayout(activity);
+                            topGroup.setClipToPadding(false);
+                            topGroup.setClipChildren(false);
+
+                            FlexboxLayout vocalGroupContainer = new FlexboxLayout(activity);
+                            vocalGroupContainer.setClipToPadding(false);
+                            vocalGroupContainer.setClipChildren(false);
+
+                            if(interlude.time.startTime == 0) {
+                                RelativeLayout.MarginLayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                                params.setMargins(dpToPx(15, activity), dpToPx(40, activity), 0, 0);
+                                vocalGroupContainer.setLayoutParams(params);
+                            } else {
+                                RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                                params.setMargins(dpToPx(15, activity), dpToPx(20, activity), 0, 0);
+                                vocalGroupContainer.setLayoutParams(params);
+
+                                if(i != lyrics.content.size() - 1 && ((LineVocal)lyrics.content.get(i - 1)).oppositeAligned && ((LineVocal)lyrics.content.get(i + 1)).oppositeAligned) {
+                                    params.addRule(RelativeLayout.ALIGN_PARENT_END);
+                                    params.setMargins(0, dpToPx(20, activity), dpToPx(15, activity), 0);
+                                }
+                            }
+
+                            List<SyncableVocals> visual = new ArrayList<>();
+                            visual.add(new InterludeVisual(vocalGroupContainer, interlude, activity));
+                            vocalGroups.put(vocalGroupContainer, visual);
+
+                            vocalGroupStartTimes.add(interlude.time.startTime);
+
+                            topGroup.addView(vocalGroupContainer);
+                            lines.add(topGroup);
+                        } else if (vocalGroup instanceof LineVocal){
+                            LineVocal vocal = (LineVocal) vocalGroup;
+
+                            RelativeLayout topGroup = new RelativeLayout(activity);
+                            topGroup.setClipToPadding(false);
+                            topGroup.setClipChildren(false);
+
+                            FlexboxLayout vocalGroupContainer = new FlexboxLayout(activity);
+                            vocalGroupContainer.setFlexWrap(FlexWrap.WRAP);
+                            vocalGroupContainer.setClipToPadding(false);
+                            vocalGroupContainer.setClipChildren(false);
+                            RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                            params.setMargins(dpToPx(15, activity), dpToPx(20, activity), dpToPx(15, activity), 0);
+
+                            if(vocal.oppositeAligned) {
+                                params.addRule(RelativeLayout.ALIGN_PARENT_END);
+                            }
+
+                            vocalGroupContainer.setLayoutParams(params);
+                            topGroup.addView(vocalGroupContainer);
+
+                            LineVocals lv = new LineVocals(vocalGroupContainer, vocal, false, activity);
+                            lv.activityChanged.addListener(view -> {
+                                View lineView = (View) view.getParent();
+                                ScrollView scrollView = (ScrollView) lyricsContainer.getParent();
+                                scrollView.post(() -> {
+                                    int scrollY = lineView.getTop() - (scrollView.getHeight() / 2) + (lineView.getHeight() / 2);
+                                    scrollView.smoothScrollTo(0, Math.max(scrollY, 0));
+                                });
+                            });
+
+                            vocalGroups.put(vocalGroupContainer, List.of(lv));
+                            vocalGroupStartTimes.add(lv.startTime);
+
+                            lines.add(topGroup);
+                        }
+                        i++;
+                    }
                 } else if(type.equals("Static")) {
+                    Gson gson = new Gson();
 
+                    StaticSyncedLyrics providerLyrics = gson.fromJson(content, StaticSyncedLyrics.class);
+
+                    ProviderLyrics providerLyricsThing = new ProviderLyrics();
+                    providerLyricsThing.staticLyrics = providerLyrics;
+
+                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providerLyricsThing);
+                    StaticSyncedLyrics lyrics = transformedLyrics.lyrics.staticLyrics;
+                    isStatic = true;
+
+                    for(var line : lyrics.lines) {
+                        FlexboxLayout layout = new FlexboxLayout(activity);
+                        layout.setFlexWrap(FlexWrap.WRAP);
+
+                        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                        params.setMargins(dpToPx(15, activity), dpToPx(20, activity), dpToPx(15, activity), 0);
+                        layout.setLayoutParams(params);
+
+                        TextView text = new TextView(activity);
+                        text.setText(line.text);
+
+                        text.setTextColor(Color.WHITE);
+                        text.setTextSize(26f);
+
+                        layout.addView(text);
+                        lines.add(layout);
+                    }
                 }
 
                 XposedBridge.log("[SpotifyPlus] Loading lyrics with " + lines.size() + " lines");
@@ -319,7 +429,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                 XposedBridge.log("[SpotifyPlus] Finished loading lyrics!");
 
-                if(staticLyrics) { return; }
+                if(isStatic) { return; }
 
                 update(vocalGroups, track.position / 1000d, 1.0d / 60d, true);
 
