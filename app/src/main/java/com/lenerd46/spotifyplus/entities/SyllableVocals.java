@@ -102,9 +102,6 @@ public class SyllableVocals implements SyncableVocals {
                         }
                     } else {
                         List<String> letterTexts = (isRomanized ? syllableMetadata.romanizedText : syllableMetadata.text).chars().mapToObj(c -> String.valueOf((char) c)).collect(Collectors.toList());
-                        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                        params.setMargins(0, 0, 2, 0);
-                        emphasisGroup.setLayoutParams(params);
 
                         double relativeTimestep = 1d / letterTexts.size();
 
@@ -114,6 +111,7 @@ public class SyllableVocals implements SyncableVocals {
                         for(var letter : letterTexts) {
                             GradientTextView letterView = new GradientTextView(activity);
                             letterView.setText(letter);
+                            emphasisGroup.setPadding(0, 0, dpToPx(5), 0);
 
                             if(isBackground) { backgroundEmphasizedLyricLabelStyle(letterView); }  else { emphasizedLyricLabelStyle(letterView); }
 
@@ -151,7 +149,7 @@ public class SyllableVocals implements SyncableVocals {
                         for(var letter : letterTexts) {
                             GradientTextView letterView = new GradientTextView(activity);
                             letterView.setText(letter);
-                            if(isBackground) { backgroundEmphasizedLyricLabelStyle(letterView); }  else { backgroundLyricLabelStyle(letterView); }
+                            if(isBackground) { backgroundEmphasizedLyricLabelStyle(letterView); }  else { emphasizedLyricLabelStyle(letterView); }
 
                             emphasisGroup.addView(letterView);
 
@@ -336,7 +334,9 @@ public class SyllableVocals implements SyncableVocals {
             evaluateClassState();
 
             // Trigger scrolling event
-            activityChanged.invoke(container);
+            if(this.state == LyricState.ACTIVE) {
+                activityChanged.invoke(container);
+            }
         }
 
         this.isSleeping = !shouldUpdateVisualState;
@@ -422,7 +422,7 @@ public class SyllableVocals implements SyncableVocals {
     private void lyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(26f);
-        text.setPadding(0,0,1,0);
+        text.setPadding(0,0,dpToPx(1),0);
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 0, dpToPx(5), 0);

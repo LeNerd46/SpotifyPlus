@@ -110,7 +110,7 @@ public class AnimatedBackgroundView extends View {
 
                 if(blurred) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        RenderEffect blur = RenderEffect.createBlurEffect(100f, 100f, Shader.TileMode.CLAMP);
+                        RenderEffect blur = RenderEffect.createBlurEffect(250f, 250f, Shader.TileMode.CLAMP);
                         setRenderEffect(blur);
                     } else {
                         offBmp = blurBitmap(offBmp);

@@ -181,7 +181,7 @@ public class LyricUtilities {
 
             TimeMetadata time = new TimeMetadata();
             time.startTime = 0;
-            time.endTime = firstVocalGroup.endTime - 0.25d;
+            time.endTime = firstVocalGroup.startTime - 0.25d;
 
             if(firstVocalGroup.startTime >= 2) {
                 vocalTimes.add(0, time);
@@ -204,7 +204,7 @@ public class LyricUtilities {
 
                     TimeMetadata newTime = new TimeMetadata();
                     newTime.startTime = startingvocalGroup.endTime;
-                    newTime.endTime = endingVocalGroup.endTime;
+                    newTime.endTime = endingVocalGroup.startTime - 0.25d;
 
                     Interlude interlude = new Interlude();
                     interlude.time = newTime;
