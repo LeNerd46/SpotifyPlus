@@ -1,16 +1,13 @@
 package com.lenerd46.spotifyplus;
 
 import android.app.Activity;
-import android.media.MediaPlayer;
 import android.util.Log;
-import com.lenerd46.spotifyplus.entities.PlayerStateUpdatedListener;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.PlayerStateUpdatedListener;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +18,8 @@ public class References {
     public static WeakReference<Activity> currentActivity = new WeakReference<>(null);
     public static WeakReference<Object> playerState = new WeakReference<>(null);
     public static WeakReference<Object> playerStateWrapper = new WeakReference<>(null);
+    public static WeakReference<String> accessToken = new WeakReference<>(null);
+
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     public static SpotifyTrack getTrackTitle(XC_LoadPackage.LoadPackageParam lpparam) {
         if(playerState == null || playerState.get() == null) return null;

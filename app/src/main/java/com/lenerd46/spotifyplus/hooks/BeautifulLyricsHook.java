@@ -1,6 +1,8 @@
 package com.lenerd46.spotifyplus.hooks;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -18,11 +20,13 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.References;
-import com.lenerd46.spotifyplus.SpotifyPlayerState;
 import com.lenerd46.spotifyplus.SpotifyTrack;
-import com.lenerd46.spotifyplus.entities.*;
-import com.lenerd46.spotifyplus.entities.interludes.InterludeVisual;
-import com.lenerd46.spotifyplus.entities.lyrics.*;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.AnimatedBackgroundView;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.LyricUtilities;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.SyllableVocals;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.SyncableVocals;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.lyrics.*;
+import com.lenerd46.spotifyplus.beautifullyrics.entities.interludes.InterludeVisual;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.XposedBridge;
@@ -31,6 +35,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -136,6 +141,22 @@ public class BeautifulLyricsHook extends SpotifyHook {
                 XposedBridge.log("[SpotifyPlus] Stopped!");
             }
         });
+
+        XposedHelpers.findAndHookMethod("p.lrh", lpparm.classLoader, "getState", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                References.playerStateWrapper = new WeakReference<>(param.thisObject);
+            }
+        });
+
+        XposedHelpers.findAndHookMethod("com.spotify.player.model.AutoValue_PlayerState$Builder", lpparm.classLoader, "build", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Object state = param.getResult();
+                References.playerState = new WeakReference<>(state);
+                References.notifyPlayerStateChanged(state);
+            }
+        });
     }
 
     private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer, FrameLayout root) {
@@ -158,13 +179,16 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                     activity.runOnUiThread(() -> root.addView(background, 0));
                 }
+                SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+                boolean sendAccessToken = prefs.getBoolean("sendAccessToken", true);
 
                 String id = track.uri.split(":")[2];
                 URL url = new URL("https://beautiful-lyrics.socalifornian.live/lyrics/" + id);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
 
-                connection.setRequestProperty("Authorization", "Bearer BQDLdaKMJYKr8LRep_MvqrQfV72ty65wFQ4oXYuPM9AaPVcEOjqbLh3UAcSzQpOckxn4cfWn9hfDFJ-1W0scDjl214UjytYJYG-fOsqNOYvWbttLWLegqW9o8EoIZecBZbqVSeaa9rUI7qQg4has3p2WD80daDugR2KNU89EVefoFySCVPYSPk9eBKUFgVmOMUCYr8Q7TOj05Jb5Mn2gbKfEkPXOODXjG60pspeOC4jxScu9-Xay4r-ks7bZwKsinu6kvYnUGWbhe-ST2PFmebcDwJxS");
+                String token = References.accessToken.get();
+                connection.setRequestProperty("Authorization", "Bearer " + (((token != null && !token.isEmpty()) && sendAccessToken) ? token : "BQDLdaKMJYKr8LRep_MvqrQfV72ty65wFQ4oXYuPM9AaPVcEOjqbLh3UAcSzQpOckxn4cfWn9hfDFJ-1W0scDjl214UjytYJYG-fOsqNOYvWbttLWLegqW9o8EoIZecBZbqVSeaa9rUI7qQg4has3p2WD80daDugR2KNU89EVefoFySCVPYSPk9eBKUFgVmOMUCYr8Q7TOj05Jb5Mn2gbKfEkPXOODXjG60pspeOC4jxScu9-Xay4r-ks7bZwKsinu6kvYnUGWbhe-ST2PFmebcDwJxS"));
 
                 int responseCode = connection.getResponseCode();
                 if(responseCode == HttpURLConnection.HTTP_OK) {

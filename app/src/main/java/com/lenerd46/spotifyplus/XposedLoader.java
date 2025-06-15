@@ -7,29 +7,26 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import com.lenerd46.spotifyplus.hooks.BeautifulLyricsHook;
-import com.lenerd46.spotifyplus.hooks.PremiumHook;
-import com.lenerd46.spotifyplus.hooks.ScriptManager;
-import com.lenerd46.spotifyplus.hooks.SettingsFlyoutHook;
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import com.lenerd46.spotifyplus.hooks.*;
+import de.robv.android.xposed.*;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 public class XposedLoader implements IXposedHookLoadPackage {
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
         if(!lpparam.packageName.equals("com.spotify.music")) return;
-        XposedBridge.log("[SpotifyPlus] Loading SpotifyPlus v0.1");
+        XposedBridge.log("[SpotifyPlus] Loading SpotifyPlus v0.2");
 
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Activity activity = (Activity) param.thisObject;
-                References.currentActivity = new WeakReference<Activity>(activity);
+                References.currentActivity = new WeakReference<>(activity);
             }
         });
 
@@ -50,22 +47,6 @@ public class XposedLoader implements IXposedHookLoadPackage {
             }
         });
 
-        XposedHelpers.findAndHookMethod("com.spotify.player.model.AutoValue_PlayerState$Builder", lpparam.classLoader, "build", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                Object state = param.getResult();
-                References.playerState = new WeakReference<>(state);
-                References.notifyPlayerStateChanged(state);
-            }
-        });
-
-        XposedHelpers.findAndHookMethod("p.lrh", lpparam.classLoader, "getState", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                References.playerStateWrapper = new WeakReference<>(param.thisObject);
-            }
-        });
-
         XposedHelpers.findAndHookMethod(Application.class, "attach", Context.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -73,7 +54,8 @@ public class XposedLoader implements IXposedHookLoadPackage {
                 new SettingsFlyoutHook(context).init(lpparam);
                 new ScriptManager().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam);
-//                new PremiumHook().init(lpparam);
+                new SocialHook().init(lpparam);
+                //                new PremiumHook().init(lpparam);
             }
         });
     }
