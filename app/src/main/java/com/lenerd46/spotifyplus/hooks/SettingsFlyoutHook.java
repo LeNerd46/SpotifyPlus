@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.*;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
+import android.preference.PreferenceManager;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -27,6 +28,8 @@ public class SettingsFlyoutHook extends SpotifyHook {
     private static final int DETAILED_SETTINGS_OVERLAY_ID = 0x53504c54;
     private static final int MARKETPLACE_OVERLAY_ID = 0x53504c55;
 
+    private SharedPreferences prefs;
+
     public SettingsFlyoutHook(Context ctx) {
         context = ctx;
     }
@@ -40,6 +43,10 @@ public class SettingsFlyoutHook extends SpotifyHook {
                     Object drawer = param.thisObject;
                     FrameLayout fl = (FrameLayout)XposedHelpers.getObjectField(drawer, "R0");
 
+                    if(prefs == null) {
+                        prefs = References.getPreferences();
+                    }
+
                     LinearLayout settings = createSpotifyButton(0x12032022, "Spotify Plus Settings", createSettingsIcon(), fl);
                     if(settings != null) {
                         settings.setOnClickListener(v -> {
@@ -51,6 +58,13 @@ public class SettingsFlyoutHook extends SpotifyHook {
                     if(marketplace != null) {
                         marketplace.setOnClickListener(v -> {
                             showMarketplace();
+                        });
+                    }
+
+                    LinearLayout social = createSpotifyButton(0x09172022, "Friends", createUsersIcon(), fl);
+                    if(social != null) {
+                        social.setOnClickListener(v -> {
+                            SocialHook.showSocialPage();
                         });
                     }
                 } catch(Throwable t) {
@@ -653,7 +667,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
             itemLayout.setOnClickListener(v -> {
                 XposedBridge.log("[SpotifyPlus] Clicked: " + item);
-                SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
 
                 switch(item) {
                     // HOOKS
@@ -707,7 +720,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
                         List<SettingItem.SettingSection> socialSections = Arrays.asList(
                                 new SettingItem.SettingSection("Privacy", Arrays.asList(
                                         new SettingItem("Enabled", "Whether to enable the social hooks (requires sending your Spotify access token for authentication)", SettingItem.Type.TOGGLE)
-                                                .setValue(prefs.getBoolean("social_enable", false))
+                                                .setValue(prefs.getBoolean("social_enabled", false))
                                                 .setOnValueChange(value -> {
                                                     prefs.edit().putBoolean("social_enabled", (Boolean)value).apply();
                                                 })
@@ -896,6 +909,43 @@ public class SettingsFlyoutHook extends SpotifyHook {
         path.lineTo(9f * scale, 18f * scale);
 
         canvas.drawPath(path, paint);
+
+        return new android.graphics.drawable.BitmapDrawable(context.getResources(), bitmap);
+    }
+
+    private Drawable createUsersIcon() {
+        int size = dpToPx(24);
+        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+
+        Paint paint = new Paint();
+        paint.setColor(Color.WHITE);
+        paint.setAntiAlias(true);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dpToPx(2));
+        paint.setStrokeCap(Paint.Cap.ROUND);
+
+        float scale = size / 24f;
+
+        canvas.drawCircle(8f * scale, 6f * scale, 3f * scale, paint);
+
+        RectF body1 = new RectF(
+                2f * scale,
+                12f * scale,
+                14f * scale,
+                24f * scale
+        );
+        canvas.drawArc(body1, 0, 180, false, paint);
+
+        canvas.drawCircle(16f * scale, 5f * scale, 2.5f * scale, paint);
+
+        RectF body2 = new RectF(
+                11f * scale,
+                10f * scale,
+                21f * scale,
+                20f * scale
+        );
+        canvas.drawArc(body2, 0, 180, false, paint);
 
         return new android.graphics.drawable.BitmapDrawable(context.getResources(), bitmap);
     }

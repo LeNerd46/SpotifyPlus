@@ -1,6 +1,8 @@
 package com.lenerd46.spotifyplus;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.PlayerStateUpdatedListener;
 import de.robv.android.xposed.XposedBridge;
@@ -100,6 +102,14 @@ public class References {
         } catch(Throwable t) {}
 
         return -1;
+    }
+
+    public static SharedPreferences getPreferences() {
+        Activity activity = currentActivity.get();
+
+        if(activity == null) return null;
+
+        return activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
     }
 
     private static final List<PlayerStateUpdatedListener> listeners = new ArrayList<>();
