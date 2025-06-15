@@ -11,6 +11,7 @@ import android.view.ViewGroup;
 import android.widget.*;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SettingItem;
+import com.lenerd46.spotifyplus.scripting.events.EventManager;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -149,6 +150,8 @@ public class SettingsFlyoutHook extends SpotifyHook {
             overlay.addView(mainContainer);
             rootView.addView(overlay);
             animatePageIn(overlay);
+
+            EventManager.getInstance().dispatchEvent("settingsOpened", null);
         } catch (Throwable t) {
             XposedBridge.log("[SpotifyPlus] Error showing settings: " + t);
         }
@@ -158,14 +161,13 @@ public class SettingsFlyoutHook extends SpotifyHook {
         LinearLayout header = new LinearLayout(activity);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dpToPx(16), dpToPx(24), dpToPx(16), dpToPx(16)); // Extra top padding for status bar
-        header.setBackgroundColor(Color.parseColor("#272727")); // Spotify green
+        header.setPadding(dpToPx(16), dpToPx(24), dpToPx(16), dpToPx(16));
+        header.setBackgroundColor(Color.parseColor("#272727"));
         header.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        // Back button
         ImageView backButton = new ImageView(activity);
         backButton.setImageDrawable(createBackArrowIcon());
         backButton.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
@@ -173,7 +175,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 dpToPx(40), dpToPx(40)
         ));
 
-        // Add ripple effect
         TypedValue outValue = new TypedValue();
         activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, outValue, true);
         backButton.setBackgroundResource(outValue.resourceId);
@@ -184,7 +185,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
             });
         });
 
-        // Title
         TextView title = new TextView(activity);
         title.setText(titleText);
         title.setTextColor(Color.WHITE);
@@ -218,7 +218,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
             ViewGroup rootView = activity.findViewById(android.R.id.content);
             if (rootView == null) return;
 
-            // Create fullscreen overlay
             FrameLayout overlay = new FrameLayout(activity);
             overlay.setId(DETAILED_SETTINGS_OVERLAY_ID);
             overlay.setClickable(true);
@@ -228,7 +227,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                     ViewGroup.LayoutParams.MATCH_PARENT
             ));
 
-            // Create main container
             LinearLayout mainContainer = new LinearLayout(activity);
             mainContainer.setOrientation(LinearLayout.VERTICAL);
             mainContainer.setLayoutParams(new FrameLayout.LayoutParams(
@@ -236,17 +234,14 @@ public class SettingsFlyoutHook extends SpotifyHook {
                     ViewGroup.LayoutParams.MATCH_PARENT
             ));
 
-            // Create header
             LinearLayout header = createSettingsHeader(activity, overlay, rootView, pageTitle);
             mainContainer.addView(header);
 
-            // Create scrollable content
             android.widget.ScrollView scrollView = new android.widget.ScrollView(activity);
             LinearLayout contentContainer = new LinearLayout(activity);
             contentContainer.setOrientation(LinearLayout.VERTICAL);
             contentContainer.setPadding(0, dpToPx(8), 0, dpToPx(16));
 
-            // Add all sections
             for (SettingItem.SettingSection section : sections) {
                 contentContainer.addView(createDetailedSettingsSection(activity, section));
             }
@@ -270,7 +265,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        // Section title
         TextView sectionTitle = new TextView(activity);
         sectionTitle.setText(section.title);
         sectionTitle.setTextColor(Color.WHITE);
@@ -279,7 +273,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         sectionTitle.setPadding(dpToPx(16), dpToPx(24), dpToPx(16), dpToPx(16));
         sectionLayout.addView(sectionTitle);
 
-        // Section items
         for (SettingItem item : section.items) {
             sectionLayout.addView(createSettingItemView(activity, item));
         }
@@ -297,7 +290,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        // Left side - Text content
         LinearLayout textContainer = new LinearLayout(activity);
         textContainer.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(
@@ -307,7 +299,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         textLp.rightMargin = dpToPx(16);
         textContainer.setLayoutParams(textLp);
 
-        // Title
         TextView titleView = new TextView(activity);
         titleView.setText(item.title);
         titleView.setTextColor(item.enabled ? Color.WHITE : Color.parseColor("#666666"));
@@ -315,7 +306,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         titleView.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         textContainer.addView(titleView);
 
-        // Description (if provided)
         if (item.description != null && !item.description.isEmpty()) {
             TextView descView = new TextView(activity);
             descView.setText(item.description);
@@ -333,13 +323,11 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
         itemLayout.addView(textContainer);
 
-        // Right side - Control
         View control = createControlView(activity, item);
         if (control != null) {
             itemLayout.addView(control);
         }
 
-        // Add click handling for navigation items
         if (item.type == SettingItem.Type.NAVIGATION && item.onNavigate != null) {
             TypedValue outValue = new TypedValue();
             activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
@@ -372,7 +360,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         toggle.setChecked(item.value != null ? (Boolean) item.value : false);
         toggle.setEnabled(item.enabled);
 
-        // Customize switch colors to match Spotify
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN) {
             toggle.setThumbTintList(android.content.res.ColorStateList.valueOf(
                     toggle.isChecked() ? Color.parseColor("#1DB954") : Color.parseColor("#777777")
@@ -388,7 +375,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 item.onValueChange.onValueChanged(isChecked);
             }
 
-            // Update colors
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN) {
                 toggle.setThumbTintList(android.content.res.ColorStateList.valueOf(
                         isChecked ? Color.parseColor("#1DB954") : Color.parseColor("#777777")
@@ -509,9 +495,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
         float scale = size / 24f;
 
-        // Draw search circle
         canvas.drawCircle(11f * scale, 11f * scale, 8f * scale, paint);
-        // Draw search handle
         canvas.drawLine(21f * scale, 21f * scale, 16.65f * scale, 16.65f * scale, paint);
 
         return new android.graphics.drawable.BitmapDrawable(context.getResources(), bitmap);
@@ -534,7 +518,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         float strokeWidth = paint.getStrokeWidth();
         float padding = strokeWidth / 2;
 
-        // Store front awning (top rectangular part)
         RectF awningRect = new RectF(
                 2f * scale + padding,
                 2f * scale + padding,
@@ -543,7 +526,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         );
         canvas.drawRect(awningRect, paint);
 
-        // Scalloped edge of awning (5 semi-circles)
         float scallop_width = (awningRect.width() - strokeWidth) / 5f;
         float scallop_y = awningRect.bottom;
         float scallop_radius = scallop_width / 2f;
@@ -553,7 +535,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
             canvas.drawCircle(scallop_x, scallop_y, scallop_radius, paint);
         }
 
-        // Left support post
         canvas.drawLine(
                 4f * scale,
                 scallop_y + scallop_radius,
@@ -562,7 +543,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 paint
         );
 
-        // Right support post
         canvas.drawLine(
                 20f * scale,
                 scallop_y + scallop_radius,
@@ -571,7 +551,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 paint
         );
 
-        // Main store body (rounded rectangle)
         RectF storeBody = new RectF(
                 4f * scale,
                 scallop_y + scallop_radius,
@@ -580,7 +559,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         );
         canvas.drawRoundRect(storeBody, 2f * scale, 2f * scale, paint);
 
-        // Store door (rounded rectangle in center bottom)
         RectF doorRect = new RectF(
                 10f * scale,
                 14f * scale,
@@ -589,7 +567,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         );
         canvas.drawRoundRect(doorRect, 1f * scale, 1f * scale, paint);
 
-        // Door handle (small circle)
         canvas.drawCircle(
                 12.5f * scale,
                 17f * scale,
@@ -630,7 +607,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        // Section title
         TextView titleView = new TextView(activity);
         titleView.setText(sectionTitle);
         titleView.setTextColor(Color.parseColor("#B3B3B3")); // Spotify's secondary text color
@@ -639,7 +615,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
         titleView.setPadding(dpToPx(16), dpToPx(24), dpToPx(16), dpToPx(8));
         section.addView(titleView);
 
-        // Section items
         for (String item : items) {
             LinearLayout itemLayout = new LinearLayout(activity);
             itemLayout.setOrientation(LinearLayout.HORIZONTAL);
@@ -650,19 +625,16 @@ public class SettingsFlyoutHook extends SpotifyHook {
                     ViewGroup.LayoutParams.WRAP_CONTENT
             ));
 
-            // Add ripple effect
             TypedValue outValue = new TypedValue();
             activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
             itemLayout.setBackgroundResource(outValue.resourceId);
 
-            // Item text
             TextView itemText = new TextView(activity);
             itemText.setText(item);
             itemText.setTextColor(Color.WHITE);
             itemText.setTextSize(16f);
             itemText.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
 
-            // Arrow icon
             ImageView arrow = new ImageView(activity);
             arrow.setImageDrawable(createChevronRightIcon());
             LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(
@@ -775,11 +747,9 @@ public class SettingsFlyoutHook extends SpotifyHook {
     }
 
     private void animatePageIn(View page) {
-        // Start off-screen to the right
         page.setTranslationX(page.getContext().getResources().getDisplayMetrics().widthPixels);
         page.setAlpha(0.8f);
 
-        // Animate to center position
         page.animate()
                 .translationX(0)
                 .alpha(1.0f)
@@ -789,7 +759,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
     }
 
     private void animatePageOut(View page, Runnable onComplete) {
-        // Animate off-screen to the right
         page.animate()
                 .translationX(page.getContext().getResources().getDisplayMetrics().widthPixels)
                 .alpha(0.8f)
@@ -800,6 +769,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
     }
 
     private Drawable createLightningIcon() {
+        // idk, this was a placeholder icon
         int size = dpToPx(24);
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -809,11 +779,9 @@ public class SettingsFlyoutHook extends SpotifyHook {
         paint.setAntiAlias(true);
         paint.setStyle(Paint.Style.FILL);
 
-        // Create lightning bolt path
         Path path = new Path();
-        float scale = size / 24f; // Scale from 24dp to actual size
+        float scale = size / 24f;
 
-        // Lightning bolt coordinates (scaled)
         path.moveTo(7f * scale, 2f * scale);
         path.lineTo(7f * scale, 13f * scale);
         path.lineTo(10f * scale, 13f * scale);
@@ -896,7 +864,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
         float scale = size / 24f;
 
-        // Draw back arrow
         Path path = new Path();
         path.moveTo(15f * scale, 6f * scale);
         path.lineTo(9f * scale, 12f * scale);

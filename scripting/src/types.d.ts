@@ -1,10 +1,20 @@
 /** Functions related to debugging */
-declare namespace Debug {
+declare namespace console {
     /**
      * Logs a message to both the Xposed log and the Android log
      * @param message The message to log
      */
     function log(message: string): void;
+    /**
+     * Logs a message to the Xposed log and the Android log with a warning level
+     * @param message The warning to log
+     */
+    function warn(message: string): void;
+    /**
+     * Logs a message to the Xposed log and the Android log with an error level
+     * @param message The error to log
+     */
+    function error(message: string): void;
 }
 
 /** Represents a Spotify track */
@@ -14,17 +24,19 @@ declare class SpotifyTrack {
     /** The ID of the track */
     id: string;
     /** The artist who created the track */
-    artist: SpotifyArtist;
+    artist: string;
     /** The album the track appears on */
-    album: SpotifyAlbum;
+    album: string;
     /** The Spotify URI of the track (spotify:track:2n5sAzeWh5LqnV9cGBjgGr)*/
     uri: string;
-    /** The length of the track in (?) */
+    /** The length of the track in milliseconds */
     duration: number;
-    /** Whether Spotify believes this track is explicit or not */
-    explicit: boolean;
-    /** Whether Spotify has lyrics for this song */
-    hasLyrics: boolean;
+}
+
+/** Useful functions related to the player */
+declare class SpotifyPlayer {
+    /** Gets the currently playing track*/
+    static getCurrentTrack(): SpotifyTrack;
 }
 
 /** Represents a Spotify album */

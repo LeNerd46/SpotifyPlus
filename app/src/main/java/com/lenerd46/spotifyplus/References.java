@@ -56,7 +56,9 @@ public class References {
                         position = basePos + (System.currentTimeMillis() - timestamp);
                     }
 
-                    return new SpotifyTrack(title, artist, album, uri, position, color, timestamp, imageId);
+//                    long duration = (Long) XposedHelpers.callMethod(state, "duration");
+
+                    return new SpotifyTrack(title, artist, album, uri, position, color, timestamp, imageId, 0);
                 } else {
                     XposedBridge.log("[SpotifyPlus] ContextTrack not found!");
                     return null;

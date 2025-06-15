@@ -2,14 +2,13 @@ package com.lenerd46.spotifyplus.hooks;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import androidx.documentfile.provider.DocumentFile;
 import com.lenerd46.spotifyplus.scripting.Debug;
-import com.lenerd46.spotifyplus.scripting.EventBus;
 import com.lenerd46.spotifyplus.scripting.SpotifyPlayer;
 import com.lenerd46.spotifyplus.scripting.SpotifyPlusApi;
-import de.robv.android.xposed.XSharedPreferences;
+import com.lenerd46.spotifyplus.scripting.entities.ScriptableSpotifyTrack;
+import com.lenerd46.spotifyplus.scripting.events.EventManager;
 import de.robv.android.xposed.XposedBridge;
 import com.faendir.rhino_android.RhinoAndroidHelper;
 import org.mozilla.javascript.Scriptable;
@@ -18,9 +17,53 @@ import org.mozilla.javascript.ScriptableObject;
 import java.io.*;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Scanner;
 
-public class ScriptManager {
+public class ScriptManager extends SpotifyHook {
+    public static ScriptManager instance = null;
+    private Scriptable scriptScope;
+
+    private ScriptManager() { }
+
+    public static synchronized ScriptManager getInstance() {
+        if(instance == null) {
+            instance = new ScriptManager();
+        }
+
+        return instance;
+    }
+
+    public Scriptable getScope() {
+        return this.scriptScope;
+    }
+
+    public void runScript(String code, String name) {
+        org.mozilla.javascript.Context context = new RhinoAndroidHelper().enterContext();
+
+        try {
+            context.setOptimizationLevel(-1);
+            this.scriptScope = context.initStandardObjects();
+
+            Object eventManager = org.mozilla.javascript.Context.javaToJS(EventManager.getInstance(), this.scriptScope);
+            ScriptableObject.putProperty(this.scriptScope, "events", eventManager);
+
+            ScriptableObject.defineClass(this.scriptScope, ScriptableSpotifyTrack.class);
+
+            List<SpotifyPlusApi> apis = Arrays.asList(
+                    new SpotifyPlayer(this.scriptScope, lpparm),
+                    new Debug()
+            );
+
+            for(SpotifyPlusApi api : apis) {
+                api.register(this.scriptScope, context, name);
+            }
+
+            context.evaluateString(this.scriptScope, code, name, 1, null);
+        } catch(Exception e) {
+            XposedBridge.log("[SpotifyPlus] ScriptManager: Failed to load " + name);
+            XposedBridge.log(e);
+        }
+    }
+
     public void init(Context ctx, ClassLoader loader) {
         XposedBridge.log("[SpotifyPlus] Starting script engine!");
 
@@ -51,7 +94,8 @@ public class ScriptManager {
                     String code = readStreamAsString(in);
                     if(!code.isBlank()) {
                         XposedBridge.log("[SpotifyPlus] " + name + " loaded!");
-                        runScript(code, ctx, name);
+                        runScript(code, name);
+                        // runScriptS(code, ctx, name);
                     }
                 } catch(Exception ex) {
                     XposedBridge.log("[SpotifyPlus] Error loading " + name + ": " + ex);
@@ -60,16 +104,23 @@ public class ScriptManager {
         }
     }
 
-    private void runScript(String code, Context ctx, String name) {
+    // Hot reload scripts?
+    public void loadOrReloadScript(String code, String name) {
+        EventManager.getInstance().clearAllListeners();
+        runScript(code, name);
+    }
+
+    private void runScriptS(String code, Context ctx, String name) {
         var rhino = new RhinoAndroidHelper().enterContext();
         rhino.setOptimizationLevel(-1);
 
         try {
             ScriptableObject scope = rhino.initStandardObjects();
-            EventBus.init(rhino, scope);
+            ScriptableObject.putProperty(scope, "events", EventManager.getInstance());
+            ScriptableObject.defineClass(scope, ScriptableSpotifyTrack.class);
 
             List<SpotifyPlusApi> apis = Arrays.asList(
-                    new SpotifyPlayer(),
+                    new SpotifyPlayer(scope, lpparm),
                     new Debug()
             );
 
@@ -77,8 +128,9 @@ public class ScriptManager {
                 api.register(scope, rhino, name);
             }
 
-            rhino.evaluateString(scope, code, "test.js", 1, null);
-        } finally {
+            rhino.evaluateString(scope, code, name, 1, null);
+        } catch(Exception e) {
+        } finally{
             org.mozilla.javascript.Context.exit();
         }
     }
@@ -94,4 +146,8 @@ public class ScriptManager {
 
         return sb.toString();
     }
+
+    // Not actually doing any hooking, I just need the LoadPackageParam
+    @Override
+    protected void hook() { }
 }

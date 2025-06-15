@@ -52,7 +52,8 @@ public class XposedLoader implements IXposedHookLoadPackage {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Context context = (Context) param.args[0];
                 new SettingsFlyoutHook(context).init(lpparam);
-                new ScriptManager().init(context, lpparam.classLoader);
+//                new ScriptManager().init(context, lpparam.classLoader);
+                ScriptManager.getInstance().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam);
                 new SocialHook().init(lpparam);
                 //                new PremiumHook().init(lpparam);
