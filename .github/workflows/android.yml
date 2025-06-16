@@ -2,7 +2,7 @@ name: Build Spotify Plus APK
 
 on:
   push:
-    branches: [ main ] # or replace with your dev branch
+    branches: [ main ]
 
 jobs:
   build:

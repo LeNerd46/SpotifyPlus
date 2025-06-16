@@ -19,6 +19,9 @@ import de.robv.android.xposed.XposedHelpers;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 public class SettingsFlyoutHook extends SpotifyHook {
     private final Context context;
@@ -29,6 +32,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
     private static final int MARKETPLACE_OVERLAY_ID = 0x53504c55;
 
     private SharedPreferences prefs;
+    private final static ConcurrentHashMap<String, List<SettingItem.SettingSection>> scriptSettings = new ConcurrentHashMap<>();
 
     public SettingsFlyoutHook(Context ctx) {
         context = ctx;
@@ -157,6 +161,10 @@ public class SettingsFlyoutHook extends SpotifyHook {
             contentContainer.addView(createSettingsSection(activity, "Scripting", new String[]{
                     "General"
             }));
+
+            if(!scriptSettings.isEmpty()) {
+                contentContainer.addView(createSettingsSection(activity, "Script Settings", scriptSettings.keySet().toArray(new String[0])));
+            }
 
             scrollView.addView(contentContainer);
             mainContainer.addView(scrollView);
@@ -666,8 +674,6 @@ public class SettingsFlyoutHook extends SpotifyHook {
             itemLayout.addView(arrow);
 
             itemLayout.setOnClickListener(v -> {
-                XposedBridge.log("[SpotifyPlus] Clicked: " + item);
-
                 switch(item) {
                     // HOOKS
                     case "Controls Test":
@@ -750,6 +756,10 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
                         showDetailedSettingsPage("Scripting Settings", generalSections);
                         break;
+                }
+
+                if(!scriptSettings.isEmpty()) {
+                    showDetailedSettingsPage(item, scriptSettings.get(item));
                 }
             });
 
@@ -1002,6 +1012,17 @@ public class SettingsFlyoutHook extends SpotifyHook {
             animatePageIn(overlay);
         } catch (Throwable t) {
             XposedBridge.log("[SpotifyPlus] Error showing settings: " + t);
+        }
+    }
+
+    public static void registerSettingSection(String title, SettingItem.SettingSection section) {
+        var sections = scriptSettings.get(title);
+
+        if (sections == null) {
+            scriptSettings.put(title, Arrays.asList(section));
+        } else {
+            sections.add(section);
+            scriptSettings.put(title, sections);
         }
     }
 

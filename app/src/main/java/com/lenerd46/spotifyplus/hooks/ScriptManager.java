@@ -5,8 +5,11 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import androidx.documentfile.provider.DocumentFile;
 import com.lenerd46.spotifyplus.scripting.Debug;
+import com.lenerd46.spotifyplus.scripting.SettingsExtensionManager;
 import com.lenerd46.spotifyplus.scripting.SpotifyPlayer;
 import com.lenerd46.spotifyplus.scripting.SpotifyPlusApi;
+import com.lenerd46.spotifyplus.scripting.entities.ScriptableSettingItem;
+import com.lenerd46.spotifyplus.scripting.entities.ScriptableSettingSection;
 import com.lenerd46.spotifyplus.scripting.entities.ScriptableSpotifyTrack;
 import com.lenerd46.spotifyplus.scripting.events.EventManager;
 import de.robv.android.xposed.XposedBridge;
@@ -47,10 +50,13 @@ public class ScriptManager extends SpotifyHook {
             ScriptableObject.putProperty(this.scriptScope, "events", eventManager);
 
             ScriptableObject.defineClass(this.scriptScope, ScriptableSpotifyTrack.class);
+            ScriptableObject.defineClass(this.scriptScope, ScriptableSettingSection.class);
+            ScriptableObject.defineClass(this.scriptScope, ScriptableSettingItem.class);
 
             List<SpotifyPlusApi> apis = Arrays.asList(
                     new SpotifyPlayer(this.scriptScope, lpparm),
-                    new Debug()
+                    new Debug(),
+                    new SettingsExtensionManager()
             );
 
             for(SpotifyPlusApi api : apis) {
