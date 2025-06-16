@@ -17,15 +17,14 @@ Requirements:
 
 For Rooted Phones:
 1. Install the APK from the releases page
-2. Install Spotify version 9.0.40.390 (you can get it [here](https://spotify.en.uptodown.com/android/download/1078270344)
-3. Turn on the module in LSPosed and enable it for Spotify
-4. Force stop Spotify
-5. Play a song, open the full screen lyrics page, and enjoy the lyrics!
+2. Turn on the module in LSPosed and enable it for Spotify
+3. Force stop Spotify
+4. Play a song, open the full screen lyrics page, and enjoy the lyrics!
 <br/><br/>
 
 For Non Rooted Phones:
 1. Install the APK from the releases page
-2. Download Spotify version 9.0.40.390 (you can get it [here](https://spotify.en.uptodown.com/android/download/1078270344))
+2. Download Spotify APK (you can get it [here](https://spotify.en.uptodown.com/android/download))
 3. Setup LSPatch (if using Android 15, use [this fork](https://github.com/JingMatrix/LSPatch))
 4. Select the downloaded APK, Integrated -> Embed modules -> Select an installed app -> Spotify Plus
 5. Select inject loader dex probably
