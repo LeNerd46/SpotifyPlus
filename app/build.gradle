@@ -41,4 +41,5 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.13.1'
     implementation 'com.github.pemistahl:lingua:1.2.2'
     implementation 'com.mikhaellopez:circleview:1.4.1'
+    implementation 'org.luckypray:dexkit:2.0.0'
 }

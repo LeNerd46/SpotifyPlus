@@ -199,3 +199,4 @@ README.html
 *.iml
 .idea
 .exercism
+/app/release

@@ -30,12 +30,17 @@ import com.lenerd46.spotifyplus.beautifullyrics.entities.interludes.InterludeVis
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.XposedBridge;
+import org.luckypray.dexkit.query.FindClass;
+import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -76,7 +81,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             overlay.setClipToPadding(false);
                             overlay.setClipChildren(false);
 
-                            SpotifyTrack track = References.getTrackTitle(lpparm);
+                            SpotifyTrack track = References.getTrackTitle(lpparm, bridge);
                             if(track == null) { XposedBridge.log("[SpotifyPlus] Failed to get current track"); return; }
 
                             XposedBridge.log("[SpotifyPlus] Title: " + track.title);
@@ -142,12 +147,26 @@ public class BeautifulLyricsHook extends SpotifyHook {
             }
         });
 
-        XposedHelpers.findAndHookMethod("p.lrh", lpparm.classLoader, "getState", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                References.playerStateWrapper = new WeakReference<>(param.thisObject);
-            }
-        });
+        try {
+            var whateverThisClassEvenDoes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).interfaceCount(1).fields(FieldsMatcher.create()
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL))
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(String.class))
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(ArrayList.class))
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(Object.class))
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(Bundle.class))
+            )));
+
+            Method getStateMethod = bridge.findMethod(FindMethod.create().searchInClass(whateverThisClassEvenDoes).matcher(MethodMatcher.create().name("getState"))).get(0).getMethodInstance(lpparm.classLoader);
+            XposedBridge.hookMethod(getStateMethod, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    References.playerStateWrapper = new WeakReference<>(param.thisObject);
+                }
+            });
+        } catch(Exception e) {
+            XposedBridge.log(e);
+        }
+
 
         XposedHelpers.findAndHookMethod("com.spotify.player.model.AutoValue_PlayerState$Builder", lpparm.classLoader, "build", new XC_MethodHook() {
             @Override
@@ -492,7 +511,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                     // If the song is currently playing
                     if(updatedAt > startedSyncAt + nextSyncAt) {
                         // Get the current position from Spotify
-                        long position = References.getCurrentPlaybackPosition();
+                        long position = References.getCurrentPlaybackPosition(bridge, lpparm);
                         if(position != -1) {
                             initialPosition = position;
                             startedSyncAt = updatedAt;

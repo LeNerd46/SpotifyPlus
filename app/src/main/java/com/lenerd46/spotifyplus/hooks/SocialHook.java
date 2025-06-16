@@ -15,27 +15,39 @@ import com.lenerd46.spotifyplus.References;
 import com.mikhaellopez.circleview.CircleView;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import org.luckypray.dexkit.query.FindClass;
+import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.ClassMatcher;
+import org.luckypray.dexkit.query.matchers.MethodMatcher;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
 public class SocialHook extends SpotifyHook{
     private static final int SOCIAL_PAGE_OVERLAY_ID = 0x10032023;
 
     @Override
     protected void hook() {
-        XposedHelpers.findAndHookMethod("okhttp3.Request$Builder", lpparm.classLoader, "d", String.class, String.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                String headerName = (String) param.args[0];
-                String headerValue = (String) param.args[1];
+        try {
+            var okHttp = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().className("okhttp3.Request$Builder")));
+            Method requestMadeOrSomething = bridge.findMethod(FindMethod.create().searchInClass(okHttp).matcher(MethodMatcher.create().returnType(void.class).modifiers(Modifier.PUBLIC | Modifier.FINAL).paramTypes(String.class, String.class))).get(1).getMethodInstance(lpparm.classLoader);
 
-                if(headerName != null && headerName.equalsIgnoreCase("authorization")) {
-                    String token = headerValue.replace("Bearer ", "").trim();
-                    References.accessToken = new WeakReference<>(token);
+            XposedBridge.hookMethod(requestMadeOrSomething, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    String headerName = (String) param.args[0];
+                    String headerValue = (String) param.args[1];
+
+                    if(headerName != null && headerName.equalsIgnoreCase("authorization")) {
+                        String token = headerValue.replace("Bearer ", "").trim();
+                        References.accessToken = new WeakReference<>(token);
+                    }
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            XposedBridge.log(e);
+        }
     }
 
     public static void showSocialPage() {

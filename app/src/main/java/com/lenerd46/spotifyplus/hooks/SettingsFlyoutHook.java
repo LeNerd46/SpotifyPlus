@@ -16,9 +16,17 @@ import com.lenerd46.spotifyplus.scripting.events.EventManager;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
+import org.luckypray.dexkit.query.FindClass;
+import org.luckypray.dexkit.query.FindField;
+import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.ClassMatcher;
+import org.luckypray.dexkit.query.matchers.FieldMatcher;
+import org.luckypray.dexkit.query.matchers.MethodMatcher;
 
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -40,42 +48,52 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
     @Override
     public void hook() {
-        XposedHelpers.findAndHookMethod("p.xvd0", lpparm.classLoader, "B", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                try {
-                    Object drawer = param.thisObject;
-                    FrameLayout fl = (FrameLayout)XposedHelpers.getObjectField(drawer, "R0");
+        try {
+            var drawerClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("getDrawerState()I")));
+            var method = bridge.findMethod(FindMethod.create().searchInClass(drawerClass).matcher(MethodMatcher.create().returnType(void.class).modifiers(Modifier.PUBLIC | Modifier.FINAL).paramCount(0).annotationCount(0))).get(0).getMethodInstance(lpparm.classLoader);
 
-                    if(prefs == null) {
-                        prefs = References.getPreferences();
-                    }
+            XposedBridge.hookMethod(method, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    try {
+                        FrameLayout fl = (FrameLayout) bridge.findField(FindField.create().searchInClass(drawerClass).matcher(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(FrameLayout.class))).get(0).getFieldInstance(lpparm.classLoader).get(param.thisObject);
+                        Object drawer = param.thisObject;
+//                        FrameLayout fl = (FrameLayout)XposedHelpers.getObjectField(drawer, "R0");
 
-                    LinearLayout settings = createSpotifyButton(0x12032022, "Spotify Plus Settings", createSettingsIcon(), fl);
-                    if(settings != null) {
-                        settings.setOnClickListener(v -> {
-                            showSettingsPage();
-                        });
-                    }
+                        if(prefs == null) {
+                            prefs = References.getPreferences();
+                        }
 
-                    LinearLayout marketplace = createSpotifyButton(0x4f524f52, "Marketplace", createMarketplaceIcon(), fl);
-                    if(marketplace != null) {
-                        marketplace.setOnClickListener(v -> {
-                            showMarketplace();
-                        });
-                    }
+                        LinearLayout settings = createSpotifyButton(0x12032022, "Spotify Plus Settings", createSettingsIcon(), fl);
+                        if(settings != null) {
+                            settings.setOnClickListener(v -> {
+                                showSettingsPage();
+                            });
+                        }
 
-                    LinearLayout social = createSpotifyButton(0x09172022, "Friends", createUsersIcon(), fl);
-                    if(social != null) {
-                        social.setOnClickListener(v -> {
-                            SocialHook.showSocialPage();
-                        });
+                        LinearLayout marketplace = createSpotifyButton(0x4f524f52, "Marketplace", createMarketplaceIcon(), fl);
+                        if(marketplace != null) {
+                            marketplace.setOnClickListener(v -> {
+                                showMarketplace();
+                            });
+                        }
+
+                        if(prefs.getBoolean("social_enabled", false)) {
+                            LinearLayout social = createSpotifyButton(0x09172022, "Friends", createUsersIcon(), fl);
+                            if(social != null) {
+                                social.setOnClickListener(v -> {
+                                    SocialHook.showSocialPage();
+                                });
+                            }
+                        }
+                    } catch(Throwable t) {
+                        XposedBridge.log(t);
                     }
-                } catch(Throwable t) {
-                    XposedBridge.log("[SpotifyPlus] " + t.getMessage());
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            XposedBridge.log(e);
+        }
     }
 
     private LinearLayout createSpotifyButton(int id, String text, Drawable icon, FrameLayout fl) {

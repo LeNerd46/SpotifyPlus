@@ -54,7 +54,7 @@ public class ScriptManager extends SpotifyHook {
             ScriptableObject.defineClass(this.scriptScope, ScriptableSettingItem.class);
 
             List<SpotifyPlusApi> apis = Arrays.asList(
-                    new SpotifyPlayer(this.scriptScope, lpparm),
+                    new SpotifyPlayer(this.scriptScope, lpparm, bridge),
                     new Debug(),
                     new SettingsExtensionManager()
             );
@@ -126,7 +126,7 @@ public class ScriptManager extends SpotifyHook {
             ScriptableObject.defineClass(scope, ScriptableSpotifyTrack.class);
 
             List<SpotifyPlusApi> apis = Arrays.asList(
-                    new SpotifyPlayer(scope, lpparm),
+                    new SpotifyPlayer(scope, lpparm, bridge),
                     new Debug()
             );
 
