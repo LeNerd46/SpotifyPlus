@@ -210,7 +210,7 @@ public class InterludeVisual implements SyncableVocals {
                 dot.setShadowColor(Color.WHITE);
                 dot.setShadowGravity(CircleView.ShadowGravity.CENTER);
 
-                int sizeInPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 25, activity.getResources().getDisplayMetrics());
+                int sizeInPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 28, activity.getResources().getDisplayMetrics());
 //                int marginPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, activity.getResources().getDisplayMetrics());
                 LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(sizeInPx, sizeInPx);
 //                dotParams.setMargins(0, 0, marginPx, 0);
@@ -259,13 +259,15 @@ public class InterludeVisual implements SyncableVocals {
 
         if(Double.isNaN(scale) || Double.isInfinite(scale)) return false;
 
-        liveText.object.setScaleX((float)scale);
-        liveText.object.setScaleY((float)scale);
+        liveText.object.post(() -> {
+            liveText.object.setScaleX((float)scale);
+            liveText.object.setScaleY((float)scale);
 
-        liveText.object.setTranslationY((float)yOffset);
+            liveText.object.setTranslationY((float)yOffset);
 
-        liveText.object.setShadowColor(Color.argb(255 * Math.max(0f, Math.min(1f, (float)glowAlpha)), 255, 255, 255));
-        liveText.object.setAlpha((float)opacity);
+            liveText.object.setShadowColor(Color.argb(255 * Math.max(0f, Math.min(1f, (float)glowAlpha)), 255, 255, 255));
+            liveText.object.setAlpha((float)opacity);
+        });
 
         return liveText.springs.scale.sleeping && liveText.springs.yOffset.sleeping && liveText.springs.glow.sleeping && liveText.springs.opacity.sleeping;
     }

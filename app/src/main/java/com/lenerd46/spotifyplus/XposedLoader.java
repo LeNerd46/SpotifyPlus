@@ -7,8 +7,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
+import android.content.res.XModuleResources;
+import android.graphics.Typeface;
 import android.net.Uri;
+import android.os.Bundle;
 import android.widget.Toast;
+import androidx.core.content.res.ResourcesCompat;
 import com.lenerd46.spotifyplus.hooks.*;
 import de.robv.android.xposed.*;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
@@ -19,6 +25,7 @@ import org.luckypray.dexkit.query.matchers.*;
 import org.luckypray.dexkit.result.ClassData;
 import org.luckypray.dexkit.result.MethodData;
 
+import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -29,12 +36,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public class XposedLoader implements IXposedHookLoadPackage {
+public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     static {
         System.loadLibrary("dexkit");
     }
 
     private DexKitBridge bridge;
+    private String modulePath = null;
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
@@ -74,6 +82,29 @@ public class XposedLoader implements IXposedHookLoadPackage {
             }
         });
 
+        XposedHelpers.findAndHookMethod(Activity.class, "onCreate", Bundle.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Typeface beautifulFont = References.beautifulFont.get();
+
+                if(beautifulFont != null) return;
+
+                try {
+                    Resources resources = XModuleResources.createInstance(modulePath, null);
+                    beautifulFont = Typeface.createFromAsset(resources.getAssets(), "fonts/lyrics_medium.ttf");
+
+                    XposedBridge.log("[SpotifyPlus] Successfully loaded font!");
+                } catch(Throwable t) {
+                    XposedBridge.log("[SpotifyPlus] Failed to load font (error)");
+                    XposedBridge.log(t);
+                }
+
+                if(beautifulFont != null) {
+                    References.beautifulFont = new WeakReference<>(beautifulFont);
+                }
+            }
+        });
+
         XposedHelpers.findAndHookMethod(Application.class, "attach", Context.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -86,5 +117,10 @@ public class XposedLoader implements IXposedHookLoadPackage {
                 //                new PremiumHook().init(lpparam);
             }
         });
+    }
+
+    @Override
+    public void initZygote(StartupParam startupParam) throws Throwable {
+        modulePath = startupParam.modulePath;
     }
 }

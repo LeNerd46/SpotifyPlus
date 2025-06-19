@@ -9,4 +9,3 @@ const itemTwo = new SettingItem("Item Two", "This is the second item in the sett
 
 const section = new SettingSection("Script Test", [itemOne, itemTwo]);
 section.register("Script Test");
-section.register("Script Test");

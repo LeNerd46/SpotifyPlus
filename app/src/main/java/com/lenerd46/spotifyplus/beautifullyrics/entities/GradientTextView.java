@@ -1,13 +1,16 @@
 package com.lenerd46.spotifyplus.beautifullyrics.entities;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.*;
 import android.util.AttributeSet;
+import android.widget.TextView;
 import androidx.appcompat.widget.AppCompatTextView;
 import de.robv.android.xposed.XposedBridge;
 
-public class GradientTextView extends AppCompatTextView {
-    private int[] gradientColors = { 0xFFFFFFFF, 0x80FFFFFF };
+@SuppressLint("AppCompatCustomView")
+public class GradientTextView extends TextView {
+    private int[] gradientColors = { 0xFFFFFFFF, 0x1EFFFFFF }; // 0xE6C8C8C8
     private float progress = 0f;
 
     private float shadowOpacity = 0f;
@@ -32,8 +35,8 @@ public class GradientTextView extends AppCompatTextView {
         float width = paint.measureText(getText().toString());
         float height = getHeight();
 
-        final float fadeWidth = 0.5f;
-        final float fadeWidthLine = 0.5f;
+        final float fadeWidth = 0.3f;
+        final float fadeWidthLine = 0.3f;
         float gradientProgress = Math.max(0f, Math.min(progress, 1f));
 
         float startFade = Math.max(0f, gradientProgress - (isLine ? fadeWidthLine : fadeWidth) / 2f);

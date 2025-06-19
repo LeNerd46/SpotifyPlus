@@ -2,10 +2,13 @@ package com.lenerd46.spotifyplus.beautifullyrics.entities;
 
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.util.TypedValue;
 import android.view.View;
+import android.view.animation.OvershootInterpolator;
 import android.widget.LinearLayout;
 import com.google.android.flexbox.FlexboxLayout;
+import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.lyrics.SyllableMetadata;
 import de.robv.android.xposed.XposedBridge;
 
@@ -26,7 +29,7 @@ public class SyllableVocals implements SyncableVocals {
     public boolean active;
     private LyricState state;
     private boolean isSleeping;
-
+    private final Typeface font;
 
     public final ActivityChangedSource activityChanged;
 
@@ -36,6 +39,7 @@ public class SyllableVocals implements SyncableVocals {
         this.activity = activity;
         this.syllables = new ArrayList<>();
         activityChanged = new ActivityChangedSource();
+        font = References.beautifulFont.get();
 
         active = false;
         this.isBackground = isBackground;
@@ -213,48 +217,53 @@ public class SyllableVocals implements SyncableVocals {
 
     private void evaluateClassState() {
         try {
-            if(this.state == LyricState.ACTIVE) {
-                for(var syllable : this.syllables) {
-                    if(syllable.type.equals("Letters")) {
-                        for(var letter : syllable.letters) {
-                            GradientTextView text = (GradientTextView) letter.liveText.object;
-                            text.setTextColor(Color.argb(255, 255, 255, 255));
+            container.post(() -> {
+                if(this.state == LyricState.ACTIVE) {
+                    for(var syllable : this.syllables) {
+                        if(syllable.type.equals("Letters")) {
+                            for(var letter : syllable.letters) {
+                                GradientTextView text = (GradientTextView) letter.liveText.object;
+                                text.setGradientColors(new int[] { 0xFFFFFFFF, 0x96FFFFFF});
+//                                text.setTextColor(Color.argb(180, 255, 255, 255));
+                            }
+                        } else {
+                            GradientTextView text = (GradientTextView) syllable.liveText.object;
+                            text.setGradientColors(new int[] { 0xFFFFFFFF, 0x96FFFFFF});
+//                            text.setTextColor(Color.argb(180, 255, 255, 255));
                         }
-                    } else {
-                        GradientTextView text = (GradientTextView) syllable.liveText.object;
-                        text.setTextColor(Color.argb(255, 255, 255, 255));
                     }
-                }
-            } else if(this.state == LyricState.SUNG) {
-                for(var syllable : this.syllables) {
-                    if(syllable.type.equals("Letters")) {
-                        for(var letter : syllable.letters) {
-                            GradientTextView text = (GradientTextView) letter.liveText.object;
-                            text.setTextColor(Color.argb(120, 224, 224, 224));
+                } else if(this.state == LyricState.SUNG) {
+                    for(var syllable : this.syllables) {
+                        if(syllable.type.equals("Letters")) {
+                            for(var letter : syllable.letters) {
+                                GradientTextView text = (GradientTextView) letter.liveText.object;
+                                text.setTextColor(Color.argb(120, 255, 255, 255));
+                                text.updateShadow(0f, 0f);
+                            }
+                        } else {
+                            GradientTextView text = (GradientTextView) syllable.liveText.object;
+                            text.setTextColor(Color.argb(120, 255, 255, 255));
                             text.updateShadow(0f, 0f);
                         }
-                    } else {
-                        GradientTextView text = (GradientTextView) syllable.liveText.object;
-                        text.setTextColor(Color.argb(120, 224, 224, 224));
-                        text.updateShadow(0f, 0f);
                     }
-                }
-            } else {
-                for(var syllable : this.syllables) {
-                    if(syllable.type.equals("Letters")) {
-                        for(var letter : syllable.letters) {
-                            GradientTextView text = (GradientTextView) letter.liveText.object;
-                            text.setTextColor(Color.argb(90, 255, 255, 255));
-                            text.updateShadow(0f, 0f);
+
+                    container.post(() -> ((View)container.getParent().getParent()).animate().scaleX(1.0f).scaleY(1.0f).setDuration(800).setInterpolator(new OvershootInterpolator()).start());
+                } else {
+                    for(var syllable : this.syllables) {
+                        if(syllable.type.equals("Letters")) {
+                            for(var letter : syllable.letters) {
+                                GradientTextView text = (GradientTextView) letter.liveText.object;
+//                                text.setTextColor(Color.argb(255, 255, 255, 255));
+                                text.updateShadow(0f, 0f);
+                            }
+                        } else {
+                            GradientTextView text = (GradientTextView) syllable.liveText.object;
+//                            text.setTextColor(Color.argb(255, 255, 255, 255));
                             text.updateShadow(0f, 0f);
                         }
-                    } else {
-                        GradientTextView text = (GradientTextView) syllable.liveText.object;
-                        text.setTextColor(Color.argb(90, 255, 255, 255));
-                        text.updateShadow(0f, 0f);
                     }
                 }
-            }
+            });
         } catch(Exception e) {
             XposedBridge.log(e);
         }
@@ -295,14 +304,16 @@ public class SyllableVocals implements SyncableVocals {
 //            XposedBridge.log("[SpotifyPlus] Scale: " + scale + " YOffset: " + yOffset + " Glow: " + glow + " Gradient: " + gradientProgress);
 
             GradientTextView textView = (GradientTextView)liveText.object;
-            textView.setScaleX((float)scale);
-            textView.setScaleY((float)scale);
+            textView.post(() -> {
+                textView.setScaleX((float)scale);
+                textView.setScaleY((float)scale);
 
-            textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
-            textView.setProgress(gradientProgress);
+                textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
+                textView.setProgress(gradientProgress);
 
-//            XposedBridge.log("[SpotifyPlus] Shadow Opacity: " + shadowOpacity + " Shadow Radius: " + shadowRadius);
-            textView.updateShadow(shadowOpacity, shadowRadius);
+    //            XposedBridge.log("[SpotifyPlus] Shadow Opacity: " + shadowOpacity + " Shadow Radius: " + shadowRadius);
+                textView.updateShadow(shadowOpacity, shadowRadius);
+            });
         }
 
         return liveText.springs.scale.sleeping && liveText.springs.yOffset.sleeping && liveText.springs.glow.sleeping;
@@ -332,8 +343,12 @@ public class SyllableVocals implements SyncableVocals {
 
             // Trigger scrolling event
             if(this.state == LyricState.ACTIVE) {
-                activityChanged.invoke(container);
+                activityChanged.invoke(new ScrollInformation(container, isImmediate));
             }
+        }
+
+        if(stateNow == LyricState.ACTIVE && isImmediate) {
+            activityChanged.invoke(new ScrollInformation(container, true));
         }
 
         this.isSleeping = !shouldUpdateVisualState;
@@ -417,9 +432,10 @@ public class SyllableVocals implements SyncableVocals {
     );
 
     private void lyricLabelStyle(GradientTextView text) {
-        text.setTextColor(0xFFFFFFFF);
-        text.setTextSize(26f);
+        text.setTextColor(0xFFE0E0E0);
+        text.setTextSize(30f);
         text.setPadding(0,0,dpToPx(1),0);
+        text.setTypeface(font);
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 0, dpToPx(5), 0);
@@ -427,9 +443,10 @@ public class SyllableVocals implements SyncableVocals {
     }
 
     private void backgroundLyricLabelStyle(GradientTextView text) {
-        text.setTextColor(0xFFFFFFFF);
-        text.setTextSize(16f);
+        text.setTextColor(0xFFE0E0E0);
+        text.setTextSize(18f);
         text.setPadding(0,0,dpToPx(1),0);
+        text.setTypeface(font);
 
         FlexboxLayout.LayoutParams params = new FlexboxLayout.LayoutParams(FlexboxLayout.LayoutParams.WRAP_CONTENT, FlexboxLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 0, dpToPx(5), 0);
@@ -437,13 +454,15 @@ public class SyllableVocals implements SyncableVocals {
     }
 
     private void emphasizedLyricLabelStyle(GradientTextView text) {
-        text.setTextColor(0xFFFFFFFF);
-        text.setTextSize(26f);
+        text.setTextColor(0xFFE0E0E0);
+        text.setTextSize(30f);
+        text.setTypeface(font);
     }
 
     private void backgroundEmphasizedLyricLabelStyle(GradientTextView text) {
-        text.setTextColor(0xFFFFFFFF);
-        text.setTextSize(16f);
+        text.setTextColor(0xFFE0E0E0);
+        text.setTextSize(18f);
+        text.setTypeface(font);
     }
 
     int dpToPx(int dp) {

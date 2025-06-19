@@ -3,6 +3,8 @@ package com.lenerd46.spotifyplus;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.XModuleResources;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.PlayerStateUpdatedListener;
@@ -29,6 +31,7 @@ public class References {
     public static WeakReference<Object> playerState = new WeakReference<>(null);
     public static WeakReference<Object> playerStateWrapper = new WeakReference<>(null);
     public static WeakReference<String> accessToken = new WeakReference<>(null);
+    public static WeakReference<Typeface> beautifulFont = new WeakReference<>(null);
 
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     private static Method hasTrackMethod;

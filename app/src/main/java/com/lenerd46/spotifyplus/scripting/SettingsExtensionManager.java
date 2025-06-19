@@ -10,7 +10,9 @@ public class SettingsExtensionManager implements SpotifyPlusApi {
         ScriptableObject.putProperty(scope, "SettingsExtensionManager", Context.javaToJS(this, scope));
     }
 
-    public void registerSettingsPage() {
+    // I just realized you need an entire view for this. This will not be implemented for a while
+    // But pretty much, you will be able to easily add an item to the flyout menu, just like the settings and marketplace
+    public void registerMenuButton() {
 
     }
 }

@@ -16,9 +16,9 @@ public class ActivityChangedSource {
         listeners.remove(listener);
     }
 
-    public void invoke(View view) {
+    public void invoke(ScrollInformation info) {
         for(ActivityChangedListener listener : listeners) {
-            listener.onActivityChanged(view);
+            listener.onActivityChanged(info);
         }
     }
 }

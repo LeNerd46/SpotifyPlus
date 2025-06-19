@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.*;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
-import android.preference.PreferenceManager;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -15,7 +14,6 @@ import com.lenerd46.spotifyplus.SettingItem;
 import com.lenerd46.spotifyplus.scripting.events.EventManager;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindField;
 import org.luckypray.dexkit.query.FindMethod;
@@ -26,10 +24,7 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
 public class SettingsFlyoutHook extends SpotifyHook {
     private final Context context;
@@ -184,10 +179,20 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 contentContainer.addView(createSettingsSection(activity, "Script Settings", scriptSettings.keySet().toArray(new String[0])));
             }
 
+            TextView versionText = new TextView(activity);
+            versionText.setText("Spotify Plus v0.4 • LeNerd46");
+            versionText.setTextColor(Color.WHITE);
+            versionText.setTextSize(12f);
+            versionText.setGravity(Gravity.CENTER | Gravity.BOTTOM);
+            FrameLayout.LayoutParams versionParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+            versionParams.bottomMargin = dpToPx(12);
+            versionText.setLayoutParams(versionParams);
+
             scrollView.addView(contentContainer);
             mainContainer.addView(scrollView);
 
             overlay.addView(mainContainer);
+            overlay.addView(versionText);
             rootView.addView(overlay);
             animatePageIn(overlay);
 
@@ -286,9 +291,24 @@ public class SettingsFlyoutHook extends SpotifyHook {
                 contentContainer.addView(createDetailedSettingsSection(activity, section));
             }
 
+            TextView creditsText = new TextView(activity);
+            creditsText.setText("This hook is heavily based on Beautiful Lyrics by Surfbryce");
+            creditsText.setTextColor(Color.WHITE);
+            creditsText.setTextSize(12f);
+            creditsText.setGravity(Gravity.CENTER | Gravity.BOTTOM);
+            FrameLayout.LayoutParams versionParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+            versionParams.bottomMargin = dpToPx(14);
+            versionParams.leftMargin = dpToPx(120);
+            versionParams.rightMargin = dpToPx(120);
+            creditsText.setLayoutParams(versionParams);
+
             scrollView.addView(contentContainer);
             mainContainer.addView(scrollView);
             overlay.addView(mainContainer);
+
+            if(pageTitle.equals("Beautiful Lyrics Settings")) {
+                overlay.addView(creditsText);
+            }
 
             rootView.addView(overlay);
             animatePageIn(overlay);

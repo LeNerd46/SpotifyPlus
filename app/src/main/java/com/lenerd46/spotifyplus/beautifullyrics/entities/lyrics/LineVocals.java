@@ -122,8 +122,10 @@ public class LineVocals implements SyncableVocals {
             evaluateClassState();
 
             if(this.state == LyricState.ACTIVE) {
-                activityChanged.invoke(container);
+                activityChanged.invoke(new ScrollInformation(container, isImmediate));
             }
+        } else if(this.state == LyricState.ACTIVE && isImmediate) {
+            activityChanged.invoke(new ScrollInformation(container, true));
         }
 
         if(shouldUpdateVisualState) {
