@@ -6,35 +6,17 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageInfo;
-import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.content.res.XModuleResources;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
-import android.widget.Toast;
-import androidx.core.content.res.ResourcesCompat;
 import com.lenerd46.spotifyplus.hooks.*;
 import de.robv.android.xposed.*;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 import org.luckypray.dexkit.DexKitBridge;
-import org.luckypray.dexkit.query.FindClass;
-import org.luckypray.dexkit.query.FindMethod;
-import org.luckypray.dexkit.query.matchers.*;
-import org.luckypray.dexkit.result.ClassData;
-import org.luckypray.dexkit.result.MethodData;
 
-import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Proxy;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
 
 public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     static {
@@ -47,7 +29,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
         if(!lpparam.packageName.equals("com.spotify.music")) return;
-        XposedBridge.log("[SpotifyPlus] Loading SpotifyPlus v0.2");
+        XposedBridge.log("[SpotifyPlus] Loading SpotifyPlus v0.5");
 
         if(bridge == null) {
             try {
@@ -109,11 +91,12 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Context context = (Context) param.args[0];
-                new SettingsFlyoutHook(context).init(lpparam, bridge);
+//                new SettingsFlyoutHook(context).init(lpparam, bridge);
 //                new ScriptManager().init(context, lpparam.classLoader);
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam, bridge);
                 new SocialHook().init(lpparam, bridge);
+                new RemoveCreateButtonHook(context).init(lpparam, bridge);
                 //                new PremiumHook().init(lpparam);
             }
         });
