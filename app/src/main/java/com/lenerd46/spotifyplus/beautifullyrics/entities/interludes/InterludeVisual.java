@@ -297,11 +297,13 @@ public class InterludeVisual implements SyncableVocals {
         double yOffset = liveText.springs.yOffset.update(deltaTime) * 25;
         double opacity = liveText.springs.opacity.update(deltaTime);
 
-        liveText.object.setScaleX((float)scale);
-        liveText.object.setScaleY((float)scale);
+        liveText.object.post(() -> {
+            liveText.object.setScaleX((float)scale);
+            liveText.object.setScaleY((float)scale);
 
-        liveText.object.setTranslationY((float)yOffset);
-        liveText.object.setAlpha((float)opacity);
+            liveText.object.setTranslationY((float)yOffset);
+            liveText.object.setAlpha((float)opacity);
+        });
 
         return liveText.springs.scale.sleeping && liveText.springs.yOffset.sleeping && liveText.springs.opacity.sleeping;
     }

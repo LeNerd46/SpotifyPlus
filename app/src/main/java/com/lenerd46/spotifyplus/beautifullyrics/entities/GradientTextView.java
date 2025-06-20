@@ -10,7 +10,7 @@ import de.robv.android.xposed.XposedBridge;
 
 @SuppressLint("AppCompatCustomView")
 public class GradientTextView extends TextView {
-    private int[] gradientColors = { 0xFFFFFFFF, 0x1EFFFFFF }; // 0xE6C8C8C8
+    private int[] gradientColors = { 0xFFFFFFFF, 0x3CFFFFFF }; // 0xE6C8C8C8
     private float progress = 0f;
 
     private float shadowOpacity = 0f;

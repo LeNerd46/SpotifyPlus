@@ -88,10 +88,18 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                             ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
 
-                            FrameLayout overlay = new FrameLayout(activity);
-                            overlay.setLayoutParams(new ViewGroup.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-                            overlay.setClipToPadding(false);
-                            overlay.setClipChildren(false);
+                            GridLayout grid = new GridLayout(activity);
+                            grid.setRowCount(2);
+                            grid.setColumnCount(1);
+                            grid.setElevation(10f);
+
+//                            FrameLayout overlay = new FrameLayout(activity);
+//                            GridLayout.LayoutParams gridLayoutParams = new GridLayout.LayoutParams(GridLayout.spec(0, 2), GridLayout.spec(0));
+//                            gridLayoutParams.width = GridLayout.LayoutParams.MATCH_PARENT;
+//                            gridLayoutParams.height = GridLayout.LayoutParams.MATCH_PARENT;
+//                            overlay.setLayoutParams(gridLayoutParams);
+//                            overlay.setClipToPadding(false);
+//                            overlay.setClipChildren(false);
 
                             SpotifyTrack track = References.getTrackTitle(lpparm, bridge);
                             if(track == null) { XposedBridge.log("[SpotifyPlus] Failed to get current track"); return; }
@@ -102,39 +110,81 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             XposedBridge.log("[SpotifyPlus] Position: " + track.position / 1000);
                             XposedBridge.log("[SpotifyPlus] Color: " + track.color);
                             // overlay.setBackgroundColor(Color.parseColor("#" + track.color));
-                            overlay.setBackgroundColor(Color.TRANSPARENT);
+//                            overlay.setBackgroundColor(Color.TRANSPARENT);
 
-                            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-                            params.gravity = Gravity.CENTER;
-                            // myText.setLayoutParams(params);
+                            // Header
+
+                            LinearLayout header = new LinearLayout(activity);
+                            header.setOrientation(LinearLayout.HORIZONTAL);
+                            header.setGravity(Gravity.CENTER_VERTICAL);
+                            header.setPadding(dpToPx(22, activity), dpToPx(32, activity), dpToPx(22, activity), dpToPx(18, activity));
+
+                            GridLayout.LayoutParams headerParms = new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0));
+                            headerParms.width = GridLayout.LayoutParams.MATCH_PARENT;
+                            headerParms.height = GridLayout.LayoutParams.WRAP_CONTENT;
+                            header.setLayoutParams(headerParms);
+
+                            ImageView cover = new ImageView(activity);
+                            int coverSize = dpToPx(56, activity);
+                            LinearLayout.LayoutParams coverParms = new LinearLayout.LayoutParams(coverSize, coverSize);
+                            cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                            cover.setLayoutParams(coverParms);
+
+                            LinearLayout titleAndArtist = new LinearLayout(activity);
+                            titleAndArtist.setOrientation(LinearLayout.VERTICAL);
+                            titleAndArtist.setGravity(Gravity.CENTER_VERTICAL);
+                            titleAndArtist.setPadding(dpToPx(12, activity), 0, 0, 0);
+
+                            TextView titleText = new TextView(activity);
+                            titleText.setText(track.title);
+                            titleText.setTextColor(Color.WHITE);
+                            titleText.setTextSize(20f);
+
+                            TextView artistText = new TextView(activity);
+                            artistText.setText(track.artist);
+                            artistText.setTextColor(Color.LTGRAY);
+                            artistText.setTextSize(16f);
+
+                            titleAndArtist.addView(titleText);
+                            titleAndArtist.addView(artistText);
+
+                            header.addView(cover);
+                            header.addView(titleAndArtist);
+
+                            // Lyrics Content
 
                             ScrollView scrollView = new ScrollView(activity);
-                            scrollView.setLayoutParams(params);
+                            GridLayout.LayoutParams scrollParams = new GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(0));
+                            scrollParams.width = GridLayout.LayoutParams.MATCH_PARENT;
+                            scrollParams.height = GridLayout.LayoutParams.MATCH_PARENT;
+
+                            scrollView.setLayoutParams(scrollParams);
                             scrollView.setClipToPadding(false);
                             scrollView.setClipChildren(false);
-//                            scrollView.setOnTouchListener((v, event) -> true);
 
                             LinearLayout layout = new LinearLayout(activity);
                             layout.setOrientation(LinearLayout.VERTICAL);
-                            FrameLayout.LayoutParams matchParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+                            ScrollView.LayoutParams matchParams = new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT);
                             layout.setLayoutParams(matchParams);
                             layout.setClipToPadding(false);
                             layout.setClipChildren(false);
                             scrollView.addView(layout);
 
-                            overlay.addView(scrollView, -2);
                             FrameLayout blackBox = new FrameLayout(activity);
-                            blackBox.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                            GridLayout.LayoutParams blackParams = new GridLayout.LayoutParams(GridLayout.spec(0, 2), GridLayout.spec(0));
+                            blackParams.width = GridLayout.LayoutParams.MATCH_PARENT;
+                            blackParams.height = GridLayout.LayoutParams.MATCH_PARENT;
+                            blackBox.setLayoutParams(blackParams);
                             blackBox.setBackgroundColor(Color.BLACK);
-                            blackBox.setAlpha(0.35f);
+                            blackBox.setAlpha(0.2f);
 
-                            overlay.addView(blackBox, -1);
-
-                            // overlay.addView(myText);
-                            root.addView(overlay, -2);
+                            grid.addView(blackBox);
+                            grid.addView(header);
+                            grid.addView(scrollView);
+                            root.addView(grid, -2);
                             XposedBridge.log("[SpotifyPlus] Loaded Beautiful Lyrics UI");
 
-                            RenderLyrics(activity, track, layout, overlay);
+                            RenderLyrics(activity, track, layout, root, cover);
                         }
                         catch (Throwable t) {
                             XposedBridge.log(t);
@@ -194,7 +244,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
         });
     }
 
-    private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer, FrameLayout root) {
+    private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer, ViewGroup root, ImageView albumView) {
         List<Double> vocalGroupStartTimes = new ArrayList<>();
         List<View> lines = new ArrayList<>();
         vocalGroups = new HashMap<>();
@@ -207,12 +257,13 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
             try {
                 Bitmap albumArt = getBitmap(track.imageId);
+                albumView.post(() -> albumView.setImageBitmap(albumArt));
 
                 if(albumArt != null) {
                     AnimatedBackgroundView background = new AnimatedBackgroundView(activity, albumArt);
                     background.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-                    activity.runOnUiThread(() -> root.addView(background, 0));
+                    activity.runOnUiThread(() -> root.addView(background));
                 }
                 SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
                 boolean sendAccessToken = prefs.getBoolean("sendAccessToken", true);
@@ -426,7 +477,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             vocalGroupContainer.setClipToPadding(false);
                             vocalGroupContainer.setClipChildren(false);
                             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
-                            params.setMargins(dpToPx(15, activity), dpToPx(20, activity), dpToPx(15, activity), 0);
+                            params.setMargins(dpToPx(25, activity), dpToPx(40, activity), dpToPx(30, activity), 0);
 
                             if(vocal.oppositeAligned) {
                                 params.addRule(RelativeLayout.ALIGN_PARENT_END);
@@ -478,6 +529,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                         text.setTextColor(Color.WHITE);
                         text.setTextSize(26f);
+                        text.setTypeface(References.beautifulFont.get());
 
                         layout.addView(text);
                         lines.add(layout);
@@ -488,6 +540,11 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                 // lyricsContainer.removeAllViews();
                 lines.forEach(lyricsContainer::addView);
+
+                View spacer = new View(activity);
+                LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dpToPx(180, activity));
+                spacer.setLayoutParams(spacerParams);
+                lyricsContainer.addView(spacer);
 
                 XposedBridge.log("[SpotifyPlus] Finished loading lyrics!");
 
@@ -575,7 +632,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
             final int scrollViewHeight = scrollView.getHeight();
             final int lineHeight = activeLine.getHeight();
             final int lineTopInSv = activeLine.getTop();
-            final int targetScrollY = lineTopInSv - (scrollViewHeight / 2) + (lineHeight / 2);
+            final int targetScrollY = lineTopInSv - (scrollViewHeight / 3) + (lineHeight / 2);
             final int scrollY = scrollView.getScrollY();
             final int lineBottom = lineTopInSv + activeLine.getHeight();
 

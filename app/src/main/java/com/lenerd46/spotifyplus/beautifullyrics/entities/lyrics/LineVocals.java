@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.util.Pair;
 import com.google.android.flexbox.FlexboxLayout;
+import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.*;
 
 import java.util.List;
@@ -51,8 +52,13 @@ public class LineVocals implements SyncableVocals {
         lyricText.setLineState(true);
 
         lyricText.setTextColor(Color.WHITE);
-        lyricText.setTextSize(26f);
+        lyricText.setTextSize(30f);
         lyricText.setPadding(0, 0, 1, 0);
+        lyricText.setTypeface(References.beautifulFont.get());
+
+        if(vocal.oppositeAligned) {
+            lyricText.setTextAlignment(GradientTextView.TEXT_ALIGNMENT_TEXT_END);
+        }
 
         container.addView(lyricText);
         setToGeneralState(false);
@@ -90,6 +96,7 @@ public class LineVocals implements SyncableVocals {
     private void evaluateClassState() {
         if(state == LyricState.ACTIVE) {
             lyricText.setTextColor(Color.argb(255, 255, 255, 255));
+            lyricText.setGradientColors(new int[] { 0xFFFFFFFF, 0x78FFFFFF});
         } else if(state == LyricState.SUNG) {
             lyricText.setProgress(0f);
             lyricText.setTextColor(Color.argb(120, 255, 255, 255));
@@ -97,7 +104,8 @@ public class LineVocals implements SyncableVocals {
             updateLiveTextVisuals(0, 1.0 / 60);
         } else {
             lyricText.setProgress(0f);
-            lyricText.setTextColor(Color.argb(90, 255, 255, 255));
+            lyricText.setTextColor(Color.argb(255, 255, 255, 255));
+            lyricText.setGradientColors(new int[] { 0xFFFFFFFF, 0x50FFFFFF});
 
             updateLiveTextVisuals(0, 1.0 / 60);
         }

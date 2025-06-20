@@ -75,12 +75,12 @@ public class AnimatedBackgroundView extends View {
         float h = sourceImage.getHeight();
 
         blobs.add(new Blob(w * 0.2f, h * 0.2f, 100, 1.1f, 0.1f, false)); // Top Left
-        blobs.add(new Blob(w * 0.8f, h * 0.2f, 60, 1.2f, 0.3f, true)); // Top Right
+        blobs.add(new Blob(w * 0.8f, h * 0.2f, 90, 1.2f, 0.3f, true)); // Top Right
         blobs.add(new Blob(w * 0.2f, h * 0.8f, 150, 1.3f, 0.5f, false)); // Bottom Left
         blobs.add(new Blob(w * 0.8f, h * 0.8f, 80, 1.1f, 0.8f, true)); // Bottom Right
         blobs.add(new Blob(w * 0.5f, h * 0.5f, 55, 1.8f, 0.2f, false)); // Center
         blobs.add(new Blob(w * 0.5f, h * 0.1f, 70, 1.1f, 0.4f, true)); // Middle Top
-        blobs.add(new Blob(w * 0.1f, h * 0.5f, 800, 1.3f, 0.6f, false)); // Middle Left - this was the really big one that sometimes goes away
+        // blobs.add(new Blob(w * 0.1f, h * 0.5f, 800, 1.3f, 0.6f, false)); // Middle Left - this was the really big one that sometimes goes away
         blobs.add(new Blob(w * 0.9f, h * 0.5f, 70, 1.2f, 0.7f, true)); // Middle Right
     }
 
@@ -91,7 +91,7 @@ public class AnimatedBackgroundView extends View {
 
             try {
                 long now = SystemClock.elapsedRealtime();
-                float t = (now - startTimeMs) / 10000f * 2f;
+                float t = (now - startTimeMs) / 10000f * 1.5f;
                 int w = sourceImage.getWidth();
                 int h = sourceImage.getHeight();
 
@@ -110,8 +110,13 @@ public class AnimatedBackgroundView extends View {
 
                 if(blurred) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        RenderEffect blur = RenderEffect.createBlurEffect(350f, 350f, Shader.TileMode.CLAMP);
-                        setRenderEffect(blur);
+                        ColorMatrix matrix = new ColorMatrix();
+                        matrix.setSaturation(2f);
+
+                        RenderEffect color = RenderEffect.createColorFilterEffect(new ColorMatrixColorFilter(matrix));
+                        RenderEffect blur = RenderEffect.createBlurEffect(400f, 400f, Shader.TileMode.CLAMP);
+
+                        setRenderEffect(RenderEffect.createChainEffect(color, blur));
                     } else {
                         offBmp = blurBitmap(offBmp);
                     }

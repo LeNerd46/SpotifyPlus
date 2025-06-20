@@ -223,13 +223,13 @@ public class SyllableVocals implements SyncableVocals {
                         if(syllable.type.equals("Letters")) {
                             for(var letter : syllable.letters) {
                                 GradientTextView text = (GradientTextView) letter.liveText.object;
-                                text.setGradientColors(new int[] { 0xFFFFFFFF, 0x96FFFFFF});
-//                                text.setTextColor(Color.argb(180, 255, 255, 255));
+                                text.setGradientColors(new int[] { 0xFFFFFFFF, 0x78FFFFFF});
+                                text.setTextColor(Color.argb(255, 255, 255, 255));
                             }
                         } else {
                             GradientTextView text = (GradientTextView) syllable.liveText.object;
-                            text.setGradientColors(new int[] { 0xFFFFFFFF, 0x96FFFFFF});
-//                            text.setTextColor(Color.argb(180, 255, 255, 255));
+                            text.setGradientColors(new int[] { 0xFFFFFFFF, 0x78FFFFFF});
+                            text.setTextColor(Color.argb(255, 255, 255, 255));
                         }
                     }
                 } else if(this.state == LyricState.SUNG) {
@@ -237,28 +237,30 @@ public class SyllableVocals implements SyncableVocals {
                         if(syllable.type.equals("Letters")) {
                             for(var letter : syllable.letters) {
                                 GradientTextView text = (GradientTextView) letter.liveText.object;
-                                text.setTextColor(Color.argb(120, 255, 255, 255));
+                                text.setTextColor(Color.argb(100, 255, 255, 255));
                                 text.updateShadow(0f, 0f);
                             }
                         } else {
                             GradientTextView text = (GradientTextView) syllable.liveText.object;
-                            text.setTextColor(Color.argb(120, 255, 255, 255));
+                            text.setTextColor(Color.argb(100, 255, 255, 255));
                             text.updateShadow(0f, 0f);
                         }
                     }
 
-                    container.post(() -> ((View)container.getParent().getParent()).animate().scaleX(1.0f).scaleY(1.0f).setDuration(800).setInterpolator(new OvershootInterpolator()).start());
+                    ((View)container.getParent().getParent()).animate().scaleX(1.0f).scaleY(1.0f).setDuration(800).setInterpolator(new OvershootInterpolator()).start();
                 } else {
                     for(var syllable : this.syllables) {
                         if(syllable.type.equals("Letters")) {
                             for(var letter : syllable.letters) {
                                 GradientTextView text = (GradientTextView) letter.liveText.object;
-//                                text.setTextColor(Color.argb(255, 255, 255, 255));
+                                text.setTextColor(Color.argb(255, 255, 255, 255));
+                            text.setGradientColors(new int[] { 0xFFFFFFFF, 0x3CFFFFFF});
                                 text.updateShadow(0f, 0f);
                             }
                         } else {
                             GradientTextView text = (GradientTextView) syllable.liveText.object;
-//                            text.setTextColor(Color.argb(255, 255, 255, 255));
+                            text.setTextColor(Color.argb(255, 255, 255, 255));
+                            text.setGradientColors(new int[] { 0xFFFFFFFF, 0x3CFFFFFF});
                             text.updateShadow(0f, 0f);
                         }
                     }
@@ -301,8 +303,6 @@ public class SyllableVocals implements SyncableVocals {
         if(liveText.object instanceof GradientTextView) {
             if(Double.isNaN(scale) || Double.isInfinite(scale)) { return false; }
 
-//            XposedBridge.log("[SpotifyPlus] Scale: " + scale + " YOffset: " + yOffset + " Glow: " + glow + " Gradient: " + gradientProgress);
-
             GradientTextView textView = (GradientTextView)liveText.object;
             textView.post(() -> {
                 textView.setScaleX((float)scale);
@@ -311,7 +311,6 @@ public class SyllableVocals implements SyncableVocals {
                 textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
                 textView.setProgress(gradientProgress);
 
-    //            XposedBridge.log("[SpotifyPlus] Shadow Opacity: " + shadowOpacity + " Shadow Radius: " + shadowRadius);
                 textView.updateShadow(shadowOpacity, shadowRadius);
             });
         }
@@ -357,7 +356,6 @@ public class SyllableVocals implements SyncableVocals {
         if(shouldUpdateVisualState || isMoving) {
             double timeScale = Math.max(0, Math.min((double)relativeTime / (double)this.duration, 1));
             boolean isSleeping = true;
-//            XposedBridge.log("[SpotifyPlus] Time Scale: " + timeScale + " Relative Time: " + relativeTime + " Song Timestamp: " + songTimestamp + " Delta Time: " + deltaTime + " Is Immediate: " + isImmediate + " Start Time: " + this.startTime + " Duration: " + this.duration);
 
             for(var syllable : this.syllables) {
                 double syllableTimeScale = Math.max(0, Math.min((double)(timeScale - syllable.startScale) / (double)syllable.durationScale, 1));
