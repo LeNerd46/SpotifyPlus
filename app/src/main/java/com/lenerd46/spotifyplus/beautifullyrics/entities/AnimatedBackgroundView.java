@@ -10,6 +10,8 @@ import android.renderscript.RenderScript;
 import android.renderscript.ScriptIntrinsicBlur;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.ViewGroup;
+import jp.wasabeef.blurry.Blurry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,23 +34,16 @@ public class AnimatedBackgroundView extends View {
     private Bitmap previousBitmap;
     private long transitionStartMs;
     private static final long TRANSITION_DURATION_MS = 2000;
+    private static final float DOWNSAMPLE_FACTOR = 0.1f;
+    private final Context context;
+    private final ViewGroup root;
 
-    public AnimatedBackgroundView(Context context, Bitmap bitmap) {
+    public AnimatedBackgroundView(Context context, Bitmap bitmap, ViewGroup root) {
         super(context);
+        this.context = context;
+        this.root = root;
 
         sourceImage = bitmap;
-        renderThread = new HandlerThread("BGAnim");
-        renderThread.start();
-        renderHandler = new Handler(renderThread.getLooper());
-
-        initBlobsAndData();
-        startTimeMs = SystemClock.elapsedRealtime();
-        scheduleNextFrame();
-    }
-
-    public AnimatedBackgroundView(Context ctx, AttributeSet attrs) {
-        super(ctx, attrs);
-
         renderThread = new HandlerThread("BGAnim");
         renderThread.start();
         renderHandler = new Handler(renderThread.getLooper());
@@ -118,7 +113,7 @@ public class AnimatedBackgroundView extends View {
 
                         setRenderEffect(RenderEffect.createChainEffect(color, blur));
                     } else {
-                        offBmp = blurBitmap(offBmp);
+                        offBmp = blurBitmapOld(offBmp);
                     }
                 }
 
@@ -151,7 +146,7 @@ public class AnimatedBackgroundView extends View {
     };
 
     @SuppressLint("NewApi")
-    private Bitmap blurBitmap(Bitmap input) {
+    private Bitmap blurBitmapOld(Bitmap input) {
         Bitmap output = Bitmap.createBitmap(input.getWidth(), input.getHeight(), Bitmap.Config.ARGB_8888);
 
         RenderScript rs = RenderScript.create(getContext());

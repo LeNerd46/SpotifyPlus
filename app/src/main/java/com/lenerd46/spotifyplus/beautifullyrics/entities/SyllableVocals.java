@@ -1,6 +1,8 @@
 package com.lenerd46.spotifyplus.beautifullyrics.entities;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.util.TypedValue;
@@ -32,6 +34,7 @@ public class SyllableVocals implements SyncableVocals {
     private final Typeface font;
 
     public final ActivityChangedSource activityChanged;
+    public final SharedPreferences prefs;
 
     public SyllableVocals(FlexboxLayout lineContainer, List<SyllableMetadata> syllables, boolean isBackground, boolean isRomanized, boolean oppositeAligned, Activity activity) {
         this.container = lineContainer;
@@ -40,6 +43,21 @@ public class SyllableVocals implements SyncableVocals {
         this.syllables = new ArrayList<>();
         activityChanged = new ActivityChangedSource();
         font = References.beautifulFont.get();
+        prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+
+        if(prefs.getString("lyric_animation_style", "Beautiful Lyrics").equals("Apple Music")) {
+            yOffsetRange = List.of(
+                    Map.entry(0d, 1d / 100d), // Lowest
+                    Map.entry(0.8d, -(1d / 30d)), // Highest
+                    Map.entry(1d, -(1d / 25d)) // Resting
+            );
+        } else {
+            yOffsetRange = List.of(
+                    Map.entry(0d, 1d / 100d),
+                    Map.entry(0.9d, -(1d / 60d)),
+                    Map.entry(1d, 0d)
+            );
+        }
 
         active = false;
         this.isBackground = isBackground;
@@ -416,11 +434,7 @@ public class SyllableVocals implements SyncableVocals {
             Map.entry(1d, 1d) // Resting
     );
 
-    private final List<Map.Entry<Double, Double>> yOffsetRange = List.of(
-            Map.entry(0d, 1d / 100d), // Lowest
-            Map.entry(0.9d, -(1d / 60d)), // Highest
-            Map.entry(1d, 0d) // Resting
-    );
+    private final List<Map.Entry<Double, Double>> yOffsetRange;
 
     private final List<Map.Entry<Double, Double>> glowRange = List.of(
             Map.entry(0d, 0d), // Lowest

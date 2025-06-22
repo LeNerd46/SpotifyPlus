@@ -6,15 +6,11 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.widget.*;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SettingItem;
 import com.lenerd46.spotifyplus.scripting.events.EventManager;
@@ -42,7 +38,9 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     @Override
     protected void hook() {
         try {
-            prefs = References.getPreferences();
+            if(prefs == null) {
+                prefs = context.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+            }
 
             var constructorClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItemSet(item1="))).get(0).getInstance(lpparm.classLoader);
             var parameterClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItem(icon=").fieldCount(6))).get(0).getInstance(lpparm.classLoader);
@@ -50,18 +48,20 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             XposedHelpers.findAndHookConstructor(constructorClass, parameterClass, parameterClass, parameterClass, parameterClass, parameterClass , new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    for(int i = 0; i < 5; i++) {
-                        var item = param.args[i];
+                    if(prefs.getBoolean("remove_create", false)) {
+                        for(int i = 0; i < 5; i++) {
+                            var item = param.args[i];
 
-                        if(item == null) {
-                            continue;
-                        }
+                            if(item == null) {
+                                continue;
+                            }
 
-                        String content = item.toString().toLowerCase();
+                            String content = item.toString().toLowerCase();
 
-                        if(content.contains("create") || content.contains("premium")) {
-                            XposedBridge.log("[SpotifyPlus] Removing navbar item: " + content);
-                            param.args[i] = null;
+                            if(content.contains("create") || content.contains("premium")) {
+                                XposedBridge.log("[SpotifyPlus] Removing navbar item: " + content);
+                                param.args[i] = null;
+                            }
                         }
                     }
                 }
@@ -147,7 +147,6 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
             Object newInstrumentation = bwd0Ctor.newInstance(originalNode, newOnClick, originalImpression);
             Object newProps = propsCtor.newInstance(XposedHelpers.getObjectField(originalProps, "a"), 2131957897, "spotify:home", false, newInstrumentation, false, mask);
-            //            Object newProps = propsCtor.newInstance(XposedHelpers.getObjectField(originalProps, "a"), 2131957897, "spotify:home", false, newInstrumentation, false, 0);
 
             XposedHelpers.setObjectField(newProps, "b", title);
             Object newDwd0 = XposedHelpers.newInstance(dwd0, originalIcon, newProps);
@@ -193,15 +192,15 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             contentContainer.setOrientation(LinearLayout.VERTICAL);
             contentContainer.setPadding(0, dpToPx(16), 0, dpToPx(16));
 
-            contentContainer.addView(createSettingsSection(activity, "Hooks", new String[]{
-                    "Beautiful Lyrics",
-                    "Social",
-                    "Controls Test"
-            }));
+            Map<Integer, String> sections = new HashMap<>();
+            sections.put(0, "General");
+            sections.put(1, "Beautiful Lyrics");
+            sections.put(2, "Social");
+            contentContainer.addView(createSettingsSection(activity, "Hooks", sections));
 
-            contentContainer.addView(createSettingsSection(activity, "Scripting", new String[]{
-                    "General"
-            }));
+            Map<Integer, String> scriptingSections = new HashMap<>();
+            scriptingSections.put(3, "General");
+            contentContainer.addView(createSettingsSection(activity, "Scripting", scriptingSections));
 
 //            if(!scriptSettings.isEmpty()) {
 //                contentContainer.addView(createSettingsSection(activity, "Script Settings", scriptSettings.keySet().toArray(new String[0])));
@@ -438,9 +437,42 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                 return createNavigationControl(activity, item);
             case BUTTON:
                 return createButtonControl(activity, item);
+            case DROPDOWN:
+                return createDropdownControl(activity, item);
             default:
                 return null;
         }
+    }
+
+    private View createDropdownControl(Activity activity, SettingItem item) {
+        Spinner dropdown = new Spinner(activity);
+        List<String> options = item.options != null ? item.options : Collections.emptyList();
+
+        dropdown.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, options));
+
+        if(item.value != null) {
+            int idx = options.indexOf(item.value.toString());
+            if(idx >= 0) dropdown.setSelection(idx);
+        }
+
+        dropdown.setEnabled(item.enabled);
+
+        dropdown.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String newValue = options.get(position);
+                item.value = newValue;
+
+                if(item.onValueChange != null) {
+                    item.onValueChange.onValueChanged(newValue);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) { }
+        });
+
+        return dropdown;
     }
 
     private android.widget.Switch createToggleControl(Activity activity, SettingItem item) {
@@ -662,7 +694,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     }
 
     // This is where you define new detailed settings pages
-    private LinearLayout createSettingsSection(Activity activity, String sectionTitle, String[] items) {
+    private LinearLayout createSettingsSection(Activity activity, String sectionTitle, Map<Integer, String> items) {
         LinearLayout section = new LinearLayout(activity);
         section.setOrientation(LinearLayout.VERTICAL);
         section.setLayoutParams(new LinearLayout.LayoutParams(
@@ -678,7 +710,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
         titleView.setPadding(dpToPx(16), dpToPx(24), dpToPx(16), dpToPx(8));
         section.addView(titleView);
 
-        for (String item : items) {
+        for (var item : items.keySet()) {
             LinearLayout itemLayout = new LinearLayout(activity);
             itemLayout.setOrientation(LinearLayout.HORIZONTAL);
             itemLayout.setGravity(Gravity.CENTER_VERTICAL);
@@ -693,7 +725,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             itemLayout.setBackgroundResource(outValue.resourceId);
 
             TextView itemText = new TextView(activity);
-            itemText.setText(item);
+            itemText.setText(items.get(item));
             itemText.setTextColor(Color.WHITE);
             itemText.setTextSize(16f);
             itemText.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
@@ -717,68 +749,83 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             itemLayout.setOnClickListener(v -> {
                 switch(item) {
                     // HOOKS
-                    case "Controls Test":
-                        List<SettingItem.SettingSection> controlTestSections = Arrays.asList(
-                                new SettingItem.SettingSection("Content preferences", Arrays.asList(
-                                        new SettingItem("Canvas", "Display short, looping visuals on the Now Playing View.", SettingItem.Type.TOGGLE)
-                                                .setValue(false)
-                                                .setOnValueChange(value -> XposedBridge.log("Canvas: " + value)),
-
-                                        new SettingItem("Allow explicit content", "Explicit content (labeled with the ⚠ tag) is playable.", SettingItem.Type.TOGGLE)
-                                                .setValue(true)
-                                                .setOnValueChange(value -> XposedBridge.log("Explicit: " + value)),
-
-                                        new SettingItem("Show unplayable songs", "Songs that aren't available (e.g., due to artist removal or region) are still visible.", SettingItem.Type.TOGGLE)
-                                                .setValue(true)
-                                                .setOnValueChange(value -> XposedBridge.log("Unplayable: " + value))
-                                )),
-
-                                new SettingItem.SettingSection("Display preferences", Arrays.asList(
-                                        new SettingItem("App language", "Set your default language for the Spotify app, plus notifications and emails.", SettingItem.Type.NAVIGATION)
-                                                .setOnNavigate(() -> XposedBridge.log("Navigate to language settings")),
-
-                                        new SettingItem("Audio quality", "Adjust streaming and download quality", SettingItem.Type.SLIDER)
-                                                .setValue(80f)
-                                                .setRange(0f, 100f)
-                                                .setOnValueChange(value -> XposedBridge.log("Quality: " + value))
-                                ))
-                        );
-
-                        showDetailedSettingsPage("Content and display", controlTestSections);
-                        break;
-
-                    case "Beautiful Lyrics":
-
+                    case 1: // Beautiful Lyrics
                         List<SettingItem.SettingSection> lyricsSections = Arrays.asList(
+                                new SettingItem.SettingSection("Visuals", Arrays.asList(
+                                        new SettingItem("Animation Style", "Whether lyrics should be animted more like Apple Music, or Beautiful Lyrics", SettingItem.Type.DROPDOWN)
+                                                .setOptions(Arrays.asList("Beautiful Lyrics", "Apple Music"))
+                                                .setValue(prefs.getString("lyric_animation_style", "Beautiful Lyrics"))
+                                                .setOnValueChange(value -> prefs.edit().putString("lyric_animation_style", (String)value).apply()),
+                                        new SettingItem("Interlude Duration", "How much time it takes to show an interlude", SettingItem.Type.DROPDOWN)
+                                                .setOptions(Arrays.asList("Beautiful Lyrics", "Spotify Plus", "Apple Music"))
+                                                .setValue(prefs.getString("lyric_interlude_duration", "Beautiful Lyrics"))
+                                                .setOnValueChange(value -> prefs.edit().putString("lyric_interlude_duration", (String)value).apply())
+                                )),
                                 new SettingItem.SettingSection("Privacy", Arrays.asList(
                                         new SettingItem("Send Access Token", "Send your Spotify access token to the Beautiful Lyrics API. If disabled, some songs will not load lyrics", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyrics_send_token", true))
-                                                .setOnValueChange(value -> {
-                                                    prefs.edit().putBoolean("lyrics_send_token", (Boolean)value).apply();
-                                                })
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_send_token", (Boolean)value).apply())
                                 ))
                         );
 
                         showDetailedSettingsPage("Beautiful Lyrics Settings", lyricsSections);
                         break;
 
-                    case "Social":
-
+                    case 2: // Social
                         List<SettingItem.SettingSection> socialSections = Arrays.asList(
-                                new SettingItem.SettingSection("Privacy", Arrays.asList(
-                                        new SettingItem("Enabled", "Whether to enable the social hooks (requires sending your Spotify access token for authentication)", SettingItem.Type.TOGGLE)
+                                new SettingItem.SettingSection("Privacy", Arrays.asList( // (requires sending your Spotify access token for authentication)
+                                        new SettingItem("Enabled", "Whether to enable the social hooks", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("social_enabled", false))
-                                                .setOnValueChange(value -> {
-                                                    prefs.edit().putBoolean("social_enabled", (Boolean)value).apply();
-                                                })
+                                                .setEnabled(true)
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("social_enabled", (Boolean)value).apply())
+//                                                .setOnValueChange(value -> {
+//                                                    try {
+//                                                        Class<?> duw = XposedHelpers.findClass("p.duw", lpparm.classLoader);
+//                                                        Object request = XposedHelpers.newInstance(duw, 60000L);
+//
+//                                                        Class<?> oj60 = XposedHelpers.findClass("p.oj60", lpparm.classLoader);
+//                                                        Object wrapped = XposedHelpers.newInstance(oj60, request);
+//
+//                                                        for(Method method : SeekHook.icdInstance.getClass().getDeclaredMethods()) {
+//                                                            if(method.getName().equals("apply") && method.getParameterTypes().length == 1) {
+//                                                                method.setAccessible(true);
+//                                                                method.invoke(SeekHook.icdInstance, wrapped);
+//                                                                XposedBridge.log("[SpotifyPlus] Triggered custom seek!");
+//                                                            }
+//                                                        }
+//                                                    } catch (Exception e) {
+//                                                        XposedBridge.log(e);
+//                                                    }
+//                                                })
                                 ))
                         );
 
                         showDetailedSettingsPage("Social Settings", socialSections);
                         break;
 
+                    case 0: // General
+                        List<SettingItem.SettingSection> generalGeneralSettings = Arrays.asList(
+                                new SettingItem.SettingSection("General", Arrays.asList(
+                                        new SettingItem("Check For Updates", "Whether to check for updates on start", SettingItem.Type.TOGGLE)
+                                                .setValue(prefs.getBoolean("general_check_updates", true))
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("general_check_updates", (Boolean)value).apply())
+                                )),
+                                new SettingItem.SettingSection("UI", Arrays.asList(
+                                        new SettingItem("Remove Create Button", "Removes the create button in the navbar", SettingItem.Type.TOGGLE)
+                                                .setValue(prefs.getBoolean("remove_create", false))
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("remove_create", (Boolean)value).apply()),
+                                        new SettingItem("Startup Page", "What page Spotify should open when you open the app", SettingItem.Type.DROPDOWN)
+                                                .setOptions(Arrays.asList("Home", "Search", "Explore", "Library"))
+                                                .setValue(prefs.getString("startup_page", "HOME").charAt(0) + prefs.getString("startup_page", "HOME").substring(1).toLowerCase())
+                                                .setOnValueChange(value -> prefs.edit().putString("startup_page", ((String)value).toUpperCase()).apply())
+                                ))
+                        );
+
+                        showDetailedSettingsPage("General Settings", generalGeneralSettings);
+                        break;
+
                     // SCRIPTING
-                    case "General":
+                    case 3: // General
                         List<SettingItem.SettingSection> generalSections = Arrays.asList(
                                 new SettingItem.SettingSection("General", Arrays.asList(
                                         new SettingItem("Enabled", "Sets whether to run scripts or not. This feature is still in development, sorry", SettingItem.Type.TOGGLE)

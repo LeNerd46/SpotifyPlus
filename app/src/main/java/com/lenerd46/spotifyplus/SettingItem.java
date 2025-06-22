@@ -8,7 +8,8 @@ public class SettingItem {
         SLIDER,
         TEXT_INPUT,
         NAVIGATION,
-        BUTTON
+        BUTTON,
+        DROPDOWN
     }
 
     public final String title;
@@ -18,6 +19,7 @@ public class SettingItem {
     public Object value;
     public Object minValue;
     public Object maxValue;
+    public List<String> options;
 
     public Runnable onNavigate;
     public SettingValueChangeListener onValueChange;
@@ -37,6 +39,11 @@ public class SettingItem {
     public SettingItem setRange(Object minValue, Object maxValue) {
         this.minValue = minValue;
         this.maxValue = maxValue;
+        return this;
+    }
+
+    public SettingItem setOptions(List<String> options) {
+        this.options = options;
         return this;
     }
 

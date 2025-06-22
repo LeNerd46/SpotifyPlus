@@ -4,9 +4,8 @@ import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Color;
+import android.graphics.*;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -61,6 +60,9 @@ public class BeautifulLyricsHook extends SpotifyHook {
     private static Map<FlexboxLayout, List<SyncableVocals>> vocalGroups;
     private volatile  boolean stop = false;
     private Thread mainLoop;
+    private Handler closeButtonHandler = new Handler(Looper.getMainLooper());
+    private Runnable closeButtonRunnable;
+    private ImageView closeButton;
 
     private static final float MAX_SCALE = 1.008f;
     private static final float MIN_SCALE = 1.0f;
@@ -92,14 +94,8 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             grid.setRowCount(2);
                             grid.setColumnCount(1);
                             grid.setElevation(10f);
-
-//                            FrameLayout overlay = new FrameLayout(activity);
-//                            GridLayout.LayoutParams gridLayoutParams = new GridLayout.LayoutParams(GridLayout.spec(0, 2), GridLayout.spec(0));
-//                            gridLayoutParams.width = GridLayout.LayoutParams.MATCH_PARENT;
-//                            gridLayoutParams.height = GridLayout.LayoutParams.MATCH_PARENT;
-//                            overlay.setLayoutParams(gridLayoutParams);
-//                            overlay.setClipToPadding(false);
-//                            overlay.setClipChildren(false);
+                            grid.setClickable(true);
+                            grid.setFocusable(true);
 
                             SpotifyTrack track = References.getTrackTitle(lpparm, bridge);
                             if(track == null) { XposedBridge.log("[SpotifyPlus] Failed to get current track"); return; }
@@ -114,14 +110,18 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                             // Header
 
+                            FrameLayout headerContainer = new FrameLayout(activity);
+                            GridLayout.LayoutParams headerParams = new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0));
+                            headerParams.width = GridLayout.LayoutParams.MATCH_PARENT;
+                            headerParams.height = GridLayout.LayoutParams.WRAP_CONTENT;
+                            headerContainer.setLayoutParams(headerParams);
+
                             LinearLayout header = new LinearLayout(activity);
                             header.setOrientation(LinearLayout.HORIZONTAL);
                             header.setGravity(Gravity.CENTER_VERTICAL);
                             header.setPadding(dpToPx(22, activity), dpToPx(32, activity), dpToPx(22, activity), dpToPx(18, activity));
 
-                            GridLayout.LayoutParams headerParms = new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0));
-                            headerParms.width = GridLayout.LayoutParams.MATCH_PARENT;
-                            headerParms.height = GridLayout.LayoutParams.WRAP_CONTENT;
+                            FrameLayout.LayoutParams headerParms = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
                             header.setLayoutParams(headerParms);
 
                             ImageView cover = new ImageView(activity);
@@ -151,6 +151,23 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             header.addView(cover);
                             header.addView(titleAndArtist);
 
+                            closeButton = new ImageView(activity);
+                            int closeSize = dpToPx(36, activity);
+                            FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize, Gravity.END | Gravity.CENTER_VERTICAL);
+                            closeParams.setMargins(0, dpToPx(8, activity), dpToPx(22, activity), 0);
+                            closeButton.setLayoutParams(closeParams);
+                            closeButton.setImageDrawable(createChevronDownIcon(activity));
+                            closeButton.setAlpha(0f);
+                            closeButton.setClickable(true);
+                            closeButton.setFocusable(true);
+
+                            closeButton.setOnClickListener(v -> {
+                                activity.onBackPressed();
+                            });
+
+                            headerContainer.addView(header);
+                            headerContainer.addView(closeButton);
+
                             // Lyrics Content
 
                             ScrollView scrollView = new ScrollView(activity);
@@ -178,8 +195,19 @@ public class BeautifulLyricsHook extends SpotifyHook {
                             blackBox.setBackgroundColor(Color.BLACK);
                             blackBox.setAlpha(0.2f);
 
+                            closeButtonRunnable = () -> closeButton.animate().alpha(0f).setDuration(300).start();
+                            grid.setOnTouchListener((v, event) -> {
+                                closeButtonHandler.removeCallbacksAndMessages(closeButtonRunnable);
+
+                                closeButton.animate().alpha(0.8f).setDuration(200).withEndAction(() -> {
+                                    closeButtonHandler.postDelayed(closeButtonRunnable, 3000);
+                                }).start();
+
+                                return false;
+                            });
+
                             grid.addView(blackBox);
-                            grid.addView(header);
+                            grid.addView(headerContainer);
                             grid.addView(scrollView);
                             root.addView(grid, -2);
                             XposedBridge.log("[SpotifyPlus] Loaded Beautiful Lyrics UI");
@@ -260,7 +288,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                 albumView.post(() -> albumView.setImageBitmap(albumArt));
 
                 if(albumArt != null) {
-                    AnimatedBackgroundView background = new AnimatedBackgroundView(activity, albumArt);
+                    AnimatedBackgroundView background = new AnimatedBackgroundView(activity, albumArt, root);
                     background.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
                     activity.runOnUiThread(() -> root.addView(background));
@@ -306,7 +334,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                     ProviderLyrics providedLyrics = new ProviderLyrics();
                     providedLyrics.syllableLyrics = providerLyrics;
 
-                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providedLyrics);
+                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providedLyrics, activity);
                     SyllableSyncedLyrics lyrics = transformedLyrics.lyrics.syllableLyrics;
 
                     int i = 0;
@@ -425,7 +453,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
 
                     ProviderLyrics providerLyricsThing = new ProviderLyrics();
                     providerLyricsThing.lineLyrics = providerLyrics;
-                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providerLyricsThing);
+                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providerLyricsThing, activity);
 
                     LineSyncedLyrics lyrics = transformedLyrics.lyrics.lineLyrics;
 
@@ -512,7 +540,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                     ProviderLyrics providerLyricsThing = new ProviderLyrics();
                     providerLyricsThing.staticLyrics = providerLyrics;
 
-                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providerLyricsThing);
+                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(providerLyricsThing, activity);
                     StaticSyncedLyrics lyrics = transformedLyrics.lyrics.staticLyrics;
                     isStatic = true;
 
@@ -686,6 +714,32 @@ public class BeautifulLyricsHook extends SpotifyHook {
                 connection.disconnect();
             }
         }
+    }
+
+    private Drawable createChevronDownIcon(Activity context) {
+        int size = dpToPx(24, context);
+        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+
+        Paint paint = new Paint();
+        paint.setColor(Color.parseColor("#B3B3B3"));
+        paint.setAntiAlias(true);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dpToPx(2, context));
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+
+        float scale = size / 24f;
+
+        // Draw chevron down
+        Path path = new Path();
+        path.moveTo(6f * scale, 9f * scale);
+        path.lineTo(12f * scale, 15f * scale);
+        path.lineTo(18f * scale, 9f * scale);
+
+        canvas.drawPath(path, paint);
+
+        return new android.graphics.drawable.BitmapDrawable(context.getResources(), bitmap);
     }
 
     int dpToPx(int dp, Activity activity) {

@@ -1,35 +1,53 @@
 package com.lenerd46.spotifyplus;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Application;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.res.Resources;
 import android.content.res.XModuleResources;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.*;
+import android.widget.Button;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.hooks.*;
 import de.robv.android.xposed.*;
+import de.robv.android.xposed.callbacks.XC_InitPackageResources;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 import org.luckypray.dexkit.DexKitBridge;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteInit {
+public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitPackageResources {
     static {
         System.loadLibrary("dexkit");
     }
 
     private DexKitBridge bridge;
     private String modulePath = null;
+    private XModuleResources modResources;
+    private static final String MODULE_VERSION = "0.5";
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
         if(!lpparam.packageName.equals("com.spotify.music")) return;
-        XposedBridge.log("[SpotifyPlus] Loading SpotifyPlus v0.5");
+        XposedBridge.log("[SpotifyPlus] Loading SpotifyPlus v" + MODULE_VERSION);
 
         if(bridge == null) {
             try {
@@ -67,23 +85,27 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
         XposedHelpers.findAndHookMethod(Activity.class, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Activity activity = (Activity) param.thisObject;
                 Typeface beautifulFont = References.beautifulFont.get();
 
-                if(beautifulFont != null) return;
+                if (beautifulFont != null) return;
 
                 try {
                     Resources resources = XModuleResources.createInstance(modulePath, null);
                     beautifulFont = Typeface.createFromAsset(resources.getAssets(), "fonts/lyrics_medium.ttf");
 
                     XposedBridge.log("[SpotifyPlus] Successfully loaded font!");
-                } catch(Throwable t) {
+                } catch (Throwable t) {
                     XposedBridge.log("[SpotifyPlus] Failed to load font (error)");
                     XposedBridge.log(t);
                 }
 
-                if(beautifulFont != null) {
+                if (beautifulFont != null) {
                     References.beautifulFont = new WeakReference<>(beautifulFont);
                 }
+
+                navigateToStartupPage(activity);
+                checkForUpdates(activity);
             }
         });
 
@@ -94,9 +116,10 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 //                new SettingsFlyoutHook(context).init(lpparam, bridge);
 //                new ScriptManager().init(context, lpparam.classLoader);
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
-                new BeautifulLyricsHook().init(lpparam, bridge);
+//                new BeautifulLyricsHook().init(lpparam, bridge);
                 new SocialHook().init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
+//                new SeekHook().init(lpparam, bridge);
                 //                new PremiumHook().init(lpparam);
             }
         });
@@ -105,5 +128,120 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
     @Override
     public void initZygote(StartupParam startupParam) throws Throwable {
         modulePath = startupParam.modulePath;
+    }
+
+    private void navigateToStartupPage(Activity activity) {
+        SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+        String page = prefs.getString("startup_page", "HOME");
+
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setPackage("com.spotify.music");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        switch(page) {
+            case "HOME":
+                intent.setData(Uri.parse("spotify:home"));
+                break;
+
+            case "SEARCH":
+                intent.setData(Uri.parse("spotify:search"));
+                break;
+
+            case "EXPLORE":
+                intent.setData(Uri.parse("spotify:find"));
+                break;
+
+            case "LIBRARY":
+                intent.setData(Uri.parse("spotify:collection"));
+                break;
+        }
+
+        activity.startActivity(intent);
+    }
+
+    private void checkForUpdates(Activity activity) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+        if (prefs.getBoolean("general_check_updates", true)) {
+            executor.execute(() -> {
+                String thisContent = "";
+
+                try {
+                    URL url = new URL("https://api.github.com/repos/lenerd46/spotifyplus/releases/latest");
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("GET");
+
+                    int responseCode = connection.getResponseCode();
+                    if(responseCode == HttpURLConnection.HTTP_OK) {
+                        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+
+                        String inputLine;
+                        StringBuilder response = new StringBuilder();
+                        while((inputLine = in.readLine()) != null) {
+                            response.append(inputLine);
+                        }
+
+                        in.close();
+                        thisContent = response.toString();
+                    }
+                } catch (Exception e) {
+                    XposedBridge.log(e);
+                }
+
+                String content = thisContent;
+                handler.post(() -> {
+                    JsonObject json = new JsonParser().parseString(content).getAsJsonObject();
+                    String latest = json.get("tag_name").getAsString().replace("v", "");
+                    String current = MODULE_VERSION;
+
+                    String[] latestParts = latest.split("\\.");
+                    String[] currentParts = current.split("\\.");
+
+                    for(int i = 0; i < Math.max(latestParts.length, currentParts.length); i++) {
+                        int latestNum = i < latestParts.length ? Integer.parseInt(latestParts[i]) : 0;
+                        int currentNum = i < currentParts.length ? Integer.parseInt(currentParts[i]) : 0;
+
+                        if(latestNum > currentNum) {
+                            // New update available!
+
+                            LayoutInflater inflater = LayoutInflater.from(activity);
+                            View dialogueView = inflater.inflate(modResources.getLayout(R.layout.dialogue_update), (ViewGroup) activity.getWindow().getDecorView(), false);
+
+                            Button download = dialogueView.findViewById(modResources.getIdentifier("download_button", "id", "com.lenerd46.spotifyplus"));
+                            Button later = dialogueView.findViewById(modResources.getIdentifier("later_button", "id", "com.lenerd46.spotifyplus"));
+
+                            AlertDialog dialogue = new AlertDialog.Builder(activity).setView(dialogueView).create();
+
+                            later.setOnClickListener(v -> dialogue.dismiss());
+
+                            download.setOnClickListener(v -> {
+                                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/LeNerd46/SpotifyPlus/releases"));
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                activity.startActivity(intent);
+                                dialogue.dismiss();
+                            });
+
+                            dialogue.show();
+
+                            Window dialogueWindow = dialogue.getWindow();
+                            if(dialogueWindow != null) {
+                                int width = activity.getResources().getDisplayMetrics().widthPixels;
+                                dialogueWindow.setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT);
+                            }
+                        }
+                    }
+                });
+            });
+        }
+    }
+
+    @Override
+    public void handleInitPackageResources(XC_InitPackageResources.InitPackageResourcesParam resparam) throws Throwable {
+        if(!resparam.packageName.equals("com.spotify.music")) {
+            modResources = XModuleResources.createInstance(modulePath, resparam.res);
+        }
     }
 }

@@ -1,5 +1,12 @@
 package com.lenerd46.spotifyplus.beautifullyrics.entities;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.*;
+import android.graphics.drawable.Drawable;
+import android.preference.PreferenceManager;
+import android.util.TypedValue;
 import com.github.pemistahl.lingua.api.Language;
 import com.github.pemistahl.lingua.api.LanguageDetector;
 import com.github.pemistahl.lingua.api.LanguageDetectorBuilder;
@@ -46,9 +53,12 @@ public class LyricUtilities {
         return detectedLanguage.getIsoCode639_1().toString();
     }
 
-    public static TransformedLyrics transformLyrics(ProviderLyrics providedLyrics) {
+    public static TransformedLyrics transformLyrics(ProviderLyrics providedLyrics, Activity activity) {
         TransformedLyrics lyrics = new TransformedLyrics();
         lyrics.lyrics = providedLyrics;
+        SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+        String interludeOption = prefs.getString("lyric_interlude_duration", "Beautiful Lyrics");
+        final int interludeDuration = interludeOption.equals("Beautiful Lyrics") ? 2 : interludeOption.equals("Spotify Plus") ? 3 : 8;
 
         XposedBridge.log(lyrics.lyrics.toString());
 
@@ -98,7 +108,7 @@ public class LyricUtilities {
                 time.startTime = 0;
                 time.endTime = firstVocalGroup.startTime - 0.25d;
 
-                if(firstVocalGroup.startTime >= 2) {
+                if(firstVocalGroup.startTime >= interludeDuration) {
                     vocalTimes.add(0, time);
                     var newList = new ArrayList<>(lyrics.lyrics.lineLyrics.content);
 
@@ -114,7 +124,7 @@ public class LyricUtilities {
                     var endingVocalGroup = vocalTimes.get(i);
                     var startingvocalGroup = vocalTimes.get(i - 1);
 
-                    if(endingVocalGroup.startTime - startingvocalGroup.endTime >= 2) {
+                    if(endingVocalGroup.startTime - startingvocalGroup.endTime >= interludeDuration) {
                         vocalTimes.add(i, time);
 
                         TimeMetadata newTime = new TimeMetadata();
@@ -183,7 +193,7 @@ public class LyricUtilities {
             time.startTime = 0;
             time.endTime = firstVocalGroup.startTime - 0.25d;
 
-            if(firstVocalGroup.startTime >= 2) {
+            if(firstVocalGroup.startTime >= interludeDuration) {
                 vocalTimes.add(0, time);
                 var newList = new ArrayList<>(lyrics.lyrics.syllableLyrics.content);
 
@@ -199,7 +209,7 @@ public class LyricUtilities {
                 var endingVocalGroup = vocalTimes.get(i);
                 var startingvocalGroup = vocalTimes.get(i - 1);
 
-                if(endingVocalGroup.startTime - startingvocalGroup.endTime >= 2) {
+                if(endingVocalGroup.startTime - startingvocalGroup.endTime >= interludeDuration) {
                     vocalTimes.add(i, time);
 
                     TimeMetadata newTime = new TimeMetadata();
