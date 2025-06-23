@@ -41,7 +41,6 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
     private DexKitBridge bridge;
     private String modulePath = null;
-    private XModuleResources modResources;
     private static final String MODULE_VERSION = "0.5";
 
     @Override
@@ -116,10 +115,9 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 //                new SettingsFlyoutHook(context).init(lpparam, bridge);
 //                new ScriptManager().init(context, lpparam.classLoader);
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
-//                new BeautifulLyricsHook().init(lpparam, bridge);
+                new BeautifulLyricsHook().init(lpparam, bridge);
                 new SocialHook().init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
-//                new SeekHook().init(lpparam, bridge);
                 //                new PremiumHook().init(lpparam);
             }
         });
@@ -207,6 +205,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                         if(latestNum > currentNum) {
                             // New update available!
 
+                            XModuleResources modResources = References.modResources;
                             LayoutInflater inflater = LayoutInflater.from(activity);
                             View dialogueView = inflater.inflate(modResources.getLayout(R.layout.dialogue_update), (ViewGroup) activity.getWindow().getDecorView(), false);
 
@@ -241,7 +240,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
     @Override
     public void handleInitPackageResources(XC_InitPackageResources.InitPackageResourcesParam resparam) throws Throwable {
         if(!resparam.packageName.equals("com.spotify.music")) {
-            modResources = XModuleResources.createInstance(modulePath, resparam.res);
+            References.modResources = XModuleResources.createInstance(modulePath, resparam.res);
         }
     }
 }

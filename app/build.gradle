@@ -43,4 +43,5 @@ dependencies {
     implementation 'com.mikhaellopez:circleview:1.4.1'
     implementation 'org.luckypray:dexkit:2.0.0'
     implementation 'jp.wasabeef:blurry:4.0.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }

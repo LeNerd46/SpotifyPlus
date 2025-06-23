@@ -5,7 +5,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
 import android.widget.LinearLayout;
@@ -35,6 +37,7 @@ public class SyllableVocals implements SyncableVocals {
 
     public final ActivityChangedSource activityChanged;
     public final SharedPreferences prefs;
+    public final boolean appleStyle;
 
     public SyllableVocals(FlexboxLayout lineContainer, List<SyllableMetadata> syllables, boolean isBackground, boolean isRomanized, boolean oppositeAligned, Activity activity) {
         this.container = lineContainer;
@@ -51,12 +54,16 @@ public class SyllableVocals implements SyncableVocals {
                     Map.entry(0.8d, -(1d / 30d)), // Highest
                     Map.entry(1d, -(1d / 25d)) // Resting
             );
+
+            appleStyle = true;
         } else {
             yOffsetRange = List.of(
                     Map.entry(0d, 1d / 100d),
                     Map.entry(0.9d, -(1d / 60d)),
                     Map.entry(1d, 0d)
             );
+
+            appleStyle = false;
         }
 
         active = false;
@@ -67,8 +74,6 @@ public class SyllableVocals implements SyncableVocals {
 
         List<List<SyllableMetadata>> syllableGroups = new ArrayList<>();
         List<SyllableMetadata> currentGroup = new ArrayList<>();
-
-        List<View> visualElements = new ArrayList<>();
 
         // Go through and create our syllable groups
         for(var syllableMetadata : syllables) {
@@ -219,12 +224,12 @@ public class SyllableVocals implements SyncableVocals {
         double timeScale = state ? 1 : 0;
 
         for(var syllable : syllables) {
-            updateLiveTextState(syllable.liveText, timeScale, timeScale, true);
+            updateLiveTextState(syllable.liveText, timeScale, timeScale, true, false);
             updateLiveTextVisuals(syllable.liveText, false, timeScale, 0);
 
             if(syllable.type.equals("Letters")) {
                 for(var letter : syllable.letters) {
-                    updateLiveTextState(letter.liveText, timeScale, timeScale, true);
+                    updateLiveTextState(letter.liveText, timeScale, timeScale, true, true);
                     updateLiveTextVisuals(letter.liveText, true, timeScale, 0);
                 }
             }
@@ -289,8 +294,8 @@ public class SyllableVocals implements SyncableVocals {
         }
     }
 
-    public void updateLiveTextState(LiveText liveText, double timeScale, double glowTimeScale, boolean forceTo) {
-        Spline scaleSpline = getSpline(scaleRange);
+    public void updateLiveTextState(LiveText liveText, double timeScale, double glowTimeScale, boolean forceTo, boolean isEmphasized) {
+        Spline scaleSpline = getSpline((appleStyle && isEmphasized && this.state == LyricState.ACTIVE) ? emphasisedScaleRange : scaleRange);
         Spline yOffsetSpline = getSpline(yOffsetRange);
         Spline glowSpline = getSpline(glowRange);
 
@@ -323,13 +328,23 @@ public class SyllableVocals implements SyncableVocals {
 
             GradientTextView textView = (GradientTextView)liveText.object;
             textView.post(() -> {
-                textView.setScaleX((float)scale);
-                textView.setScaleY((float)scale);
+                if(!appleStyle) {
+                    textView.setScaleX((float)scale);
+                    textView.setScaleY((float)scale);
 
-                textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
-                textView.setProgress(gradientProgress);
+                    textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
+                    textView.setProgress(gradientProgress);
 
-                textView.updateShadow(shadowOpacity, shadowRadius);
+                    textView.updateShadow(shadowOpacity, shadowRadius);
+                } else {
+                    textView.setScaleX((float)scale);
+                    textView.setScaleY((float)scale);
+
+                    textView.setTranslationY((float)yOffset);
+                    textView.setProgress(gradientProgress);
+
+                    textView.updateShadow(shadowOpacity, shadowRadius);
+                }
             });
         }
 
@@ -387,7 +402,7 @@ public class SyllableVocals implements SyncableVocals {
                         double glowTimeScale = Math.max(0, Math.min(letterTime / letter.glowDuration, 1));
 
                         if(shouldUpdateVisualState) {
-                            updateLiveTextState(letter.liveText, letterTimeScale, glowTimeScale, isImmediate);
+                            updateLiveTextState(letter.liveText, letterTimeScale, glowTimeScale, isImmediate, true);
                         }
 
                         if(isMoving) {
@@ -401,7 +416,7 @@ public class SyllableVocals implements SyncableVocals {
                 }
 
                 if(shouldUpdateVisualState) {
-                    updateLiveTextState(syllable.liveText, syllableTimeScale, syllableTimeScale, isImmediate);
+                    updateLiveTextState(syllable.liveText, syllableTimeScale, syllableTimeScale, isImmediate, false);
                 }
 
                 if(isMoving) {
@@ -430,9 +445,17 @@ public class SyllableVocals implements SyncableVocals {
 
     private final List<Map.Entry<Double, Double>> scaleRange = List.of(
             Map.entry(0d, 1d), // Lowest
-            Map.entry(0.7d, 1.025d), // Highest
+            Map.entry(0.7d, 1.03d), // Highest
             Map.entry(1d, 1d) // Resting
     );
+
+    private final List<Map.Entry<Double, Double>> emphasisedScaleRange =
+            List.of(
+                    Map.entry(0d, 1d),
+                    Map.entry(0.3d, 1.25d),
+                    Map.entry(1d, 1d)
+            );
+
 
     private final List<Map.Entry<Double, Double>> yOffsetRange;
 

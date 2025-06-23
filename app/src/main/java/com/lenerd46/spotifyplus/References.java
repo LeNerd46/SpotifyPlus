@@ -32,6 +32,7 @@ public class References {
     public static WeakReference<Object> playerStateWrapper = new WeakReference<>(null);
     public static WeakReference<String> accessToken = new WeakReference<>(null);
     public static WeakReference<Typeface> beautifulFont = new WeakReference<>(null);
+    public static XModuleResources modResources = null;
 
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     private static Method hasTrackMethod;
