@@ -14,11 +14,6 @@
         <meta-data android:name="xposedmodule" android:value="true"/>
         <meta-data android:name="xposeddescription" android:value="Enhance Spotify with cool stuff"/>
         <meta-data android:name="xposedminversion" android:value="82"/>
-
-        <activity
-                android:name=".ui.DirectoryPicker"
-                android:exported="true"
-                android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
     </application>
 
 </manifest>

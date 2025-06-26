@@ -11,7 +11,7 @@ import android.view.ViewGroup;
 import android.widget.*;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SettingItem;
-import com.lenerd46.spotifyplus.scripting.events.EventManager;
+import com.lenerd46.spotifyplus.scripting.EventManager;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import org.luckypray.dexkit.query.FindClass;
@@ -134,7 +134,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
     private void showSettingsPage() {
         try {
-            Activity activity = References.currentActivity.get();
+            Activity activity = References.currentActivity;
             if (activity == null || activity.isFinishing()) return;
 
             ViewGroup rootView = activity.findViewById(android.R.id.content);
@@ -257,7 +257,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
     private void showDetailedSettingsPage(String pageTitle, List<SettingItem.SettingSection> sections) {
         try {
-            Activity activity = References.currentActivity.get();
+            Activity activity = References.currentActivity;
             if (activity == null || activity.isFinishing()) return;
 
             ViewGroup rootView = activity.findViewById(android.R.id.content);
@@ -1002,7 +1002,7 @@ public class SettingsFlyoutHook extends SpotifyHook {
 
     private void showMarketplace() {
         try {
-            Activity activity = References.currentActivity.get();
+            Activity activity = References.currentActivity;
             if (activity == null || activity.isFinishing()) return;
 
             ViewGroup rootView = activity.findViewById(android.R.id.content);

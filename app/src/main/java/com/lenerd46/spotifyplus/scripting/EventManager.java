@@ -1,4 +1,4 @@
-package com.lenerd46.spotifyplus.scripting.events;
+package com.lenerd46.spotifyplus.scripting;
 
 import com.lenerd46.spotifyplus.hooks.ScriptManager;
 import de.robv.android.xposed.XposedBridge;

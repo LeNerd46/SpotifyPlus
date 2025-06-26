@@ -4,26 +4,26 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import androidx.documentfile.provider.DocumentFile;
-import com.lenerd46.spotifyplus.scripting.Debug;
-import com.lenerd46.spotifyplus.scripting.SettingsExtensionManager;
-import com.lenerd46.spotifyplus.scripting.SpotifyPlayer;
-import com.lenerd46.spotifyplus.scripting.SpotifyPlusApi;
-import com.lenerd46.spotifyplus.scripting.entities.ScriptableSettingItem;
-import com.lenerd46.spotifyplus.scripting.entities.ScriptableSettingSection;
-import com.lenerd46.spotifyplus.scripting.entities.ScriptableSpotifyTrack;
-import com.lenerd46.spotifyplus.scripting.events.EventManager;
+import com.google.gson.Gson;
+import com.lenerd46.spotifyplus.References;
+import com.lenerd46.spotifyplus.scripting.*;
+import com.lenerd46.spotifyplus.scripting.entities.*;
+import com.lenerd46.spotifyplus.scripting.EventManager;
 import de.robv.android.xposed.XposedBridge;
 import com.faendir.rhino_android.RhinoAndroidHelper;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 
 import java.io.*;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class ScriptManager extends SpotifyHook {
     public static ScriptManager instance = null;
+    public List<ScriptMetadata> loadedScripts = new ArrayList<>();
     private Scriptable scriptScope;
+    private int nextId = 4;
+    private final Map<String, Integer> scriptIds = new HashMap<>();
+    private Context moduleContext;
 
     private ScriptManager() { }
 
@@ -39,12 +39,21 @@ public class ScriptManager extends SpotifyHook {
         return this.scriptScope;
     }
 
-    public void runScript(String code, String name) {
+    public void runScript(String code, String name, String fileName) {
         org.mozilla.javascript.Context context = new RhinoAndroidHelper().enterContext();
 
         try {
             context.setOptimizationLevel(-1);
             this.scriptScope = context.initStandardObjects();
+
+            if(!scriptIds.containsKey(name)) {
+                scriptIds.put(name, nextId++);
+            }
+
+            context.putThreadLocal("id", scriptIds.get(name));
+            context.putThreadLocal("name", name);
+            context.putThreadLocal("file_name", fileName);
+            context.putThreadLocal("prefs", References.getScriptPreferences(name, moduleContext));
 
             Object eventManager = org.mozilla.javascript.Context.javaToJS(EventManager.getInstance(), this.scriptScope);
             ScriptableObject.putProperty(this.scriptScope, "events", eventManager);
@@ -52,15 +61,18 @@ public class ScriptManager extends SpotifyHook {
             ScriptableObject.defineClass(this.scriptScope, ScriptableSpotifyTrack.class);
             ScriptableObject.defineClass(this.scriptScope, ScriptableSettingSection.class);
             ScriptableObject.defineClass(this.scriptScope, ScriptableSettingItem.class);
+            ScriptableObject.defineClass(this.scriptScope, ScriptableSideDrawerItem.class);
+            ScriptableObject.defineClass(this.scriptScope, ScriptableScriptUI.class);
+            ScriptableObject.defineClass(this.scriptScope, ScriptableContextMenuItem.class);
 
             List<SpotifyPlusApi> apis = Arrays.asList(
                     new SpotifyPlayer(this.scriptScope, lpparm, bridge),
                     new Debug(),
-                    new SettingsExtensionManager()
+                    new PreferencesApi()
             );
 
             for(SpotifyPlusApi api : apis) {
-                api.register(this.scriptScope, context, name);
+                api.register(this.scriptScope, context);
             }
 
             context.evaluateString(this.scriptScope, code, name, 1, null);
@@ -73,6 +85,7 @@ public class ScriptManager extends SpotifyHook {
     public void init(Context ctx, ClassLoader loader) {
         XposedBridge.log("[SpotifyPlus] Starting script engine!");
 
+        moduleContext = ctx;
         SharedPreferences prefs = ctx.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
         String uriString = prefs.getString("scripts_directory", null);
 
@@ -93,18 +106,41 @@ public class ScriptManager extends SpotifyHook {
         XposedBridge.log("[SpotifyPlus] " + children.length + " scripts loaded!");
 
         for(DocumentFile script : children) {
-            String name = script.getName();
+            if(script.isDirectory()) {
+                String scriptName = script.getName();
+                DocumentFile manifest = script.findFile("manifest.json");
+                ScriptMetadata metadata = null;
 
-            if(name != null && name.endsWith(".js") && script.isFile()) {
-                try (InputStream in = ctx.getContentResolver().openInputStream(script.getUri())) {
-                    String code = readStreamAsString(in);
-                    if(!code.isBlank()) {
-                        XposedBridge.log("[SpotifyPlus] " + name + " loaded!");
-                        runScript(code, name);
-                        // runScriptS(code, ctx, name);
+                if(manifest != null && manifest.exists()) {
+                    Gson gson = new Gson();
+                    try (InputStream in = ctx.getContentResolver().openInputStream(manifest.getUri())) {
+                        String code = readStreamAsString(in);
+                        if(!code.isBlank()) {
+                            metadata = gson.fromJson(code, ScriptMetadata.class);
+                            loadedScripts.add(metadata);
+                        }
+                    } catch(Exception ex) {
+                        XposedBridge.log("[SpotifyPlus] Error loading manifest: " + ex);
                     }
-                } catch(Exception ex) {
-                    XposedBridge.log("[SpotifyPlus] Error loading " + name + ": " + ex);
+                } else {
+                    XposedBridge.log("[SpotifyPlus] No manifest found");
+                    continue;
+                }
+
+                for(DocumentFile child : script.listFiles()) {
+                    String name = child.getName();
+
+                    if(name != null && name.endsWith(".js") && child.isFile()) {
+                        try (InputStream in = ctx.getContentResolver().openInputStream(child.getUri())) {
+                            String code = readStreamAsString(in);
+                            if(!code.isBlank()) {
+                                XposedBridge.log("[SpotifyPlus] " + metadata.name + " loaded!");
+                                runScript(code, metadata.name, scriptName);
+                            }
+                        } catch(Exception ex) {
+                            XposedBridge.log("[SpotifyPlus] Error loading " + metadata.name + ": " + ex);
+                        }
+                    }
                 }
             }
         }
@@ -113,7 +149,7 @@ public class ScriptManager extends SpotifyHook {
     // Hot reload scripts?
     public void loadOrReloadScript(String code, String name) {
         EventManager.getInstance().clearAllListeners();
-        runScript(code, name);
+        runScript(code, name, name); // Update to use manifest name
     }
 
     private void runScriptS(String code, Context ctx, String name) {
@@ -131,7 +167,7 @@ public class ScriptManager extends SpotifyHook {
             );
 
             for(SpotifyPlusApi api : apis) {
-                api.register(scope, rhino, name);
+                api.register(scope, rhino);
             }
 
             rhino.evaluateString(scope, code, name, 1, null);

@@ -10,9 +10,9 @@ public class Debug implements SpotifyPlusApi {
     String scriptName = "null";
 
     @Override
-    public void register(Scriptable scope, Context ctx, String name) {
+    public void register(Scriptable scope, Context ctx) {
         ScriptableObject.putProperty(scope, "console", Context.javaToJS(this, scope));
-        scriptName = name;
+        scriptName = ctx.getThreadLocal("name").toString();
     }
 
     public void log(String message) {

@@ -22,10 +22,11 @@ public class SpotifyPlayer implements SpotifyPlusApi {
     }
 
     @Override
-    public void register(Scriptable scope, Context ctx, String name) {
+    public void register(Scriptable scope, Context ctx) {
         ScriptableObject.putProperty(scope, "SpotifyPlayer", Context.javaToJS(this, scope));
     }
 
+    @JSFunction
     public Object getCurrentTrack() {
         ScriptableSpotifyTrack track = (ScriptableSpotifyTrack) Context.getCurrentContext().newObject(scope, "SpotifyTrack");
 

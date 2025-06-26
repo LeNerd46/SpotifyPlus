@@ -27,7 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class References {
-    public static WeakReference<Activity> currentActivity = new WeakReference<>(null);
+    public static Activity currentActivity = null;
     public static WeakReference<Object> playerState = new WeakReference<>(null);
     public static WeakReference<Object> playerStateWrapper = new WeakReference<>(null);
     public static WeakReference<String> accessToken = new WeakReference<>(null);
@@ -135,11 +135,20 @@ public class References {
     }
 
     public static SharedPreferences getPreferences() {
-        Activity activity = currentActivity.get();
+        Activity activity = currentActivity;
 
         if(activity == null) return null;
 
         return activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+    }
+
+    public static SharedPreferences getScriptPreferences(String name, Context activity) {
+        if(activity == null) {
+            XposedBridge.log("[SpotifyPlus] No activity found");
+            return null;
+        }
+
+        return activity.getSharedPreferences(name, Context.MODE_PRIVATE);
     }
 
     private static final List<PlayerStateUpdatedListener> listeners = new ArrayList<>();

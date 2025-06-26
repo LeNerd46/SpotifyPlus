@@ -468,7 +468,7 @@ public class SyllableVocals implements SyncableVocals {
 
     private void lyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFE0E0E0);
-        text.setTextSize(30f);
+        text.setTextSize(32f);
         text.setPadding(0,0,dpToPx(1),0);
         text.setTypeface(font);
 
@@ -490,7 +490,7 @@ public class SyllableVocals implements SyncableVocals {
 
     private void emphasizedLyricLabelStyle(GradientTextView text) {
         text.setTextColor(0xFFE0E0E0);
-        text.setTextSize(30f);
+        text.setTextSize(32f);
         text.setTypeface(font);
     }
 

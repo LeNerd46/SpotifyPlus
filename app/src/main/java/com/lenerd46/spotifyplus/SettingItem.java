@@ -68,7 +68,7 @@ public class SettingItem {
 
     public static class SettingSection {
         public final String title;
-        public final List<SettingItem> items;
+        public List<SettingItem> items;
 
         public SettingSection(String title, List<SettingItem> items) {
             this.title = title;

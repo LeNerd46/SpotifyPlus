@@ -51,7 +51,7 @@ public class SocialHook extends SpotifyHook{
     }
 
     public static void showSocialPage() {
-        Activity activity = References.currentActivity.get();
+        Activity activity = References.currentActivity;
 
         ViewGroup rootView = activity.findViewById(android.R.id.content);
         if(rootView == null) return;

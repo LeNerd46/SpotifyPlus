@@ -4,16 +4,21 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.XModuleResources;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
+import android.util.Pair;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
+import androidx.documentfile.provider.DocumentFile;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SettingItem;
-import com.lenerd46.spotifyplus.scripting.events.EventManager;
+import com.lenerd46.spotifyplus.scripting.EventManager;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -24,9 +29,10 @@ import org.luckypray.dexkit.query.enums.MatchType;
 import org.luckypray.dexkit.query.matchers.*;
 import org.luckypray.dexkit.result.ClassDataList;
 
+import java.io.*;
 import java.lang.reflect.*;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RemoveCreateButtonHook extends SpotifyHook {
     private static final int SETTINGS_OVERLAY_ID = 0x53504c53;
@@ -34,7 +40,6 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     private static final int DETAILED_SETTINGS_OVERLAY_ID = 0x53504c54;
     private static final int MARKETPLACE_OVERLAY_ID = 0x53504c55;
     private int idToUse = 8001;
-
     private SharedPreferences prefs;
     private final Context context;
 
@@ -45,6 +50,8 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     private Class<?> whateverThisInterfaceDoes;
     private Class<?> iconInterface;
     private Class<?> wwk;
+    private final static ConcurrentHashMap<Pair<Integer, String>, List<SettingItem.SettingSection>> scriptSettings = new ConcurrentHashMap<>();
+    private final static ConcurrentHashMap<Pair<Integer, String>, Runnable> scriptSideButtons = new ConcurrentHashMap<>();
 
     public RemoveCreateButtonHook(final Context context) { this.context = context; }
 
@@ -133,20 +140,27 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                     Object[] originalItems = Arrays.stream(originalItemsWithNull).filter(Objects::nonNull).toArray(Object[]::new);
                     if(originalItems.length != 4 || originalItems[0].getClass() != buttonClass) return;
 
-                    Object newArray = Array.newInstance(buttonClass, originalItems.length + 2);
-                    XposedBridge.log("[SpotifyPlus] Button Class: " + originalItems[0].getClass().getName());
+                    Object newArray = Array.newInstance(buttonClass, originalItems.length + 2 + scriptSideButtons.size());
 
                     for(int i = 0; i < originalItems.length; i++) {
                         Array.set(newArray, i, originalItems[i]);
                     }
 
                     Object tempalte = originalItems[originalItems.length - 1];
+                    Object tempalteLightning = originalItems[1];
 
                     Array.set(newArray, originalItems.length, createSideDrawerButton("Spotify Plus Settings", tempalte, buttonClass, sideDrawerItem, propertiesClass, onClickClass, qbpInterface, zpj0Interface, cbpInterface, () -> showSettingsPage()));
-                    Array.set(newArray, originalItems.length + 1, createSideDrawerButton("Marketplace", tempalte, buttonClass, sideDrawerItem, propertiesClass, onClickClass, qbpInterface, zpj0Interface, cbpInterface, () -> showMarketplace()));
-                    XposedHelpers.setObjectField(param.thisObject, d.getName(), newArray);
+                    Array.set(newArray, originalItems.length + 1, createSideDrawerButton("Marketplace", tempalteLightning, buttonClass, sideDrawerItem, propertiesClass, onClickClass, qbpInterface, zpj0Interface, cbpInterface, () -> showMarketplace()));
 
-                    XposedBridge.log("[SpotifyPlus] Injected new drawer item!");
+                    int index = originalItems.length + 2;
+
+                    for(var item : scriptSideButtons.keySet()) {
+                        Runnable run = scriptSideButtons.get(item);
+                        Array.set(newArray, index, createSideDrawerButton(item.second, tempalteLightning, buttonClass, sideDrawerItem, propertiesClass, onClickClass, qbpInterface, zpj0Interface, cbpInterface, run));
+                        index++;
+                    }
+
+                    XposedHelpers.setObjectField(param.thisObject, d.getName(), newArray);
                 }
             });
         } catch (Exception e) {
@@ -199,7 +213,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     // SETTINGS STUFF
     private void showSettingsPage() {
         try {
-            Activity activity = References.currentActivity.get();
+            Activity activity = References.currentActivity;
             if (activity == null || activity.isFinishing()) return;
 
             ViewGroup rootView = activity.findViewById(android.R.id.content);
@@ -244,9 +258,12 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 //            aboutSections.put(4, "About");
 //            contentContainer.addView(createSettingsSection(activity, "About", aboutSections));
 
-//            if(!scriptSettings.isEmpty()) {
-//                contentContainer.addView(createSettingsSection(activity, "Script Settings", scriptSettings.keySet().toArray(new String[0])));
-//            }
+            if(!scriptSettings.isEmpty()) {
+                Map<Integer, String> scriptSections = new HashMap<>();
+
+                scriptSettings.keySet().forEach(x -> scriptSections.put(x.first, x.second));
+                contentContainer.addView(createSettingsSection(activity, "Script Settings", scriptSections));
+            }
 
             TextView versionText = new TextView(activity);
             versionText.setText("Spotify Plus v0.5 • LeNerd46");
@@ -326,7 +343,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
     private void showDetailedSettingsPage(String pageTitle, List<SettingItem.SettingSection> sections) {
         try {
-            Activity activity = References.currentActivity.get();
+            Activity activity = References.currentActivity;
             if (activity == null || activity.isFinishing()) return;
 
             ViewGroup rootView = activity.findViewById(android.R.id.content);
@@ -872,9 +889,10 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                         break;
                 }
 
-//                if(!scriptSettings.isEmpty()) {
-//                    showDetailedSettingsPage(item, scriptSettings.get(item));
-//                }
+                if(!scriptSettings.isEmpty()) {
+                    var scriptSection = scriptSettings.entrySet().stream().filter(entry -> entry.getKey().first.equals(item)).map(Map.Entry::getValue).findFirst().orElse(null);
+                    showDetailedSettingsPage(items.get(item), scriptSection);
+                }
             });
 
             section.addView(itemLayout);
@@ -885,7 +903,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
     private void showMarketplace() {
         try {
-            Activity activity = References.currentActivity.get();
+            Activity activity = References.currentActivity;
             if (activity == null || activity.isFinishing()) return;
 
             ViewGroup rootView = activity.findViewById(android.R.id.content);
@@ -956,6 +974,74 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                 .setInterpolator(new android.view.animation.AccelerateInterpolator())
                 .withEndAction(onComplete)
                 .start();
+    }
+
+    public static void registerSettingSection(String title, int id, SettingItem.SettingSection section) {
+        var key = scriptSettings.keySet().stream().filter(entry -> entry.first.equals(id)).findFirst().orElse(null);
+
+        if(key == null) {
+            scriptSettings.put(Pair.create(id, title), new ArrayList<>(Arrays.asList(section)));
+        } else {
+            var sections = scriptSettings.get(key);
+            sections.add(section);
+            scriptSettings.put(key, sections);
+        }
+    }
+
+    private void scriptTest() {
+        try {
+            EventManager.getInstance().dispatchEvent("scriptTest", null);
+            Activity activity = References.currentActivity;
+            SharedPreferences prefs = References.getPreferences();
+
+            String direcotryUri = prefs.getString("scripts_directory", "");
+            Uri uri = Uri.parse(direcotryUri);
+            DocumentFile directory = DocumentFile.fromTreeUri(context, uri);
+
+            DocumentFile apk = directory.findFile("test.apk");
+            String path = getAboslutePath(apk);
+
+            XModuleResources res = XModuleResources.createInstance(path, null);
+            var layout = res.getLayout(res.getIdentifier("test", "layout", "com.lenerd46.bookmarksscript"));
+            LayoutInflater inflater = LayoutInflater.from(context);
+            View view = inflater.inflate(layout, (ViewGroup) activity.getWindow().getDecorView(), true);
+        } catch (Exception e) {
+            XposedBridge.log(e);
+        }
+    }
+
+    public static void registerSideButton(String title, int id, Runnable onClick) {
+        try {
+            var key = scriptSideButtons.keySet().stream().filter(entry -> entry.first.equals(id)).findFirst().orElse(null);
+
+            if(key == null) {
+                scriptSideButtons.put(Pair.create(id, title), onClick);
+            }
+        } catch(Exception e) {
+            XposedBridge.log(e);
+        }
+    }
+
+    private String getAboslutePath(DocumentFile file) {
+        Uri uri = file.getUri();
+
+        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+            File tempFile = new File(context.getCacheDir(), "test.apk");
+
+            try (OutputStream out = new FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[4096];
+                int len;
+
+                while ((len = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, len);
+                }
+            }
+
+            return tempFile.getAbsolutePath();
+        } catch (Exception e) {
+            XposedBridge.log(e);
+            return null;
+        }
     }
 
     private int dpToPx(int dp) {

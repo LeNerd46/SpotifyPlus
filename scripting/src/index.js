@@ -1,11 +1,19 @@
-console.log("Trying to subscribe to event now...");
+const button = new SideDrawerItem("Here I Am!", function() {
+    console.log("I was opened!");
 
-events.subscribe("settingsOpened", (data) => {
-    console.log("Settings page opened!");
+    const ui = new ScriptUI("test", "com.lenerd46.bookmarksscript");
+    ui.show("test");
+    ui.setImage("imageView", "library_add");
+
+    ui.onClick("textThing", function() {
+        ui.hide();
+    });
 });
 
-const itemOne = new SettingItem("Item One", "This is the first item in the settings page", "Toggle");
-const itemTwo = new SettingItem("Item Two", "This is the second item in the settings page", "Slider");
+button.register();
 
-const section = new SettingSection("Script Test", [itemOne, itemTwo]);
-section.register("Script Test");
+const item = new ContextMenuItem("Really Cool Button!", "track", function(uri) {
+    console.log("Look at this really cool message! Here is the song: " + uri);
+});
+
+item.register();

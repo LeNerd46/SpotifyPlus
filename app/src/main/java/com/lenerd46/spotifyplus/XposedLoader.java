@@ -27,6 +27,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 import org.luckypray.dexkit.DexKitBridge;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
@@ -60,7 +61,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Activity activity = (Activity) param.thisObject;
-                References.currentActivity = new WeakReference<>(activity);
+                References.currentActivity = activity;
             }
         });
 
@@ -112,12 +113,15 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Context context = (Context) param.args[0];
+                cleanUpCache(context);
+
 //                new SettingsFlyoutHook(context).init(lpparam, bridge);
 //                new ScriptManager().init(context, lpparam.classLoader);
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam, bridge);
                 new SocialHook().init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
+                new ContextMenuHook().init(lpparam, bridge);
                 //                new PremiumHook().init(lpparam);
             }
         });
@@ -234,6 +238,16 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                     }
                 });
             });
+        }
+    }
+
+    private void cleanUpCache(Context context) {
+        File[] files = context.getCacheDir().listFiles();
+
+        for(File file : files) {
+            if (file.getName().endsWith(".apk")) {
+                file.delete();
+            }
         }
     }
 
