@@ -73,8 +73,6 @@ public class ScriptableSideDrawerItem extends ScriptableObject {
 
     @JSFunction
     public void register() {
-        XposedBridge.log("[SpotifyPlus] Registering Item!");
-
         Integer id = (Integer) Context.getCurrentContext().getThreadLocal("id");
         RemoveCreateButtonHook.registerSideButton(this.title, id, callback);
     }

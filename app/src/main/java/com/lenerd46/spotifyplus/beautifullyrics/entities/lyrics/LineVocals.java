@@ -1,11 +1,14 @@
 package com.lenerd46.spotifyplus.beautifullyrics.entities.lyrics;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.util.Pair;
 import com.google.android.flexbox.FlexboxLayout;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.*;
+import de.robv.android.xposed.XposedBridge;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +28,7 @@ public class LineVocals implements SyncableVocals {
 
     private Spline glowSpline;
     private final Spring glowSpring;
+    private final SharedPreferences prefs;
 
     private final List<Pair<Double, Double>> glowRange = List.of(
             Pair.create(0d, 0d),
@@ -40,6 +44,7 @@ public class LineVocals implements SyncableVocals {
     public LineVocals(FlexboxLayout container, LineVocal vocal, boolean isRomanized, Activity activity) {
         this.container = container;
         activityChanged = new ActivityChangedSource();
+        prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
 
         this.startTime = vocal.startTime;
         this.duration = vocal.endTime - vocal.startTime;
@@ -96,18 +101,17 @@ public class LineVocals implements SyncableVocals {
     private void evaluateClassState() {
         if(state == LyricState.ACTIVE) {
             lyricText.setTextColor(Color.argb(255, 255, 255, 255));
-            lyricText.setGradientColors(new int[] { 0xFFFFFFFF, 0x78FFFFFF});
+            lyricText.setGradientColors(prefs.getBoolean("lyric_enable_line_gradient", true) ? new int[] { 0xFFFFFFFF, 0x78FFFFFF } : new int[] { 0xFFFFFFFF, 0xFFFFFFFF});
         } else if(state == LyricState.SUNG) {
-            lyricText.setProgress(0f);
-            lyricText.setTextColor(Color.argb(120, 255, 255, 255));
+            lyricText.setTextColor(Color.argb(100, 255, 255, 255));
+            lyricText.updateShadow(0f, 0f);
 
-            updateLiveTextVisuals(0, 1.0 / 60);
+//            updateLiveTextVisuals(0, 1.0 / 60);
         } else {
-            lyricText.setProgress(0f);
             lyricText.setTextColor(Color.argb(255, 255, 255, 255));
-            lyricText.setGradientColors(new int[] { 0xFFFFFFFF, 0x50FFFFFF});
+            lyricText.setGradientColors(new int[] { 0xFFFFFFFF, 0x3CFFFFFF});
 
-            updateLiveTextVisuals(0, 1.0 / 60);
+//            updateLiveTextVisuals(0, 1.0 / 60);
         }
     }
 

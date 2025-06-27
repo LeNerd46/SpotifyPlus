@@ -1,19 +1,19 @@
-const button = new SideDrawerItem("Here I Am!", function() {
-    console.log("I was opened!");
-
-    const ui = new ScriptUI("test", "com.lenerd46.bookmarksscript");
-    ui.show("test");
-    ui.setImage("imageView", "library_add");
-
-    ui.onClick("textThing", function() {
-        ui.hide();
+"use strict";
+var savedTracks = [];
+if (Storage.exists("bookmarks.json")) {
+    savedTracks = JSON.parse(Storage.read("bookmarks.json"));
+}
+var menuItem = new ContextMenuItem("Add to Bookmarks", "track", function (id) {
+    // Spotify is very inconsistent with their capitalization in the context menu, not sure how to capitalize mine
+    savedTracks.push(id);
+    Storage.write("bookmarks.json", JSON.stringify(savedTracks, null, 2));
+});
+menuItem.register();
+// const ui: ScriptUI = new ScriptUI("bookmarks", "com.lenerd46.bookmarksscript");
+var button = new SideDrawerItem("Bookmarks", function () {
+    // ui.show("bookmark_page");
+    savedTracks.forEach(function (item) {
+        console.log(item);
     });
 });
-
 button.register();
-
-const item = new ContextMenuItem("Really Cool Button!", "track", function(uri) {
-    console.log("Look at this really cool message! Here is the song: " + uri);
-});
-
-item.register();

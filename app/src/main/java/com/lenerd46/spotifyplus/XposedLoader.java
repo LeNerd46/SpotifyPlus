@@ -253,7 +253,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
     @Override
     public void handleInitPackageResources(XC_InitPackageResources.InitPackageResourcesParam resparam) throws Throwable {
-        if(!resparam.packageName.equals("com.spotify.music")) {
+        if(resparam.packageName.equals("com.spotify.music")) {
             References.modResources = XModuleResources.createInstance(modulePath, resparam.res);
         }
     }

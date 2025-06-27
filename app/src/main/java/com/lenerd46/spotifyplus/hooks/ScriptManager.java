@@ -54,6 +54,7 @@ public class ScriptManager extends SpotifyHook {
             context.putThreadLocal("name", name);
             context.putThreadLocal("file_name", fileName);
             context.putThreadLocal("prefs", References.getScriptPreferences(name, moduleContext));
+            context.putThreadLocal("context", moduleContext);
 
             Object eventManager = org.mozilla.javascript.Context.javaToJS(EventManager.getInstance(), this.scriptScope);
             ScriptableObject.putProperty(this.scriptScope, "events", eventManager);
@@ -68,7 +69,8 @@ public class ScriptManager extends SpotifyHook {
             List<SpotifyPlusApi> apis = Arrays.asList(
                     new SpotifyPlayer(this.scriptScope, lpparm, bridge),
                     new Debug(),
-                    new PreferencesApi()
+                    new PreferencesApi(),
+                    new StorageApi(moduleContext)
             );
 
             for(SpotifyPlusApi api : apis) {
@@ -150,31 +152,6 @@ public class ScriptManager extends SpotifyHook {
     public void loadOrReloadScript(String code, String name) {
         EventManager.getInstance().clearAllListeners();
         runScript(code, name, name); // Update to use manifest name
-    }
-
-    private void runScriptS(String code, Context ctx, String name) {
-        var rhino = new RhinoAndroidHelper().enterContext();
-        rhino.setOptimizationLevel(-1);
-
-        try {
-            ScriptableObject scope = rhino.initStandardObjects();
-            ScriptableObject.putProperty(scope, "events", EventManager.getInstance());
-            ScriptableObject.defineClass(scope, ScriptableSpotifyTrack.class);
-
-            List<SpotifyPlusApi> apis = Arrays.asList(
-                    new SpotifyPlayer(scope, lpparm, bridge),
-                    new Debug()
-            );
-
-            for(SpotifyPlusApi api : apis) {
-                api.register(scope, rhino);
-            }
-
-            rhino.evaluateString(scope, code, name, 1, null);
-        } catch(Exception e) {
-        } finally{
-            org.mozilla.javascript.Context.exit();
-        }
     }
 
     private String readStreamAsString(InputStream in) throws IOException {

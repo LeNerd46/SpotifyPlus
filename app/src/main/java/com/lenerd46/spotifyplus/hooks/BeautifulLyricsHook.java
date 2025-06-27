@@ -340,8 +340,6 @@ public class BeautifulLyricsHook extends SpotifyHook {
     }
 
     private void RenderLyrics(Activity activity, SpotifyTrack track, LinearLayout lyricsContainer, ViewGroup root, ImageView albumView) {
-        List<Double> vocalGroupStartTimes = new ArrayList<>();
-        List<View> lines = new ArrayList<>();
         vocalGroups = new HashMap<>();
 
         ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -416,35 +414,58 @@ public class BeautifulLyricsHook extends SpotifyHook {
                 }
 
                 if(type.equals("Syllable")) {
-                    rightContainer.removeView(syncButton);
                     renderSyllableLyrics(activity, content, lyricsContainer, track);
                 } else if(type.equals("Line")) {
-                    OkHttpClient client = new OkHttpClient();
-                    Request request = new Request.Builder().url("https://spotifyplus.lenerd.tech/api/lyrics/" + track.uri.split(":")[2]).get().build();
+                    SharedPreferences prefs = activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+                    if(prefs.getBoolean("lyrics_check_custom", true)) {
+                        OkHttpClient client = new OkHttpClient();
+                        Request request = new Request.Builder().url("https://spotifyplus.lenerd.tech/api/lyrics/" + track.uri.split(":")[2]).get().build();
 
-                    client.newCall(request).enqueue(new Callback() {
-                        @Override
-                        public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                            if(response.isSuccessful()) {
-                                XposedBridge.log("[SpotifyPlus] Loading lyrics from SpotifyPlus server");
-                                String content = response.body().string();
+                        client.newCall(request).enqueue(new Callback() {
+                            @Override
+                            public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                                if (response.isSuccessful()) {
+                                    XposedBridge.log("[SpotifyPlus] Loading lyrics from SpotifyPlus server");
+                                    String content = response.body().string();
 
-                                lyricsContainer.post(() -> {
-                                    renderSyllableLyrics(activity, content, lyricsContainer, track);
-                                });
-                            } else {
-                                // Otherwise, no lyrics found. Continue
-                                lyricsContainer.post(() -> {
-                                    renderLineLyrics(activity, content, lyricsContainer, track);
-                                });
+                                    lyricsContainer.post(() -> {
+                                        renderSyllableLyrics(activity, content, lyricsContainer, track);
+                                    });
+                                } else {
+                                    // Otherwise, no lyrics found. Continue
+                                    lyricsContainer.post(() -> {
+                                        renderLineLyrics(activity, content, lyricsContainer, track);
+                                    });
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                            XposedBridge.log(e);
-                        }
-                    });
+                            @Override
+                            public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                                XposedBridge.log(e);
+                            }
+                        });
+                    } else {
+                        renderLineLyrics(activity, content, lyricsContainer, track);
+
+                        OkHttpClient client = new OkHttpClient();
+                        Request request = new Request.Builder().url("https://spotifyplus.lenerd.tech/api/lyrics/" + track.uri.split(":")[2]).get().build();
+
+                        client.newCall(request).enqueue(new Callback() {
+                            @Override
+                            public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                                if (response.isSuccessful()) {
+                                    lyricsContainer.post(() -> {
+                                        rightContainer.removeView(syncButton);
+                                    });
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                                XposedBridge.log(e);
+                            }
+                        });
+                    }
                 } else if(type.equals("Static")) {
                     Gson gson = new Gson();
                     // This is pretty pointless
@@ -475,7 +496,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                         text.setTypeface(References.beautifulFont.get());
 
                         layout.addView(text);
-                        lines.add(layout);
+                        lyricsContainer.addView(layout);
                     }
                 }
             });
@@ -485,6 +506,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
     private void renderSyllableLyrics(Activity activity, String content, LinearLayout lyricsContainer, SpotifyTrack track) {
         List<View> lines = new ArrayList<>();
         vocalGroups = new HashMap<>();
+        rightContainer.removeView(syncButton);
 
         Gson gson = new Gson();
         SyllableSyncedLyrics providerLyrics = gson.fromJson(content, SyllableSyncedLyrics.class);

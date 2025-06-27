@@ -170,7 +170,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
     private Object createSideDrawerButton(String title, Object template, Class<?> fvd0, Class<?> dwd0, Class<?> cwd0, Class<?> bwd0, Class<?> qbp, Class<?> zpj0, Class<?> cbp, Runnable onClick) {
         try {
-            // Don't do this every time the user creates a button! Just do it once!
+            // Don't do this every time we create a button! Just do it once!
             Object originalDwd0 = bridge.findField(FindField.create().searchInClass(fwd0Classes).matcher(FieldMatcher.create().type(dwd0))).get(0).getFieldInstance(lpparm.classLoader).get(template); // p.dwd0
             Field field = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(Object.class))).get(0).getFieldInstance(lpparm.classLoader);
             Object originalProps = field.get(originalDwd0); // p.cwd0
@@ -182,7 +182,6 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             Object iDontEvenKnowWhatThisFieldDoes = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(wwk))).get(0).getFieldInstance(lpparm.classLoader).get(originalProps);
 
             Object newOnClick = Proxy.newProxyInstance(lpparm.classLoader, new Class[] { qbp }, (proxy, method, args) -> {
-                XposedBridge.log("[SpotifyPlus] Clicked button!");
                 onClick.run();
 
                 return null;
@@ -821,12 +820,18 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                                 .setOnValueChange(value -> prefs.edit().putString("lyric_interlude_duration", (String)value).apply()),
                                         new SettingItem("Enable Background", "Whether the background should be an animated background or just a static color", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyric_enable_background", true))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_background", (Boolean)value).apply())
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_background", (Boolean)value).apply()),
+                                        new SettingItem("Enable Line Lyrics Gradient","Sets whether lines should have a gradient or stay a solid color in line synced songs", SettingItem.Type.TOGGLE)
+                                                .setValue(prefs.getBoolean("lyric_enable_line_gradient", true))
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_line_gradient", (Boolean)value).apply())
                                 )),
                                 new SettingItem.SettingSection("Privacy", Arrays.asList(
                                         new SettingItem("Send Access Token", "Send your Spotify access token to the Beautiful Lyrics API. If disabled, some songs will not load lyrics", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyrics_send_token", true))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_send_token", (Boolean)value).apply())
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_send_token", (Boolean)value).apply()),
+                                        new SettingItem("Check For User Lyrics", "Checks for any syllable synced lyrics that users synced. These lyrics may be inaccurate and will take longer for line synced lyrics to load", SettingItem.Type.TOGGLE)
+                                                .setValue(prefs.getBoolean("lyrics_check_custom", false))
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_check_custom", (Boolean)value).apply())
                                 ))
                         );
 
@@ -985,28 +990,6 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             var sections = scriptSettings.get(key);
             sections.add(section);
             scriptSettings.put(key, sections);
-        }
-    }
-
-    private void scriptTest() {
-        try {
-            EventManager.getInstance().dispatchEvent("scriptTest", null);
-            Activity activity = References.currentActivity;
-            SharedPreferences prefs = References.getPreferences();
-
-            String direcotryUri = prefs.getString("scripts_directory", "");
-            Uri uri = Uri.parse(direcotryUri);
-            DocumentFile directory = DocumentFile.fromTreeUri(context, uri);
-
-            DocumentFile apk = directory.findFile("test.apk");
-            String path = getAboslutePath(apk);
-
-            XModuleResources res = XModuleResources.createInstance(path, null);
-            var layout = res.getLayout(res.getIdentifier("test", "layout", "com.lenerd46.bookmarksscript"));
-            LayoutInflater inflater = LayoutInflater.from(context);
-            View view = inflater.inflate(layout, (ViewGroup) activity.getWindow().getDecorView(), true);
-        } catch (Exception e) {
-            XposedBridge.log(e);
         }
     }
 

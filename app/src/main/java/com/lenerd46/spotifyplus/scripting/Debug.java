@@ -1,6 +1,9 @@
 package com.lenerd46.spotifyplus.scripting;
 
+import android.app.Activity;
 import android.util.Log;
+import android.widget.Toast;
+import com.lenerd46.spotifyplus.References;
 import de.robv.android.xposed.XposedBridge;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Scriptable;
@@ -26,5 +29,10 @@ public class Debug implements SpotifyPlusApi {
     public void error(String message) {
         XposedBridge.log("[SpotifyPlus] [" + scriptName + "][ERROR] " + message);
         Log.d("SpotifyPlus.Scripts", message);
+    }
+
+    public void toast(String message) {
+        Activity activity = References.currentActivity;
+        Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
     }
 }
