@@ -42,7 +42,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
     private DexKitBridge bridge;
     private String modulePath = null;
-    private static final String MODULE_VERSION = "0.5";
+    private static final String MODULE_VERSION = "0.5.1";
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
@@ -105,7 +105,10 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 }
 
                 navigateToStartupPage(activity);
-                checkForUpdates(activity);
+
+                if(hasInternet(activity)) {
+                    checkForUpdates(activity);
+                }
             }
         });
 
@@ -122,7 +125,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 new SocialHook().init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
                 new ContextMenuHook().init(lpparam, bridge);
-                //                new PremiumHook().init(lpparam);
+//                new PremiumHook().init(lpparam, bridge);
             }
         });
     }
@@ -238,6 +241,34 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                     }
                 });
             });
+        }
+    }
+
+    public boolean hasInternet(Context ctx) {
+        try {
+            android.net.ConnectivityManager cm =
+                    (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+
+            if (android.os.Build.VERSION.SDK_INT >= 23) {
+                android.net.Network nw = cm.getActiveNetwork();
+                if (nw == null) return false;
+                android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(nw);
+                if (caps == null) return false;
+                // INTERNET = can reach the internet, VALIDATED = actually has connectivity (not just a Wi‑Fi w/o backhaul)
+                return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+            } else {
+                @SuppressWarnings("deprecation")
+                android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+                @SuppressWarnings("deprecation")
+                boolean connected = (ni != null && ni.isConnected());
+                return connected;
+            }
+        } catch (Throwable t) {
+            // Never crash due to OEM weirdness
+            de.robv.android.xposed.XposedBridge.log("[SpotifyPlus] hasInternet() failed: " + t);
+            return false;
         }
     }
 

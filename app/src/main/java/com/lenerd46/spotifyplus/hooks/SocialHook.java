@@ -15,6 +15,8 @@ import com.lenerd46.spotifyplus.References;
 import com.mikhaellopez.circleview.CircleView;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+import okhttp3.HttpUrl;
 import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
@@ -43,6 +45,17 @@ public class SocialHook extends SpotifyHook{
                         String token = headerValue.replace("Bearer ", "").trim();
                         References.accessToken = new WeakReference<>(token);
                     }
+
+                    Object url = XposedHelpers.getObjectField(param.thisObject, "a");
+                    if(url.toString().toLowerCase().contains("ads") || url.toString().toLowerCase().contains("ad-")) {
+                        param.setResult(null);
+                    }
+
+//                    if(url.url().toString().toLowerCase().contains("ad")) {
+//                        Throwable t = new Throwable();
+//                        XposedBridge.log("[SpotifyPlus] Ad endpoint found: " + url.url().toString());
+//                        t.printStackTrace();
+//                    }
                 }
             });
         } catch (Exception e) {

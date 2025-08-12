@@ -53,7 +53,7 @@ public class PremiumHook extends SpotifyHook {
                     XposedBridge.log("[SpotifyPlus] Could not find map");
                 }
 
-//                param.setResult(map);
+                param.setResult(map);
             }
         });
     }

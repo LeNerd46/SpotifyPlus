@@ -53,32 +53,41 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     private final static ConcurrentHashMap<Pair<Integer, String>, List<SettingItem.SettingSection>> scriptSettings = new ConcurrentHashMap<>();
     private final static ConcurrentHashMap<Pair<Integer, String>, Runnable> scriptSideButtons = new ConcurrentHashMap<>();
 
-    public RemoveCreateButtonHook(final Context context) { this.context = context; }
+    public RemoveCreateButtonHook(final Context context) {
+        this.context = context;
+    }
 
     @Override
     protected void hook() {
         try {
-            if(prefs == null) {
+            if (prefs == null) {
                 prefs = context.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
             }
 
-            var constructorClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItemSet(item1="))).get(0).getInstance(lpparm.classLoader);
-            var parameterClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItem(icon=").fieldCount(6))).get(0).getInstance(lpparm.classLoader);
+            var constructorClassList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItemSet(item1=")));
+            var parameterClassList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItem(icon=").methodCount(4).fieldCount(5, 6)));
+            if(constructorClassList.isEmpty() || parameterClassList.isEmpty()) {
+                XposedBridge.log("[SpotifyPlus] Constructor class not found");
+                return;
+            }
 
-            XposedHelpers.findAndHookConstructor(constructorClass, parameterClass, parameterClass, parameterClass, parameterClass, parameterClass , new XC_MethodHook() {
+            var constructorClass = constructorClassList.get(0).getInstance(lpparm.classLoader);
+            var parameterClass = parameterClassList.get(0).getInstance(lpparm.classLoader);
+
+            XposedHelpers.findAndHookConstructor(constructorClass, parameterClass, parameterClass, parameterClass, parameterClass, parameterClass, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    if(prefs.getBoolean("remove_create", false)) {
-                        for(int i = 0; i < 5; i++) {
+                    if (prefs.getBoolean("remove_create", false)) {
+                        for (int i = 0; i < 5; i++) {
                             var item = param.args[i];
 
-                            if(item == null) {
+                            if (item == null) {
                                 continue;
                             }
 
                             String content = item.toString().toLowerCase();
 
-                            if(content.contains("create") || content.contains("premium")) {
+                            if (content.contains("create") || content.contains("premium")) {
                                 XposedBridge.log("[SpotifyPlus] Removing navbar item: " + content);
                                 param.args[i] = null;
                             }
@@ -88,39 +97,63 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             });
 
             var modifyDataListClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).interfaceCount(1).methodCount(3).fields(FieldsMatcher.create()
-                            .count(4)
-                            .add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(int.class))
-                            .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(int.class))
-                            .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(Object[].class))
-                    )));
+                    .count(4)
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(int.class))
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(int.class))
+                    .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(Object[].class))
+            )));
 
             Method invokeSuspend = bridge.findMethod(FindMethod.create().searchInClass(modifyDataListClass).matcher(MethodMatcher.create().returnType(Object.class).modifiers(Modifier.PUBLIC | Modifier.FINAL).paramCount(1).paramTypes(Object.class))).get(0).getMethodInstance(lpparm.classLoader);
 
-            whateverThisInterfaceDoes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("quick_add_to_playlist_item"))).get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
-            iconInterface = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("getState(Lcom/spotify/alignedcuration/firstsave/page/contents/DefaultSaveDestinationElement$Props;)Lkotlinx/coroutines/flow/Flow;"))).get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
-            wwk = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Encore.Vector.CopyAlt16"))).get(0).getInstance(lpparm.classLoader).getSuperclass();
-
+            var whateverInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("quick_add_to_playlist_item")));
+            var iconInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("getState(Lcom/spotify/alignedcuration/firstsave/page/contents/DefaultSaveDestinationElement$Props;)Lkotlinx/coroutines/flow/Flow;")));
+            var wwkList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Encore.Vector.CopyAlt16")));
             fwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL).fields(FieldsMatcher.create().count(2).add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(int.class))).usingStrings("ListItem(id=")));
-            Class<?> buttonClass = fwd0Classes.get(0).getInstance(lpparm.classLoader); // p.fvd0
             dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("SideDrawerListItem(element=")));
-            Class<?> sideDrawerItem = dwd0Classes.get(0).getInstance(lpparm.classLoader); // p.dwd0
             propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Props(icon=", ", title=", ", titleRes=", ", uriToNavigate=", ", isNew=", ", instrumentation=", ", hasNotification=")));
-            Class<?> propertiesClass = propertiesClasses.get(0).getInstance(lpparm.classLoader); // p.cwd0
             onClickClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Instrumentation(node=", ", onClick=", ", onImpression=").fieldCount(3)));
-            Class<?> onClickClass = onClickClasses.get(0).getInstance(lpparm.classLoader); // p.bwd0
 
-            Class<?> qbpInterface = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().modifiers(Modifier.FINAL, MatchType.Equals).interfaceCount(1).fields(FieldsMatcher.create().add(FieldMatcher.create().type(int.class)).count(2)).methods(MethodsMatcher.create()
+            var qbpInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().modifiers(Modifier.FINAL, MatchType.Equals).interfaceCount(1).fields(FieldsMatcher.create().add(FieldMatcher.create().type(int.class)).count(2)).methods(MethodsMatcher.create()
                     .count(4)
                     .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(Object.class).name("invoke").paramTypes(Object.class, Object.class))
                     .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(Object.class).name("invokeSuspend").paramTypes(Object.class))
-            ))).get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+            )));
 
-            Class<?> zpj0Interface = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("premium_row"))).get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+            var zpj0InterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("premium_row")));
 
-            Class<?> cbpInterface = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Required value was null.").modifiers(Modifier.PUBLIC | Modifier.FINAL, MatchType.Equals).interfaceCount(1).fields(FieldsMatcher.create()
-                    .count(3)
-                    .add(FieldMatcher.create().type(Context.class))
-            ).methodCount(2).addMethod(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(Object.class).name("invoke")))).get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+            var cbpInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("video_surface_view_seek_frame_tag")));
+
+            if(whateverInterfaceList.isEmpty() || iconInterfaceList.isEmpty() || wwkList.isEmpty() || fwd0Classes.isEmpty() || dwd0Classes.isEmpty() || propertiesClasses.isEmpty() || onClickClasses.isEmpty() || qbpInterfaceList.isEmpty() || zpj0InterfaceList.isEmpty() || cbpInterfaceList.isEmpty()) {
+                XposedBridge.log("[SpotifyPlus] whatever interface: " + whateverInterfaceList.size());
+                XposedBridge.log("[SpotifyPlus] icon interface: " + iconInterfaceList.size());
+                XposedBridge.log("[SpotifyPlus] wwk: " + wwkList.size());
+                XposedBridge.log("[SpotifyPlus] fwd0: " + fwd0Classes.size());
+                XposedBridge.log("[SpotifyPlus] dwd0: " + dwd0Classes.size());
+                XposedBridge.log("[SpotifyPlus] props: " + propertiesClasses.size());
+                XposedBridge.log("[SpotifyPlus] onClick: " + onClickClasses.size());
+                XposedBridge.log("[SpotifyPlus] qbp interface: " + qbpInterfaceList.size());
+                XposedBridge.log("[SpotifyPlus] zpj0 interface: " + zpj0InterfaceList.size());
+                XposedBridge.log("[SpotifyPlus] cbpInterface interface: " + cbpInterfaceList.size());
+
+                XposedBridge.log("[SpotifyPlus] No classes found");
+                return;
+            }
+
+            whateverThisInterfaceDoes = whateverInterfaceList.get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+            iconInterface = iconInterfaceList.get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+            wwk = wwkList.get(0).getInstance(lpparm.classLoader).getSuperclass();
+
+            Class<?> buttonClass = fwd0Classes.get(0).getInstance(lpparm.classLoader); // p.fvd0
+            Class<?> sideDrawerItem = dwd0Classes.get(0).getInstance(lpparm.classLoader); // p.dwd0
+            Class<?> propertiesClass = propertiesClasses.get(0).getInstance(lpparm.classLoader); // p.cwd0
+            Class<?> onClickClass = onClickClasses.get(0).getInstance(lpparm.classLoader); // p.bwd0
+
+            Class<?> qbpInterface = qbpInterfaceList.get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+            Class<?> zpj0Interface = zpj0InterfaceList.get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
+
+            Class<?> cbpInterface = cbpInterfaceList.get(0).getInstance(lpparm.classLoader).getMethod("getOnScrubEnd").getReturnType();
+
+//            Class<?> cbpInterface = .get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
 
 //            for(var interlace : modifyDataListClass) {
 //                XposedBridge.log("[SpotifyPlus] Found Class: " + interlace);
@@ -135,14 +168,14 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 //                    int number = a.getInt(param.thisObject);
 //                    if(number != 20) return;
 
-                    Object[] originalItemsWithNull = (Object[])d.get(param.thisObject);
-                    if(originalItemsWithNull == null) return;
+                    Object[] originalItemsWithNull = (Object[]) d.get(param.thisObject);
+                    if (originalItemsWithNull == null) return;
                     Object[] originalItems = Arrays.stream(originalItemsWithNull).filter(Objects::nonNull).toArray(Object[]::new);
-                    if(originalItems.length != 4 || originalItems[0].getClass() != buttonClass) return;
+                    if (originalItems.length != 4 || originalItems[0].getClass() != buttonClass) return;
 
                     Object newArray = Array.newInstance(buttonClass, originalItems.length + 2 + scriptSideButtons.size());
 
-                    for(int i = 0; i < originalItems.length; i++) {
+                    for (int i = 0; i < originalItems.length; i++) {
                         Array.set(newArray, i, originalItems[i]);
                     }
 
@@ -154,7 +187,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
                     int index = originalItems.length + 2;
 
-                    for(var item : scriptSideButtons.keySet()) {
+                    for (var item : scriptSideButtons.keySet()) {
                         Runnable run = scriptSideButtons.get(item);
                         Array.set(newArray, index, createSideDrawerButton(item.second, tempalteLightning, buttonClass, sideDrawerItem, propertiesClass, onClickClass, qbpInterface, zpj0Interface, cbpInterface, run));
                         index++;
@@ -164,6 +197,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                 }
             });
         } catch (Exception e) {
+            XposedBridge.log(e);
             XposedBridge.log("[SpotifyPlus] Could not find class: " + e.getMessage());
         }
     }
@@ -171,17 +205,38 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     private Object createSideDrawerButton(String title, Object template, Class<?> fvd0, Class<?> dwd0, Class<?> cwd0, Class<?> bwd0, Class<?> qbp, Class<?> zpj0, Class<?> cbp, Runnable onClick) {
         try {
             // Don't do this every time we create a button! Just do it once!
-            Object originalDwd0 = bridge.findField(FindField.create().searchInClass(fwd0Classes).matcher(FieldMatcher.create().type(dwd0))).get(0).getFieldInstance(lpparm.classLoader).get(template); // p.dwd0
-            Field field = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(Object.class))).get(0).getFieldInstance(lpparm.classLoader);
+            var dwd0List = bridge.findField(FindField.create().searchInClass(fwd0Classes).matcher(FieldMatcher.create().type(dwd0)));
+            var fieldList = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(Object.class)));
+            var bwd0List = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(bwd0)));
+            var nodeList = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(whateverThisInterfaceDoes)));
+            var impressionList = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(cbp)));
+            var iconList = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(iconInterface)));
+            var whateverList = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(wwk)));
+
+            if(dwd0List.isEmpty() || fieldList.isEmpty() || bwd0List.isEmpty() || nodeList.isEmpty() || impressionList.isEmpty() || iconList.isEmpty() || whateverList.isEmpty()) {
+                XposedBridge.log("[SpotifyPlus] dwd0: " + dwd0List.size());
+                XposedBridge.log("[SpotifyPlus] field: " + fieldList.size());
+                XposedBridge.log("[SpotifyPlus] bwd0: " + bwd0List.size());
+                XposedBridge.log("[SpotifyPlus] node: " + nodeList.size());
+                XposedBridge.log("[SpotifyPlus] impression: " + impressionList.size());
+                XposedBridge.log("[SpotifyPlus] icon: " + iconList.size());
+                XposedBridge.log("[SpotifyPlus] whatever: " + whateverList.size());
+
+                XposedBridge.log("[SpotifyPlus] No classes found");
+                return null;
+            }
+
+            Object originalDwd0 = dwd0List.get(0).getFieldInstance(lpparm.classLoader).get(template); // p.dwd0
+            Field field = fieldList.get(0).getFieldInstance(lpparm.classLoader);
             Object originalProps = field.get(originalDwd0); // p.cwd0
             String propName = field.getName();
-            Object originalBwd0 = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(bwd0))).get(0).getFieldInstance(lpparm.classLoader).get(originalProps); // p.bwd0;
-            Object originalNode = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(whateverThisInterfaceDoes))).get(0).getFieldInstance(lpparm.classLoader).get(originalBwd0);
-            Object originalImpression = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(cbp))).get(0).getFieldInstance(lpparm.classLoader).get(originalBwd0);
-            Object originalIcon = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(iconInterface))).get(0).getFieldInstance(lpparm.classLoader).get(originalDwd0);
-            Object iDontEvenKnowWhatThisFieldDoes = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(wwk))).get(0).getFieldInstance(lpparm.classLoader).get(originalProps);
+            Object originalBwd0 = bwd0List.get(0).getFieldInstance(lpparm.classLoader).get(originalProps); // p.bwd0;
+            Object originalNode = nodeList.get(0).getFieldInstance(lpparm.classLoader).get(originalBwd0);
+            Object originalImpression = impressionList.get(0).getFieldInstance(lpparm.classLoader).get(originalBwd0);
+            Object originalIcon = iconList.get(0).getFieldInstance(lpparm.classLoader).get(originalDwd0);
+            Object iDontEvenKnowWhatThisFieldDoes = whateverList.get(0).getFieldInstance(lpparm.classLoader).get(originalProps);
 
-            Object newOnClick = Proxy.newProxyInstance(lpparm.classLoader, new Class[] { qbp }, (proxy, method, args) -> {
+            Object newOnClick = Proxy.newProxyInstance(lpparm.classLoader, new Class[]{qbp}, (proxy, method, args) -> {
                 onClick.run();
 
                 return null;
@@ -247,6 +302,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             sections.put(0, "General");
             sections.put(1, "Beautiful Lyrics");
 //            sections.put(2, "Social");
+            sections.put(4, "Experimental");
             contentContainer.addView(createSettingsSection(activity, "Hooks", sections));
 
             Map<Integer, String> scriptingSections = new HashMap<>();
@@ -257,7 +313,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 //            aboutSections.put(4, "About");
 //            contentContainer.addView(createSettingsSection(activity, "About", aboutSections));
 
-            if(!scriptSettings.isEmpty()) {
+            if (!scriptSettings.isEmpty()) {
                 Map<Integer, String> scriptSections = new HashMap<>();
 
                 scriptSettings.keySet().forEach(x -> scriptSections.put(x.first, x.second));
@@ -265,7 +321,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             }
 
             TextView versionText = new TextView(activity);
-            versionText.setText("Spotify Plus v0.5 • LeNerd46");
+            versionText.setText("Spotify Plus v0.5.1 • LeNerd46");
             versionText.setTextColor(Color.WHITE);
             versionText.setTextSize(12f);
             versionText.setGravity(Gravity.CENTER | Gravity.BOTTOM);
@@ -391,7 +447,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             mainContainer.addView(scrollView);
             overlay.addView(mainContainer);
 
-            if(pageTitle.equals("Beautiful Lyrics Settings")) {
+            if (pageTitle.equals("Beautiful Lyrics Settings")) {
                 overlay.addView(creditsText);
             }
 
@@ -508,9 +564,9 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
         dropdown.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, options));
 
-        if(item.value != null) {
+        if (item.value != null) {
             int idx = options.indexOf(item.value.toString());
-            if(idx >= 0) dropdown.setSelection(idx);
+            if (idx >= 0) dropdown.setSelection(idx);
         }
 
         dropdown.setEnabled(item.enabled);
@@ -521,13 +577,14 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                 String newValue = options.get(position);
                 item.value = newValue;
 
-                if(item.onValueChange != null) {
+                if (item.onValueChange != null) {
                     item.onValueChange.onValueChanged(newValue);
                 }
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) { }
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
 
         return dropdown;
@@ -608,8 +665,13 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                 }
             }
 
-            @Override public void onStartTrackingTouch(android.widget.SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(android.widget.SeekBar seekBar) {}
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
+            }
         });
 
         container.addView(seekBar);
@@ -805,7 +867,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             itemLayout.addView(arrow);
 
             itemLayout.setOnClickListener(v -> {
-                switch(item) {
+                switch (item) {
                     // HOOKS
                     case 1: // Beautiful Lyrics
                         List<SettingItem.SettingSection> lyricsSections = Arrays.asList(
@@ -813,25 +875,25 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         new SettingItem("Animation Style", "Whether lyrics should be animted more like Apple Music, or Beautiful Lyrics", SettingItem.Type.DROPDOWN)
                                                 .setOptions(Arrays.asList("Beautiful Lyrics", "Apple Music"))
                                                 .setValue(prefs.getString("lyric_animation_style", "Beautiful Lyrics"))
-                                                .setOnValueChange(value -> prefs.edit().putString("lyric_animation_style", (String)value).apply()),
+                                                .setOnValueChange(value -> prefs.edit().putString("lyric_animation_style", (String) value).apply()),
                                         new SettingItem("Interlude Duration", "How much time it takes to show an interlude", SettingItem.Type.DROPDOWN)
                                                 .setOptions(Arrays.asList("Beautiful Lyrics", "Spotify Plus", "Apple Music"))
                                                 .setValue(prefs.getString("lyric_interlude_duration", "Beautiful Lyrics"))
-                                                .setOnValueChange(value -> prefs.edit().putString("lyric_interlude_duration", (String)value).apply()),
+                                                .setOnValueChange(value -> prefs.edit().putString("lyric_interlude_duration", (String) value).apply()),
                                         new SettingItem("Enable Background", "Whether the background should be an animated background or just a static color", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyric_enable_background", true))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_background", (Boolean)value).apply()),
-                                        new SettingItem("Enable Line Lyrics Gradient","Sets whether lines should have a gradient or stay a solid color in line synced songs", SettingItem.Type.TOGGLE)
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_background", (Boolean) value).apply()),
+                                        new SettingItem("Enable Line Lyrics Gradient", "Sets whether lines should have a gradient or stay a solid color in line synced songs", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyric_enable_line_gradient", true))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_line_gradient", (Boolean)value).apply())
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyric_enable_line_gradient", (Boolean) value).apply())
                                 )),
                                 new SettingItem.SettingSection("Privacy", Arrays.asList(
                                         new SettingItem("Send Access Token", "Send your Spotify access token to the Beautiful Lyrics API. If disabled, some songs will not load lyrics", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyrics_send_token", true))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_send_token", (Boolean)value).apply()),
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_send_token", (Boolean) value).apply()),
                                         new SettingItem("Check For User Lyrics", "Checks for any syllable synced lyrics that users synced. These lyrics may be inaccurate and will take longer for line synced lyrics to load", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("lyrics_check_custom", false))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_check_custom", (Boolean)value).apply())
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("lyrics_check_custom", (Boolean) value).apply())
                                 ))
                         );
 
@@ -844,7 +906,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         new SettingItem("Enabled", "Whether to enable the social hooks", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("social_enabled", false))
                                                 .setEnabled(true)
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("social_enabled", (Boolean)value).apply())
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("social_enabled", (Boolean) value).apply())
                                 ))
                         );
 
@@ -856,20 +918,32 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                 new SettingItem.SettingSection("General", Arrays.asList(
                                         new SettingItem("Check For Updates", "Whether to check for updates on start", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("general_check_updates", true))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("general_check_updates", (Boolean)value).apply())
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("general_check_updates", (Boolean) value).apply())
                                 )),
                                 new SettingItem.SettingSection("UI", Arrays.asList(
                                         new SettingItem("Remove Create Button", "Removes the create button in the navbar", SettingItem.Type.TOGGLE)
                                                 .setValue(prefs.getBoolean("remove_create", false))
-                                                .setOnValueChange(value -> prefs.edit().putBoolean("remove_create", (Boolean)value).apply()),
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("remove_create", (Boolean) value).apply()),
                                         new SettingItem("Startup Page", "What page Spotify should open when you open the app", SettingItem.Type.DROPDOWN)
                                                 .setOptions(Arrays.asList("Home", "Search", "Explore", "Library"))
                                                 .setValue(prefs.getString("startup_page", "HOME").charAt(0) + prefs.getString("startup_page", "HOME").substring(1).toLowerCase())
-                                                .setOnValueChange(value -> prefs.edit().putString("startup_page", ((String)value).toUpperCase()).apply())
+                                                .setOnValueChange(value -> prefs.edit().putString("startup_page", ((String) value).toUpperCase()).apply())
                                 ))
                         );
 
                         showDetailedSettingsPage("General Settings", generalGeneralSettings);
+                        break;
+
+                    case 4: // Experimental
+                        List<SettingItem.SettingSection> experimentalGeneralSettings = Arrays.asList(
+                                new SettingItem.SettingSection("Beautiful Lyrics", Arrays.asList((
+                                        new SettingItem("New Scrolling Animation", "Enables a new scrolling system, very similar to Apple Music", SettingItem.Type.TOGGLE)
+                                                .setValue(prefs.getBoolean("experiment_scroll", false))
+                                                .setOnValueChange(value -> prefs.edit().putBoolean("experiment_scroll", (Boolean)value).apply())
+                                        )))
+                        );
+
+                        showDetailedSettingsPage("Experimental Settings", experimentalGeneralSettings);
                         break;
 
                     // SCRIPTING
@@ -881,7 +955,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         new SettingItem("Set Scripts Directory", "Tells the mod where to look for scripts", SettingItem.Type.BUTTON)
                                                 .setValue("Select Directory")
                                                 .setOnValueChange(value -> {
-                                                    if(activity != null && !activity.isFinishing()) {
+                                                    if (activity != null && !activity.isFinishing()) {
                                                         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                                                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
                                                         activity.startActivityForResult(intent, 9072022);
@@ -894,7 +968,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                         break;
                 }
 
-                if(!scriptSettings.isEmpty()) {
+                if (!scriptSettings.isEmpty()) {
                     var scriptSection = scriptSettings.entrySet().stream().filter(entry -> entry.getKey().first.equals(item)).map(Map.Entry::getValue).findFirst().orElse(null);
                     showDetailedSettingsPage(items.get(item), scriptSection);
                 }
@@ -984,7 +1058,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     public static void registerSettingSection(String title, int id, SettingItem.SettingSection section) {
         var key = scriptSettings.keySet().stream().filter(entry -> entry.first.equals(id)).findFirst().orElse(null);
 
-        if(key == null) {
+        if (key == null) {
             scriptSettings.put(Pair.create(id, title), new ArrayList<>(Arrays.asList(section)));
         } else {
             var sections = scriptSettings.get(key);
@@ -997,10 +1071,10 @@ public class RemoveCreateButtonHook extends SpotifyHook {
         try {
             var key = scriptSideButtons.keySet().stream().filter(entry -> entry.first.equals(id)).findFirst().orElse(null);
 
-            if(key == null) {
+            if (key == null) {
                 scriptSideButtons.put(Pair.create(id, title), onClick);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             XposedBridge.log(e);
         }
     }

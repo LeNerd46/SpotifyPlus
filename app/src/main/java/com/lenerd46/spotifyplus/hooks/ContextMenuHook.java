@@ -60,7 +60,6 @@ public class ContextMenuHook extends SpotifyHook {
                 }
             });
 
-            // Hook getItemViewType to handle our custom item
             XposedHelpers.findAndHookMethod(adapterClass, "getItemViewType", int.class, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -128,6 +127,12 @@ public class ContextMenuHook extends SpotifyHook {
                         Object viewHolder = param.args[0];
                         int position = (Integer) param.args[1];
                         int originalCount = getOriginalItemCount(adapter);
+
+                        if(viewHolder.getClass().getSuperclass() != null) {
+                            Object itemView = viewHolder.getClass().getSuperclass().getDeclaredField("itemView").get(viewHolder);
+                            View textView = findViewByType((ViewGroup) itemView, "EncoreTextView");
+                            XposedBridge.log("[SpotifyPlus] Found item at position " + findItemText(textView));
+                        }
 
                         if (position == originalCount && originalCount > 0 && currentUri != null) {
                             for(int i = 0; i < scriptItems.size(); i++) {
@@ -265,5 +270,20 @@ public class ContextMenuHook extends SpotifyHook {
         new Handler(Looper.getMainLooper()).post(() -> {
             XposedHelpers.callMethod(adapter, "notifyDataSetChanged");
         });
+    }
+
+    private @Nullable String findItemText(View v) {
+        if (v instanceof TextView) {
+            // Covers TextView, EncoreTextView, etc.
+            return ((TextView) v).getText().toString();
+        }
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                String text = findItemText(g.getChildAt(i));
+                if (text != null && !text.isEmpty()) return text;
+            }
+        }
+        return null;
     }
 }

@@ -1,6 +1,7 @@
 package com.lenerd46.spotifyplus.scripting.ui;
 
 import android.content.Context;
+import android.view.ViewGroup;
 import android.widget.TextView;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.annotations.JSFunction;
@@ -43,5 +44,18 @@ public class ScriptableTextView extends ScriptableObject {
         } else {
             throw org.mozilla.javascript.Context.reportRuntimeError("Invalid arguments passed to append()");
         }
+    }
+
+    @JSFunction
+    public void setPadding(int left, int top, int right, int bottom) {
+        textView.setPadding(left, top, right, bottom);
+    }
+
+    @JSFunction
+    public void setMargin(int left, int top, int right, int bottom) {
+        ViewGroup.MarginLayoutParams params = new ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(left, top, right, bottom);
+
+        textView.setLayoutParams(params);
     }
 }
