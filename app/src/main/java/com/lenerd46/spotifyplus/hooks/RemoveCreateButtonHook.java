@@ -321,7 +321,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             }
 
             TextView versionText = new TextView(activity);
-            versionText.setText("Spotify Plus v0.5.1 • LeNerd46");
+            versionText.setText("Spotify Plus v0.5.2 • LeNerd46");
             versionText.setTextColor(Color.WHITE);
             versionText.setTextSize(12f);
             versionText.setGravity(Gravity.CENTER | Gravity.BOTTOM);

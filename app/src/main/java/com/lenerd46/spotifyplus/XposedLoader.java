@@ -42,7 +42,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
     private DexKitBridge bridge;
     private String modulePath = null;
-    private static final String MODULE_VERSION = "0.5.1";
+    private static final String MODULE_VERSION = "0.5.2";
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {

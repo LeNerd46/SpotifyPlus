@@ -13,14 +13,18 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
+import org.luckypray.dexkit.query.FindField;
 import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
+import org.luckypray.dexkit.query.matchers.FieldMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
+import org.luckypray.dexkit.result.ClassDataList;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -104,39 +108,36 @@ public class References {
         }
     }
 
+    private static long previousMs;
     public static long getCurrentPlaybackPosition(DexKitBridge bridge, XC_LoadPackage.LoadPackageParam lpparam) {
         Object wrapper = References.playerStateWrapper == null ? null : References.playerStateWrapper.get();
-        if(wrapper == null) return -1;
+        if (wrapper == null) return -1;
 
         Object state;
         try {
             state = XposedHelpers.callMethod(wrapper, "getState");
-            if(state == null) return -1;
-        } catch(Throwable t) { return -1; }
+            if (state == null) return -1;
+        } catch (Throwable t) {
+            return -1;
+        }
 
         try {
-
-            Object progress = XposedHelpers.getObjectField(state, "c");
-
-            Class<?> clazz = progress.getClass();
-            if(!clazz.getName().startsWith("p.")) return -1;
-
-            try {
-                Object positionObj = XposedHelpers.getObjectField(progress, "a");
-                if(positionObj instanceof Long) {
-                    return (long)positionObj;
-                }
-            } catch (Throwable t) {
-                XposedBridge.log("[SpotifyPlus] Could not get 'a' field from" + clazz.getName());
+            var progressList = bridge.findField(FindField.create().searchInClass(Arrays.asList(bridge.getClassData(state.getClass()))).matcher(FieldMatcher.create().type(long.class)));
+            if(progressList.isEmpty()) {
+                XposedBridge.log("[SpotifyPlus] Failed to get progress: " + state.getClass().getName());
+                return -1;
             }
-        } catch(Throwable t) {}
+
+            return progressList.get(0).getFieldInstance(lpparam.classLoader).getLong(state);
+        } catch(Exception e) {
+            XposedBridge.log(e);
+        }
 
         return -1;
     }
 
     public static SharedPreferences getPreferences() {
         Activity activity = currentActivity;
-
         if(activity == null) return null;
 
         return activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
