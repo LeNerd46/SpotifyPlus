@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="ThemeOverlay.SpotifyPlus.Material" parent="ThemeOverlay.Material3.Dark">
+        <!-- Keep this minimal; only what your views need -->
+        <item name="colorPrimary">#1DB954</item>
+        <item name="colorOnPrimary">#000000</item>
+        <item name="colorSurface">#121212</item>
+        <item name="colorOnSurface">#FFFFFF</item>
+        <item name="actionBarSize">56dp</item>
+    </style>
+
+    <style name="Theme.SpotifyPlus.Material3" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- Your colors -->
+        <item name="colorPrimary">#1DB954</item>
+        <item name="colorOnPrimary">#000000</item>
+        <item name="colorSurface">#121212</item>
+        <item name="colorOnSurface">#FFFFFF</item>
+
+        <!-- Wire your toolbar style both ways (M2/M3) -->
+        <item name="toolbarStyle">@style/Widget.SpotifyPlus.Toolbar</item>
+        <item name="materialSearchViewToolbarStyle">@style/Widget.SpotifyPlus.Toolbar</item>
+
+        <!-- Optional but handy -->
+        <item name="actionBarSize">56dp</item>
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+    </style>
+
+    <!--    <style name="Widget.SpotifyPlus.Toolbar" parent="Widget.Material3.Toolbar">-->
+    <!--        <item name="android:background">?attr/colorSurface</item>-->
+    <!--        <item name="titleTextColor">?attr/colorOnSurface</item>-->
+    <!--        <item name="subtitleTextColor">?attr/colorOnSurface</item>-->
+    <!--        <item name="navigationIconTint">?attr/colorOnSurface</item>-->
+    <!--        <item name="popupTheme">@style/ThemeOverlay.SpotifyPlus.Material</item>-->
+    <!--    </style>-->
+
+    <color name="spotifyplus_background">#141414</color>
+    <color name="spotifyplus_black">#121212</color>
+    <color name="spotifyplus_surface">#181818</color>
+    <color name="spotifyplus_surfaceVariant">#1F1F1F</color>
+    <color name="spotifyplus_onSurface">#FFFFFF</color>
+    <color name="spotifyplus_onSurfaceSecondary">#B3B3B3</color>
+    <color name="spotifyplus_primary">#1DB954</color>
+    <color name="spotifyplus_primaryVariant">#17A34A</color>
+    <color name="spotifyplus_outline">#2A2A2A</color>
+    <color name="spotifyplus_divider">#242424</color>
+    <color name="spotifyplus_error">#FF4D4D</color>
+    <!-- For status/nav bar scrims -->
+    <color name="spotifyplus_scrim">#80000000</color>
+
+    <!-- App theme -->
+    <style name="Theme.SpotifyPlus" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/spotifyplus_black</item>
+
+        <item name="colorPrimary">@color/spotifyplus_primary</item>
+        <item name="colorOnPrimary">@android:color/black</item>
+
+        <item name="colorSurface">@color/spotifyplus_surface</item>
+        <item name="colorSurfaceVariant">@color/spotifyplus_surfaceVariant</item>
+        <item name="colorOnSurface">@color/spotifyplus_onSurface</item>
+        <item name="colorOutline">@color/spotifyplus_outline</item>
+
+        <!-- Rounded, comfy -->
+        <item name="shapeAppearanceLargeComponent">@style/Shape.SpotifyPlus.Large</item>
+        <item name="shapeAppearanceMediumComponent">@style/Shape.SpotifyPlus.Medium</item>
+        <item name="shapeAppearanceSmallComponent">@style/Shape.SpotifyPlus.Small</item>
+
+        <!-- Use bold, roomy toolbar -->
+        <item name="toolbarStyle">@style/Widget.SpotifyPlus.Toolbar</item>
+        <item name="materialCardViewStyle">@style/Widget.SpotifyPlus.Card</item>
+        <item name="materialSwitchStyle">@style/Widget.SpotifyPlus.Switch</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.SpotifyPlus.TitleLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.SpotifyPlus.Body</item>
+    </style>
+
+    <!-- Shapes -->
+    <style name="Shape.SpotifyPlus.Large" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">24dp</item>
+    </style>
+    <style name="Shape.SpotifyPlus.Medium" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+    <style name="Shape.SpotifyPlus.Small" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- Widgets -->
+    <style name="Widget.SpotifyPlus.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/spotifyplus_black</item>
+        <item name="titleTextColor">@color/spotifyplus_onSurface</item>
+        <item name="subtitleTextColor">@color/spotifyplus_onSurfaceSecondary</item>
+    </style>
+
+    <style name="Widget.SpotifyPlus.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/spotifyplus_surfaceVariant</item>
+        <item name="android:foregroundTint">@color/spotifyplus_primary</item>
+        <item name="cardUseCompatPadding">true</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Widget.SpotifyPlus.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="trackTint">@color/switch_track_tint</item>
+        <item name="thumbTint">@color/white</item>
+    </style>
+
+    <!-- Type -->
+    <style name="TextAppearance.SpotifyPlus.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+    <style name="TextAppearance.SpotifyPlus.SectionHeader" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/spotifyplus_onSurface</item>
+    </style>
+    <style name="TextAppearance.SpotifyPlus.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/spotifyplus_onSurfaceSecondary</item>
+    </style>
+
+    <dimen name="spx_screen_pad">16dp</dimen>
+    <dimen name="spx_card_pad">14dp</dimen>
+    <dimen name="spx_list_item_height">56dp</dimen>
+    <dimen name="spx_list_icon_size">24dp</dimen>
+</resources>

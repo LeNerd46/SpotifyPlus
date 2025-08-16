@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/settings_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true"
+        android:background="@color/spotifyplus_background">
+
+    <!-- App bar with collapsing header -->
+    <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:liftOnScroll="true">
+
+        <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#272727"
+                android:gravity="center"
+                app:titleCentered="true"
+                app:title="Spotify Plus Settings"
+                app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium"
+                app:navigationIcon="?attr/homeAsUpIndicator"/>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="vertical" android:paddingHorizontal="6dp">
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
+                          android:background="@drawable/row_click_bg" android:id="@+id/settings_general">
+
+                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                           android:layout_gravity="center" android:paddingStart="6dp"
+                           android:contentDescription="General Section" android:src="@drawable/wrench"/>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:layout_gravity="center_vertical"
+                              android:paddingStart="8dp">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:text="General" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:paddingBottom="2dp"/>
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              style="@style/TextAppearance.Material3.BodySmall"
+                              android:text="Check for updates • Startup page" android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
+                          android:background="@drawable/row_click_bg" android:id="@+id/settings_lyrics">
+
+                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                           android:layout_gravity="center" android:paddingStart="6dp"
+                           android:contentDescription="Beautiful Lyrics Section" android:src="@drawable/music_note"/>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:layout_gravity="center_vertical"
+                              android:paddingLeft="8dp">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:text="Beautiful Lyrics" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:paddingBottom="2dp"/>
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              style="@style/TextAppearance.Material3.BodySmall"
+                              android:text="Animation style • Animated Background"
+                              android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
+                          android:background="@drawable/row_click_bg" android:id="@+id/settings_experimental">
+
+                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                           android:layout_gravity="center" android:paddingStart="6dp"
+                           android:contentDescription="Experimental Section" android:src="@drawable/experiment"/>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:layout_gravity="center_vertical"
+                              android:paddingLeft="8dp">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:text="Experimental" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:paddingBottom="2dp"/>
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              style="@style/TextAppearance.Material3.BodySmall"
+                              android:text="New scrolling system • Other thing"
+                              android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
+                          android:background="@drawable/row_click_bg" android:id="@+id/settings_scripting">
+
+                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                           android:layout_gravity="center" android:paddingStart="6dp"
+                           android:contentDescription="Scripting Section" android:src="@drawable/code"/>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:layout_gravity="center_vertical"
+                              android:paddingLeft="8dp">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:text="Scripting" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:paddingBottom="2dp"/>
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              style="@style/TextAppearance.Material3.BodySmall"
+                              android:text="Enabled • Scripts directory"
+                              android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
+                          android:background="@drawable/row_click_bg" android:id="@+id/settings_about">
+
+                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                           android:layout_gravity="center" android:paddingStart="6dp"
+                           android:contentDescription="About Section" android:src="@drawable/info"/>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:layout_gravity="center_vertical"
+                              android:paddingLeft="8dp">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:text="About" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:paddingBottom="2dp"/>
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              style="@style/TextAppearance.Material3.BodySmall"
+                              android:text="Version • GitHub"
+                              android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+</com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout>

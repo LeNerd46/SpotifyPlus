@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/settings_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true"
+        android:background="@color/spotifyplus_background">
+
+    <!-- App bar with collapsing header -->
+    <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:liftOnScroll="true">
+
+        <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/scripting_toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#272727"
+                android:gravity="center"
+                app:titleCentered="true"
+                app:title="Scripting Settings"
+                app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium"
+                app:navigationIcon="?attr/homeAsUpIndicator"/>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                 android:paddingTop="16dp" android:paddingStart="16dp"
+                 android:clickable="true" android:focusable="true"
+                 app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="General" style="@style/TextAppearance.Material3.TitleLarge"
+                      android:paddingBottom="12dp"/>
+
+            <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                    <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Enabled"
+                            android:textColor="#4d4d4d"
+                            android:textSize="15sp"
+                            android:paddingBottom="4dp"/>
+
+                    <TextView
+                            style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Sets whether to run scripts or not. This feature is still in development, sorry"
+                            android:textColor="#3c3c3c"/>
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_new_scroller"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp"
+                        android:checked="false" android:enabled="false"
+                        android:contentDescription="Enable scripts"/>
+            </LinearLayout>
+
+            <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                    <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Set Scripts Directory"
+                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:paddingBottom="4dp"/>
+
+                    <TextView
+                            style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Tells the mod where to look for scripts"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_select_directory"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp"
+                        android:text="Select Directory"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:textColor="@color/white"
+                        android:contentDescription="Select directory"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout>
