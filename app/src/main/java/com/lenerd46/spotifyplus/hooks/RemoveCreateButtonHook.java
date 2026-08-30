@@ -38,6 +38,7 @@ import com.google.android.material.slider.Slider;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.lenerd46.spotifyplus.*;
+import com.lenerd46.spotifyplus.beautifullyrics.translation.LyricsTranslationService;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -78,8 +79,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     private Class<?> wwk;
     private final static ConcurrentHashMap<Pair<Integer, String>, List<SettingItem.SettingSection>> scriptSettings = new ConcurrentHashMap<>();
     private final static ConcurrentHashMap<Pair<Integer, String>, Runnable> scriptSideButtons = new ConcurrentHashMap<>();
-    private static final java.util.concurrent.atomic.AtomicBoolean overlayShown = new java.util.concurrent.atomic.AtomicBoolean(
-            false);
+    private static final java.util.concurrent.atomic.AtomicBoolean overlayShown = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public RemoveCreateButtonHook(final Context context) {
         this.context = context;
@@ -958,6 +958,8 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
                                 MaterialSwitch swapTranslations = view.findViewById(R.id.switch_swap_translations);
                                 MaterialSwitch hideOriginal = view.findViewById(R.id.switch_hide_original);
+                                TextInputLayout translationLanguageLayout = view.findViewById(R.id.translation_language_layout);
+                                TextInputEditText translationLanguage = view.findViewById(R.id.input_translation_language);
 
                                 background.setOnCheckedChangeListener((button, value) -> prefs.edit().putBoolean("lyric_enable_background", value).apply());
                                 lineGradient.setOnCheckedChangeListener((button, value) -> prefs.edit().putBoolean("lyric_enable_line_gradient", value).apply());
@@ -990,6 +992,23 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
                                 swapTranslations.setChecked(prefs.getBoolean("lyrics_swap_translations", false));
                                 hideOriginal.setChecked(prefs.getBoolean("lyrics_hide_original", false));
+                                String configuredTranslationLanguage = LyricsTranslationService.normalizeTargetLanguage(prefs.getString("lyrics_translation_language", LyricsTranslationService.DEFAULT_TARGET_LANGUAGE));
+                                translationLanguage.setText(configuredTranslationLanguage.isEmpty() ? LyricsTranslationService.DEFAULT_TARGET_LANGUAGE : configuredTranslationLanguage);
+                                translationLanguage.addTextChangedListener(new android.text.TextWatcher() {
+                                    @Override
+                                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                                    @Override
+                                    public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+                                    @Override
+                                    public void afterTextChanged(android.text.Editable editable) {
+                                        String text = editable.toString();
+                                        String language = LyricsTranslationService.normalizeTargetLanguage(text);
+                                        translationLanguageLayout.setError(!text.isBlank() && text.length() >= 2 && language.isEmpty() ? "Enter a valid ISO language code" : null);
+                                        if (!language.isEmpty()) prefs.edit().putString("lyrics_translation_language", language).apply();
+                                    }
+                                });
                             });
 
                             experimentalSettings.setOnClickListener(v -> {

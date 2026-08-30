@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +24,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 public final class LyricsTranslationService {
-    private static final String TARGET_LANGUAGE = "en";
+    public static final String DEFAULT_TARGET_LANGUAGE = "en";
     private static final HttpUrl ENDPOINT = new HttpUrl.Builder()
             .scheme("https")
             .host("translate.googleapis.com")
@@ -34,20 +35,55 @@ public final class LyricsTranslationService {
     private final HttpUrl endpoint;
     private final ExecutorService executor;
     private final Set<Call> calls = ConcurrentHashMap.newKeySet();
+    private final String targetLanguage;
     private volatile boolean cancelled;
 
     public LyricsTranslationService() {
-        this(new OkHttpClient.Builder().callTimeout(5, TimeUnit.SECONDS).build(), ENDPOINT, 6);
+        this(DEFAULT_TARGET_LANGUAGE);
     }
 
-    public static boolean shouldTranslateLanguage(String language) {
-        return language != null && !language.isBlank() && !language.trim().equalsIgnoreCase(TARGET_LANGUAGE);
+    public LyricsTranslationService(String targetLanguage) {
+        this(new OkHttpClient.Builder().callTimeout(5, TimeUnit.SECONDS).build(), ENDPOINT, 6, targetLanguage);
     }
 
     LyricsTranslationService(OkHttpClient client, HttpUrl endpoint, int concurrency) {
+        this(client, endpoint, concurrency, DEFAULT_TARGET_LANGUAGE);
+    }
+
+    LyricsTranslationService(OkHttpClient client, HttpUrl endpoint, int concurrency, String targetLanguage) {
         this.client = client;
         this.endpoint = endpoint;
         this.executor = Executors.newFixedThreadPool(concurrency);
+        String normalizedTarget = normalizeTargetLanguage(targetLanguage);
+        this.targetLanguage = normalizedTarget.isEmpty() ? DEFAULT_TARGET_LANGUAGE : normalizedTarget;
+    }
+
+    public static String normalizeTargetLanguage(String language) {
+        if (language == null) return "";
+        String normalized = language.trim().replace('_', '-');
+        if (!normalized.matches("(?i)[a-z]{2}(?:-[a-z]{2})?")) return "";
+        String[] parts = normalized.split("-");
+        boolean knownLanguage = false;
+        for (String isoLanguage : Locale.getISOLanguages()) {
+            if (isoLanguage.equalsIgnoreCase(parts[0])) {
+                knownLanguage = true;
+                break;
+            }
+        }
+        if (!knownLanguage) return "";
+        return parts.length == 1 ? parts[0].toLowerCase(Locale.ROOT) : parts[0].toLowerCase(Locale.ROOT) + "-" + parts[1].toUpperCase(Locale.ROOT);
+    }
+
+    public static boolean shouldTranslateLanguage(String language) {
+        return shouldTranslateLanguage(language, DEFAULT_TARGET_LANGUAGE);
+    }
+
+    public static boolean shouldTranslateLanguage(String language, String targetLanguage) {
+        String normalizedTarget = normalizeTargetLanguage(targetLanguage);
+        if (language == null || language.isBlank() || normalizedTarget.isEmpty()) return false;
+        String sourceLanguage = language.trim().replace('_', '-').split("-")[0];
+        String targetBaseLanguage = normalizedTarget.split("-")[0];
+        return !sourceLanguage.equalsIgnoreCase(targetBaseLanguage);
     }
 
     public void translateLines(Collection<String> lines, Completion completion) {
@@ -88,7 +124,7 @@ public final class LyricsTranslationService {
                 .addQueryParameter("client", "gtx")
                 .addQueryParameter("dt", "t")
                 .addQueryParameter("sl", "auto")
-                .addQueryParameter("tl", TARGET_LANGUAGE)
+                .addQueryParameter("tl", targetLanguage)
                 .addQueryParameter("q", sourceText)
                 .build();
         Call call = client.newCall(new Request.Builder().url(url).get().build());

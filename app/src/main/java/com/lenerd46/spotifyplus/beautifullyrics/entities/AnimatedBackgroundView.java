@@ -15,7 +15,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AnimatedBackgroundView extends View {
-    private static final int BLUR_RADIUS = 20;
+    private static final int BLUR_RADIUS = 12;
     private static final long TRANSITION_DURATION_MS = 1000L;
     private static final long TARGET_FRAME_INTERVAL_NANOS = 33_333_333L;
     private static final int BUFFER_COUNT = 3;

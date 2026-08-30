@@ -43,6 +43,12 @@ public class LyricsTranslationServiceTest {
         assertTrue(!LyricsTranslationService.shouldTranslateLanguage(""));
         assertTrue(!LyricsTranslationService.shouldTranslateLanguage(null));
         assertTrue(LyricsTranslationService.shouldTranslateLanguage("fr"));
+        assertTrue(!LyricsTranslationService.shouldTranslateLanguage("es", "es"));
+        assertTrue(!LyricsTranslationService.shouldTranslateLanguage("es", "es-MX"));
+        assertTrue(LyricsTranslationService.shouldTranslateLanguage("en", "es"));
+        assertEquals("es", LyricsTranslationService.normalizeTargetLanguage(" ES "));
+        assertEquals("zh-CN", LyricsTranslationService.normalizeTargetLanguage("zh_cn"));
+        assertEquals("", LyricsTranslationService.normalizeTargetLanguage("xx"));
     }
 
     @Test
@@ -96,6 +102,24 @@ public class LyricsTranslationServiceTest {
 
             assertTrue(latch.await(2, TimeUnit.SECONDS));
             assertTrue(output.get().isEmpty());
+        }
+    }
+
+    @Test
+    public void usesConfiguredTargetLanguage() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setResponseCode(200)
+                    .setBody("[[[\"Hola\",\"Hello\",null,null,3]],null,\"en\"]"));
+            LyricsTranslationService service = new LyricsTranslationService(
+                    new OkHttpClient(), server.url("/translate_a/single"), 1, "es");
+            CountDownLatch latch = new CountDownLatch(1);
+
+            service.translateLines(List.of("Hello"), results -> latch.countDown());
+
+            assertTrue(latch.await(2, TimeUnit.SECONDS));
+            RecordedRequest request = server.takeRequest(2, TimeUnit.SECONDS);
+            assertNotNull(request);
+            assertEquals("es", request.getRequestUrl().queryParameter("tl"));
         }
     }
 }

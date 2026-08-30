@@ -1,6 +1,7 @@
 package com.lenerd46.spotifyplus.hooks;
 
 import android.app.Activity;
+import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.media.MediaMetadata;
 import android.media.session.PlaybackState;
@@ -18,8 +19,6 @@ import com.google.android.flexbox.FlexWrap;
 import com.google.android.flexbox.FlexboxLayout;
 import com.google.android.flexbox.JustifyContent;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.References;
@@ -33,10 +32,8 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import okhttp3.Call;
 import okhttp3.Callback;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
 import org.jetbrains.annotations.NotNull;
 import org.luckypray.dexkit.query.FindMethod;
@@ -58,6 +55,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class NowPlayingLyricsGradientHook extends SpotifyHook {
+    private static final String NOW_PLAYING_ACTIVITY = "com.spotify.nowplaying.musicinstallation.NowPlayingActivity";
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Choreographer choreographer = Choreographer.getInstance();
     private final OkHttpClient lyricsClient = new OkHttpClient();
@@ -70,6 +68,8 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
     private volatile String mediaTrackUri;
     private volatile String mediaTrackTitle;
     private volatile boolean nowPlayingLyricsVisible;
+    private volatile boolean nowPlayingActivityResumed;
+    private volatile WeakReference<Activity> nowPlayingActivity = new WeakReference<>(null);
     private volatile boolean nativeLyricsFallback;
     private Call activeCall;
     private Field[] lineColorFields;
@@ -107,8 +107,8 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
             framePosted = false;
             try {
                 updateFrame(frameTimeNanos);
-                if(nowPlayingLyricsVisible && overlayHost != null && overlayHost.isAttachedToWindow()) postFrame(0);
-                else if(nowPlayingLyricsVisible && !timedLines.isEmpty() && System.currentTimeMillis() - lastNpvRenderAt < 10000) postFrame(100);
+                if(isNowPlayingViewVisible() && overlayHost != null && overlayHost.isAttachedToWindow()) postFrame(0);
+                else if(isNowPlayingViewVisible() && !timedLines.isEmpty() && System.currentTimeMillis() - lastNpvRenderAt < 10000) postFrame(100);
             } catch(Throwable t) {
                 XposedBridge.log("[SpotifyPlus][NPV Lyrics] Animated lyric frame failed");
                 XposedBridge.log(t);
@@ -121,6 +121,39 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
     @Override
     protected void hook() {
         try {
+            XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    Activity activity = (Activity) param.thisObject;
+                    if(!isNowPlayingActivity(activity)) return;
+                    nowPlayingActivity = new WeakReference<>(activity);
+                    nowPlayingActivityResumed = true;
+                    if(!nowPlayingLyricsVisible) return;
+                    if(hasLoadedCustomLyrics()) {
+                        hideRememberedNpvLineModels();
+                        notifyNpvColorStatesChanged();
+                        invalidateNpvRecomposeScopes();
+                    }
+                    ensureTrackAndLyrics();
+                    postFrame();
+                }
+            });
+            XC_MethodHook hideWhenNowPlayingCloses = new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    Activity activity = (Activity) param.thisObject;
+                    if(activity != nowPlayingActivity.get()) return;
+                    nowPlayingActivityResumed = false;
+                    removeOverlay();
+                    if(hasLoadedCustomLyrics()) {
+                        restoreNpvLineModels();
+                        notifyNpvColorStatesChanged();
+                        invalidateNpvRecomposeScopes();
+                    }
+                }
+            };
+            XposedHelpers.findAndHookMethod(Activity.class, "onPause", hideWhenNowPlayingCloses);
+            XposedHelpers.findAndHookMethod(Activity.class, "onStop", hideWhenNowPlayingCloses);
             Method npvRenderer = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().returnType(Object.class).paramCount(5).usingStrings("lyrics_line"))).get(0).getMethodInstance(lpparm.classLoader);
             List<MethodData> lineRendererCandidates = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL).returnType(void.class).usingStrings("fontScale", "lyrics line color")));
             if(lineRendererCandidates.size() != 1) throw new IllegalStateException("[NowPlayingLyricsGradientHook/DexKit] Expected one semantic lyrics-line renderer but found " + lineRendererCandidates);
@@ -191,7 +224,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                 protected void afterHookedMethod(MethodHookParam param) {
                     if(npvLineBuildDepth.get() == 0) return;
                     rememberNpvLineModel(param.thisObject);
-                    if(hasLoadedCustomLyrics()) hideNpvLineModel(param.thisObject);
+                    if(isNowPlayingViewVisible() && hasLoadedCustomLyrics()) hideNpvLineModel(param.thisObject);
                 }
             });
             XposedBridge.hookMethod(npvRenderer, new XC_MethodHook() {
@@ -201,7 +234,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                     if(!isNowPlayingLyricsState(state)) return;
                     lastNpvRenderAt = System.currentTimeMillis();
                     nowPlayingLyricsVisible = hasVisibleLyrics(state);
-                    if(nowPlayingLyricsVisible) {
+                    if(isNowPlayingViewVisible()) {
                         ensureTrackAndLyrics();
                         postFrame();
                     } else {
@@ -213,7 +246,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
                     try {
-                        if(!nowPlayingLyricsVisible || nativeLyricsFallback || param.args.length < 2 || param.args[0] == null || !isNpvLineModel(param.args[0])) return;
+                        if(!isNowPlayingViewVisible() || nativeLyricsFallback || param.args.length < 2 || param.args[0] == null || !isNpvLineModel(param.args[0])) return;
                         param.setObjectExtra("spotifyplus_npv_line_render", Boolean.TRUE);
                         npvLineRenderDepth.set(npvLineRenderDepth.get() + 1);
                         lastNpvRenderAt = System.currentTimeMillis();
@@ -239,6 +272,10 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
             XposedHelpers.findAndHookMethod(Activity.class, "onDestroy", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if(param.thisObject == nowPlayingActivity.get()) {
+                        nowPlayingActivityResumed = false;
+                        nowPlayingActivity = new WeakReference<>(null);
+                    }
                     if(overlayHost != null && overlayHost.getContext() == param.thisObject) removeOverlay();
                 }
             });
@@ -265,7 +302,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                     CharSequence title = metadata.getText(MediaMetadata.METADATA_KEY_TITLE);
                     mediaTrackTitle = title == null ? "" : title.toString();
                     lastTrackCheck = 0;
-                    if(nowPlayingLyricsVisible) ensureTrackAndLyrics();
+                    if(isNowPlayingViewVisible()) ensureTrackAndLyrics();
                 }
             });
             XposedBridge.log("[SpotifyPlus] Now-playing gradient lyrics hook initialized");
@@ -434,7 +471,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
             XposedBridge.hookMethod(getter, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    if(!hasLoadedCustomLyrics() || !isNpvColorState(param.thisObject) || param.getResult() == null) return;
+                    if(!isNowPlayingViewVisible() || !hasLoadedCustomLyrics() || !isNpvColorState(param.thisObject) || param.getResult() == null) return;
                     Object value = param.getResult();
                     for(Constructor<?> constructor : value.getClass().getDeclaredConstructors()) {
                         if(constructor.getParameterCount() != 1 || constructor.getParameterTypes()[0] != long.class) continue;
@@ -565,7 +602,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                     uri = track.uri;
                     title = track.title;
                 }
-                if(TextUtils.isEmpty(uri) || !nowPlayingLyricsVisible || uri.equals(requestedTrackUri)) return;
+                if(TextUtils.isEmpty(uri) || !isNowPlayingViewVisible() || uri.equals(requestedTrackUri)) return;
                 String resolvedUri = uri;
                 String resolvedTitle = title;
                 requestedTrackUri = resolvedUri;
@@ -603,8 +640,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
             String[] uriParts = trackUri.split(":");
             if(uriParts.length < 3) return;
             String id = uriParts[2];
-            RequestBody body = RequestBody.create("{\"queries\":[{\"operation\":\"lyrics\",\"variables\":{\"id\":\"" + id + "\",\"auth\":\"SpicyLyrics-WebAuth\"}}],\"client\":{\"version\":\"5.22.3\"}}", MediaType.parse("application/json; charset=utf-8"));
-            Request request = new Request.Builder().url("https://api.spicylyrics.org/query").post(body).header("Spicylyrics-Webauth", "Bearer " + References.accessToken).header("Spicylyrics-Version", "5.22.3").header("Origin", "https://xpui.app.spotify.com").header("Referer", "https://xpui.app.spotify.com/").header("Accept", "*/*").header("Content-Type", "application/json").header("Sec-Fetch-Mode", "cors").header("Sec-Fetch-Site", "cross-site").header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.179 Spotify/1.2.88.483 Safari/537.36").header("Sec-Ch-Ua", "\"Not-A.Brand\";v=\"24\", \"Chromium\";v=\"146\"").header("Sec-Fetch-Dest", "empty").header("Priority", "u=1, i").header("Accept-Language", "en-Latn-US,en-US;q=0.9,en-Latn;q=0.8,en;q=0.7").header("Sec-Ch-Ua-Mobile", "?0").header("Sec-Ca-Ua-Platform", "\"Windows\"").build();
+            Request request = new Request.Builder().url("https://spotifyplus-api.devon-shoutz.workers.dev/api/lyrics/" + id).build();
             activeCall = lyricsClient.newCall(request);
             activeCall.enqueue(new Callback() {
                 @Override
@@ -612,19 +648,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                     String content = response.body() == null ? "" : response.body().string();
                     if(call.isCanceled() || !trackUri.equals(requestedTrackUri)) return;
                     try {
-                        JsonArray queries = JsonParser.parseString(content).getAsJsonObject().getAsJsonArray("queries");
-                        if(queries == null || queries.isEmpty()) {
-                            enableNativeFallback(trackUri, "empty response");
-                            return;
-                        }
-                        JsonObject data = null;
-                        for(JsonElement element : queries) {
-                            JsonObject query = element.getAsJsonObject();
-                            if(query.has("result") && query.getAsJsonObject("result").has("data")) {
-                                data = query.getAsJsonObject("result").getAsJsonObject("data");
-                                break;
-                            }
-                        }
+                        JsonObject data = JsonParser.parseString(content).getAsJsonObject();
                         if(data == null || !data.has("Type") || !"Syllable".equals(data.get("Type").getAsString())) {
                             enableNativeFallback(trackUri, data != null && data.has("Type") ? "lyrics type " + data.get("Type").getAsString() : "missing lyrics data");
                             return;
@@ -640,6 +664,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                         loadedTrackUri = trackUri;
                         XposedBridge.log("[SpotifyPlus][NPV Lyrics] Loaded " + parsed.size() + " syllable-timed lines");
                         mainHandler.post(() -> {
+                            if(!isNowPlayingViewVisible()) return;
                             hideRememberedNpvLineModels();
                             notifyNpvColorStatesChanged();
                             invalidateNpvRecomposeScopes();
@@ -647,7 +672,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                             if(overlayHost != null) overlayHost.invalidate();
                         });
                     } catch(Throwable t) {
-                        XposedBridge.log("[SpotifyPlus] Failed to parse Spicy Lyrics NPV response");
+                        XposedBridge.log("[SpotifyPlus] Failed to parse SpotifyPlus lyrics API NPV response");
                         XposedBridge.log(t);
                     }
                 }
@@ -710,12 +735,12 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
     }
 
     private void updateFrame(long frameTimeNanos) {
-        if(!nowPlayingLyricsVisible) {
+        if(!isNowPlayingViewVisible()) {
             removeOverlay();
             return;
         }
         Activity activity = References.currentActivity;
-        if(BeautifulLyricsHook.isOverlayAttached(activity)) {
+        if(BeautifulLyricsHook.isOverlayAttached(activity) || BeautifulLyricsHook.isEmbeddedShowing()) {
             if(lyricContainer != null) lyricContainer.setVisibility(View.INVISIBLE);
             lastAnimationFrameNanos = 0;
             return;
@@ -780,9 +805,16 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
         return !timedLines.isEmpty() && loadedTrackUriEqualsRequested();
     }
 
-    private boolean isNowPlayingActivityVisible() {
-        Activity activity = References.currentActivity;
-        return nowPlayingLyricsVisible && activity != null && activity.getClass().getName().contains("NowPlayingActivity");
+    private boolean isNowPlayingActivity(Activity activity) {
+        return activity != null && NOW_PLAYING_ACTIVITY.equals(activity.getClass().getName());
+    }
+
+    private boolean isNowPlayingViewVisible() {
+        if(!nowPlayingLyricsVisible || !nowPlayingActivityResumed) return false;
+        Activity activity = nowPlayingActivity.get();
+        if(!isNowPlayingActivity(activity) || activity.isFinishing() || activity.isDestroyed()) return false;
+        View decor = activity.getWindow().getDecorView();
+        return decor.isAttachedToWindow() && decor.isShown() && decor.getWindowVisibility() == View.VISIBLE;
     }
 
     private boolean positionOverlay() {
@@ -820,6 +852,11 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
         anchor.host.getLocationOnScreen(hostLocation);
         int horizontalInset = Math.max(0, anchor.bounds.left - hostLocation[0]);
         anchor.bounds.right = hostLocation[0] + anchor.host.getWidth() - horizontalInset;
+        if(activity.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            anchor.bounds.top = anchor.bounds.bottom + Math.round(24f * activity.getResources().getDisplayMetrics().density);
+            anchor.bounds.bottom = anchor.bounds.top + height;
+            return anchor;
+        }
         anchor.bounds.bottom = anchor.bounds.top - spacing;
         anchor.bounds.top = anchor.bounds.bottom - height;
         return anchor;

@@ -682,6 +682,63 @@
                                         android:contentDescription="Send Access Token" />
                         </LinearLayout>
 
+                        <LinearLayout
+                                android:id="@+id/translation_language_row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:minHeight="72dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="16dp"
+                                android:paddingVertical="8dp"
+                                android:clickable="true" android:focusable="true"
+                                android:background="@drawable/row_click_bg">
+
+                                <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                                android:layout_width="wrap_content"
+                                                android:layout_height="wrap_content"
+                                                android:text="Translated Language"
+                                                android:textColor="@color/white"
+                                                android:textSize="15sp"
+                                                android:paddingBottom="4dp" />
+
+                                        <TextView
+                                                style="@style/TextAppearance.Material3.BodySmall"
+                                                android:layout_width="wrap_content"
+                                                android:layout_height="wrap_content"
+                                                android:text="What language to translate lyrics into. Must be a valid ISO language code"
+                                                android:textColor="?attr/colorOnSurfaceVariant" />
+                                </LinearLayout>
+
+                                <com.google.android.material.textfield.TextInputLayout
+                                        android:id="@+id/translation_language_layout"
+                                        android:layout_width="112dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="16dp"
+                                        android:hint="ISO code"
+                                        app:boxStrokeColor="#55FFFFFF"
+                                        app:hintTextColor="#AAFFFFFF">
+
+                                        <com.google.android.material.textfield.TextInputEditText
+                                                android:id="@+id/input_translation_language"
+                                                android:layout_width="match_parent"
+                                                android:layout_height="wrap_content"
+                                                android:digits="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_"
+                                                android:inputType="text"
+                                                android:maxLength="5"
+                                                android:singleLine="true"
+                                                android:textColor="@color/white"
+                                                android:textColorHint="#88FFFFFF" />
+
+                                </com.google.android.material.textfield.TextInputLayout>
+                        </LinearLayout>
+
                 </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 

@@ -24,6 +24,7 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassDataList;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -46,6 +47,8 @@ public class References {
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     private static Method hasTrackMethod;
     private static Method getContextTrack;
+    private static volatile Class<?> playbackPositionStateClass;
+    private static volatile Field playbackPositionField;
 
     public static SpotifyTrack getTrackTitle(XC_LoadPackage.LoadPackageParam lpparam, DexKitBridge bridge) {
         if(playerState == null || playerState.get() == null) {
@@ -137,13 +140,23 @@ public class References {
         }
 
         try {
-            var progressList = bridge.findField(FindField.create().searchInClass(Arrays.asList(bridge.getClassData(state.getClass()))).matcher(FieldMatcher.create().type(long.class)));
-            if(progressList.isEmpty()) {
-                XposedBridge.log("[SpotifyPlus] Failed to get progress: " + state.getClass().getName());
-                return -1;
+            Field field = playbackPositionField;
+            if(field == null || playbackPositionStateClass != state.getClass()) {
+                synchronized(References.class) {
+                    field = playbackPositionField;
+                    if(field == null || playbackPositionStateClass != state.getClass()) {
+                        var progressList = bridge.findField(FindField.create().searchInClass(Arrays.asList(bridge.getClassData(state.getClass()))).matcher(FieldMatcher.create().type(long.class)));
+                        if(progressList.isEmpty()) {
+                            XposedBridge.log("[SpotifyPlus] Failed to get progress: " + state.getClass().getName());
+                            return -1;
+                        }
+                        field = progressList.get(0).getFieldInstance(lpparam.classLoader);
+                        playbackPositionStateClass = state.getClass();
+                        playbackPositionField = field;
+                    }
+                }
             }
-
-            return progressList.get(0).getFieldInstance(lpparam.classLoader).getLong(state);
+            return field.getLong(state);
         } catch(Exception e) {
             XposedBridge.log(e);
         }
