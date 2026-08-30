@@ -148,7 +148,6 @@ Join the Spotify Plus community! We have a Telegram channel where you can discus
 - [JingMatrix/Vector](https://github.com/JingMatrix/Vector) - Main Xposed framework
 - [LuckyPray/DexKit](https://github.com/LuckyPray/DexKit) - Dex parsing library, used for wide Spotify compatibility
 - [surfbryce/beautiful-lyrics](https://github.com/surfbryce/beautiful-lyrics) - The project that made me want to develop this module, also helped structure the lyrics
-- [Spikerko/spicy-lyrics](https://github.com/Spikerko/spicy-lyrics) - API used to fetch the lyrics
 
 ## Contributing
 

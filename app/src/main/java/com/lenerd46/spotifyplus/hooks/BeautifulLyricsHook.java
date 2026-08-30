@@ -809,6 +809,14 @@ public class BeautifulLyricsHook extends SpotifyHook {
         return overlayHost != null && !dismissing && overlayActivity == activity && session == translationSession.get() && Objects.equals(currentTrackUri, track.uri);
     }
 
+    private void showNoLyrics(Activity activity, SpotifyTrack track, int session, String reason) {
+        XposedBridge.log("[SpotifyPlus] No lyrics available for " + track.uri + ": " + reason);
+        activity.runOnUiThread(() -> {
+            if (!isOverlaySessionActive(activity, track, session)) return;
+            Toast.makeText(activity, "No lyrics found for this song", Toast.LENGTH_LONG).show();
+        });
+    }
+
     private void scrollOverlayToTop() {
         if (overlayScrollView != null) overlayScrollView.scrollTo(0, 0);
         if (overlayLyricsContainer != null && experimentalTouchSurface != null) applyImmediateScrollOffset(overlayLyricsContainer, 0);
@@ -1400,9 +1408,29 @@ public class BeautifulLyricsHook extends SpotifyHook {
                 lyricsCall.enqueue(new Callback() {
                     @Override
                     public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                        assert response.body() != null;
-                        String contentFull = response.body().string();
-                        XposedBridge.log("[SpotifyPlus] " + contentFull);
+                        if (call.isCanceled() || !isOverlaySessionActive(activity, track, pageTranslationSession)) {
+                            response.close();
+                            return;
+                        }
+                        if (!response.isSuccessful() || response.body() == null) {
+                            int responseCode = response.code();
+                            response.close();
+                            showNoLyrics(activity, track, pageTranslationSession, "HTTP " + responseCode);
+                            return;
+                        }
+                        String contentFull;
+                        try {
+                            contentFull = response.body().string();
+                        } catch (IOException exception) {
+                            showNoLyrics(activity, track, pageTranslationSession, "failed to read response");
+                            return;
+                        } finally {
+                            response.close();
+                        }
+                        if (contentFull.isBlank()) {
+                            showNoLyrics(activity, track, pageTranslationSession, "empty response");
+                            return;
+                        }
 
 //                        JsonArray array = new JsonParser().parseString(contentFull).getAsJsonObject().get("queries").getAsJsonArray();
 
@@ -1422,14 +1450,35 @@ public class BeautifulLyricsHook extends SpotifyHook {
 //                            return;
 //                        }
 //
-                        JsonObject jsonObject = JsonParser.parseString(contentFull).getAsJsonObject();
+                        JsonElement parsedResponse;
+                        try {
+                            parsedResponse = JsonParser.parseString(contentFull);
+                        } catch (RuntimeException exception) {
+                            showNoLyrics(activity, track, pageTranslationSession, "malformed JSON response");
+                            return;
+                        }
+                        if (!parsedResponse.isJsonObject()) {
+                            showNoLyrics(activity, track, pageTranslationSession, "response was not a JSON object");
+                            return;
+                        }
+                        JsonObject jsonObject = parsedResponse.getAsJsonObject();
+                        JsonElement typeElement = jsonObject.get("Type");
+                        if (typeElement == null || !typeElement.isJsonPrimitive()) {
+                            showNoLyrics(activity, track, pageTranslationSession, "missing lyric type");
+                            return;
+                        }
                         String content = contentFull;
-                        XposedBridge.log("[SpotifyPlus] " + content);
-                        String type = jsonObject.get("Type").getAsString();
+                        String type = typeElement.getAsString();
+                        String lyricsField = type.equals("Static") ? "Lines" : type.equals("Syllable") || type.equals("Line") ? "Content" : "";
+                        JsonElement lyricsElement = lyricsField.isEmpty() ? null : jsonObject.get(lyricsField);
+                        if (lyricsElement == null || !lyricsElement.isJsonArray() || lyricsElement.getAsJsonArray().isEmpty()) {
+                            showNoLyrics(activity, track, pageTranslationSession, lyricsField.isEmpty() ? "unsupported lyric type " + type : "empty " + type + " lyrics");
+                            return;
+                        }
                         var writers = jsonObject.get("SongWriters");
                         String writtenBy;
-                        if (writers != null) {
-                            writtenBy = writers.getAsJsonArray().asList().stream().map(JsonElement::getAsString)
+                        if (writers != null && writers.isJsonArray()) {
+                            writtenBy = writers.getAsJsonArray().asList().stream().filter(JsonElement::isJsonPrimitive).map(JsonElement::getAsString)
                                     .collect(Collectors.joining(", "));
                         } else {
                             writtenBy = "";
@@ -1471,50 +1520,56 @@ public class BeautifulLyricsHook extends SpotifyHook {
                                 return;
                             }
 
-                            if (type.equals("Syllable")) {
-                                Gson gson = new Gson();
-                                SyllableSyncedLyrics providerLyrics = gson.fromJson(content,
-                                        SyllableSyncedLyrics.class);
-                                ProviderLyrics lyrics = new ProviderLyrics();
-                                lyrics.syllableLyrics = providerLyrics;
-                                XposedBridge.log("[SpotifyPlus] Line Count: " + lyrics.syllableLyrics.content.size());
+                            try {
+                                if (type.equals("Syllable")) {
+                                    Gson gson = new Gson();
+                                    SyllableSyncedLyrics providerLyrics = gson.fromJson(content,
+                                            SyllableSyncedLyrics.class);
+                                    ProviderLyrics lyrics = new ProviderLyrics();
+                                    lyrics.syllableLyrics = providerLyrics;
+                                    XposedBridge.log("[SpotifyPlus] Line Count: " + lyrics.syllableLyrics.content.size());
 
-                                TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(lyrics, activity);
+                                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(lyrics, activity);
 
-                                renderSyllableLyrics(activity, transformedLyrics, lyricsContainer, track, writtenBy);
-                                beginTranslations(activity, transformedLyrics, lyricsContainer, pageTranslationSession);
-                            } else if (type.equals("Line")) {
-                                Gson gson = new Gson();
-                                LineSyncedLyrics providerLyrics = gson.fromJson(content, LineSyncedLyrics.class);
-                                ProviderLyrics lyrics = new ProviderLyrics();
-                                lyrics.lineLyrics = providerLyrics;
+                                    renderSyllableLyrics(activity, transformedLyrics, lyricsContainer, track, writtenBy);
+                                    beginTranslations(activity, transformedLyrics, lyricsContainer, pageTranslationSession);
+                                } else if (type.equals("Line")) {
+                                    Gson gson = new Gson();
+                                    LineSyncedLyrics providerLyrics = gson.fromJson(content, LineSyncedLyrics.class);
+                                    ProviderLyrics lyrics = new ProviderLyrics();
+                                    lyrics.lineLyrics = providerLyrics;
 
-                                TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(lyrics, activity);
+                                    TransformedLyrics transformedLyrics = LyricUtilities.transformLyrics(lyrics, activity);
 
-                                renderLineLyrics(activity, transformedLyrics, lyricsContainer, track, writtenBy);
-                                beginTranslations(activity, transformedLyrics, lyricsContainer,
-                                        pageTranslationSession);
-                            } else if (type.equals("Static")) {
-                                Gson gson = new Gson();
-                                // This is pretty pointless
-                                // If Spotify doesn't have lyrics, you can't open this page
-                                // And it's very likely that if a song has static lyrics, Spotify won't have the
-                                // lryics
-                                // I redact my statement, there have been a few times that I've seen static
-                                // lyrics
-                                // And hey, guess what? It actually works!
-                                // I wrote this code and never cared enough to go find a song to test it on
+                                    renderLineLyrics(activity, transformedLyrics, lyricsContainer, track, writtenBy);
+                                    beginTranslations(activity, transformedLyrics, lyricsContainer,
+                                            pageTranslationSession);
+                                } else if (type.equals("Static")) {
+                                    Gson gson = new Gson();
+                                    // This is pretty pointless
+                                    // If Spotify doesn't have lyrics, you can't open this page
+                                    // And it's very likely that if a song has static lyrics, Spotify won't have the
+                                    // lryics
+                                    // I redact my statement, there have been a few times that I've seen static
+                                    // lyrics
+                                    // And hey, guess what? It actually works!
+                                    // I wrote this code and never cared enough to go find a song to test it on
 
-                                StaticSyncedLyrics providerLyrics = gson.fromJson(content, StaticSyncedLyrics.class);
+                                    StaticSyncedLyrics providerLyrics = gson.fromJson(content, StaticSyncedLyrics.class);
 
-                                ProviderLyrics providerLyricsThing = new ProviderLyrics();
-                                providerLyricsThing.staticLyrics = providerLyrics;
+                                    ProviderLyrics providerLyricsThing = new ProviderLyrics();
+                                    providerLyricsThing.staticLyrics = providerLyrics;
 
-                                TransformedLyrics transformedLyrics = LyricUtilities
-                                        .transformLyrics(providerLyricsThing, activity);
-                                renderStaticLyrics(activity, transformedLyrics, lyricsContainer);
-                                beginTranslations(activity, transformedLyrics, lyricsContainer,
-                                        pageTranslationSession);
+                                    TransformedLyrics transformedLyrics = LyricUtilities
+                                            .transformLyrics(providerLyricsThing, activity);
+                                    renderStaticLyrics(activity, transformedLyrics, lyricsContainer);
+                                    beginTranslations(activity, transformedLyrics, lyricsContainer,
+                                            pageTranslationSession);
+                                }
+                            } catch (Throwable throwable) {
+                                XposedBridge.log("[SpotifyPlus] Failed to render lyrics response");
+                                XposedBridge.log(throwable);
+                                showNoLyrics(activity, track, pageTranslationSession, "invalid lyric data");
                             }
                         });
                     }
@@ -1522,10 +1577,7 @@ public class BeautifulLyricsHook extends SpotifyHook {
                     @Override
                     public void onFailure(@NotNull Call call, @NotNull IOException e) {
                         if (call.isCanceled() || !isOverlaySessionActive(activity, track, pageTranslationSession)) return;
-                        Handler mainHandler = new Handler(Looper.getMainLooper());
-                        Runnable runnable = () -> Toast.makeText(activity, "No lyrics found for this song", Toast.LENGTH_LONG).show();
-
-                        mainHandler.post(runnable);
+                        showNoLyrics(activity, track, pageTranslationSession, e.getMessage() == null ? "request failed" : e.getMessage());
                     }
                 });
             } catch (Exception ex) {

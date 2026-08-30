@@ -645,8 +645,29 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
             activeCall.enqueue(new Callback() {
                 @Override
                 public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                    String content = response.body() == null ? "" : response.body().string();
-                    if(call.isCanceled() || !trackUri.equals(requestedTrackUri)) return;
+                    if(call.isCanceled() || !trackUri.equals(requestedTrackUri)) {
+                        response.close();
+                        return;
+                    }
+                    if(!response.isSuccessful() || response.body() == null) {
+                        int responseCode = response.code();
+                        response.close();
+                        enableNativeFallback(trackUri, "HTTP " + responseCode);
+                        return;
+                    }
+                    String content;
+                    try {
+                        content = response.body().string();
+                    } catch(IOException exception) {
+                        enableNativeFallback(trackUri, "failed to read response");
+                        return;
+                    } finally {
+                        response.close();
+                    }
+                    if(content.isBlank()) {
+                        enableNativeFallback(trackUri, "empty response");
+                        return;
+                    }
                     try {
                         JsonObject data = JsonParser.parseString(content).getAsJsonObject();
                         if(data == null || !data.has("Type") || !"Syllable".equals(data.get("Type").getAsString())) {
@@ -674,6 +695,7 @@ public class NowPlayingLyricsGradientHook extends SpotifyHook {
                     } catch(Throwable t) {
                         XposedBridge.log("[SpotifyPlus] Failed to parse SpotifyPlus lyrics API NPV response");
                         XposedBridge.log(t);
+                        enableNativeFallback(trackUri, "invalid lyrics response");
                     }
                 }
 
