@@ -1,0 +1,8 @@
+name=Spotify Plus
+description=Unlock the full power of your Spotify app
+version=0.10.0.0
+versionCode=1
+author=Devon Shoutz
+minApiVersion=93
+targetApiVersion=100
+staticScope=true

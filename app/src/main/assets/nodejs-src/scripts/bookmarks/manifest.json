@@ -1,0 +1,9 @@
+{
+    "id": "com.lenerd.bookmarks",
+    "name": "Bookmarks",
+    "description": "A plugin that allows you to bookmark songs, albums, and playlists for easy access later",
+    "version": "1.0.0",
+    "main": "index.js",
+    "author": "Devon Shoutz",
+    "api": 2
+}

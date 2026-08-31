@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:elevation="11dp" android:orientation="vertical">
+    <ScrollView android:id="@+id/scroller" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="48dp">
+        <LinearLayout android:id="@+id/lyrics_container" android:layout_width="match_parent"
+                      android:layout_height="wrap_content" android:orientation="vertical"/>
+    </ScrollView>
+
+    <FrameLayout
+            android:id="@+id/split_word_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#80000000"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+
+        <FrameLayout
+                android:id="@+id/split_word_card"
+                android:layout_width="360dp"
+                android:layout_height="280dp"
+                android:layout_gravity="center"
+                android:background="#282828">
+
+            <LinearLayout
+                    android:id="@+id/split_word_text_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginBottom="48dp"
+                    android:orientation="horizontal">
+
+                <View
+                        android:id="@+id/split_word_caret"
+                        android:layout_width="1dp"
+                        android:layout_height="36dp"
+                        android:background="#FFFFFF"
+                        android:layout_gravity="center"/>
+            </LinearLayout>
+
+            <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:layout_gravity="bottom"
+                    android:layout_marginBottom="12dp"
+                    android:orientation="vertical">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="horizontal" android:gravity="center_horizontal">
+                    <Button android:id="@+id/split_word_left" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="Left"/>
+                    <Space android:layout_width="12dp" android:layout_height="wrap_content"/>
+                    <Button android:id="@+id/split_word_right" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="Right"/>
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:orientation="horizontal">
+                    <Button android:id="@+id/split_word_split" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="Split"/>
+                    <Space android:layout_width="12dp" android:layout_height="wrap_content"/>
+                    <Button android:id="@+id/split_word_confirm" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="Confirm"/>
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
+    </FrameLayout>
+
+    <LinearLayout android:id="@+id/bottom_bar" android:layout_width="match_parent" android:layout_height="60dp"
+                  android:orientation="horizontal" android:gravity="center_horizontal"
+                  android:layout_marginBottom="12dp">
+        <Button android:id="@+id/sync_confirm_button" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Confirm"/>
+        <Space android:layout_width="16dp" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/sync_skip_button" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Skip"/>
+    </LinearLayout>
+</RelativeLayout>

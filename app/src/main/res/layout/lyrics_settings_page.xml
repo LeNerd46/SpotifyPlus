@@ -1,0 +1,540 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/settings_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true"
+        android:background="@color/spotifyplus_background">
+
+    <!-- App bar with collapsing header -->
+    <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:liftOnScroll="true">
+
+        <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/lyrics_toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#272727"
+                android:gravity="center"
+                app:titleCentered="true"
+                app:title="@string/lyrics_title"
+                app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium"
+                app:navigationIcon="?attr/homeAsUpIndicator"/>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView android:layout_width="match_parent" android:layout_height="match_parent"
+                                           android:paddingTop="16dp" android:paddingStart="16dp"
+                                           android:clickable="true" android:focusable="true"
+                                           app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="@string/lyrics_visuals_header" style="@style/TextAppearance.Material3.TitleLarge"
+                      android:paddingBottom="12dp"/>
+
+            <RadioGroup
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical">
+                    <LinearLayout
+                            android:layout_height="0dp"
+                            android:layout_width="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                        <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/animation_style"
+                                android:textColor="@color/white"
+                                android:textSize="15sp"
+                                android:paddingBottom="4dp"
+                        />
+
+                        <TextView
+                                style="@style/TextAppearance.Material3.BodySmall"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/animation_style_desc"
+                                android:textColor="?attr/colorOnSurfaceVariant"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:orientation="horizontal">
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/animation_style_default" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/animation_style_apple" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+                        </LinearLayout>
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content"
+                                      android:orientation="vertical" android:gravity="end">
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_beautiful_lyrics_anim"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_apple_music_anim"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"/>
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </RadioGroup>
+
+            <RadioGroup
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical">
+                    <LinearLayout
+                            android:layout_height="0dp"
+                            android:layout_width="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                        <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/lyrics_font"
+                                android:textColor="@color/white"
+                                android:textSize="15sp"
+                                android:paddingBottom="4dp"
+                        />
+
+                        <TextView
+                                style="@style/TextAppearance.Material3.BodySmall"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/lyrics_font_desc"
+                                android:textColor="?attr/colorOnSurfaceVariant"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:orientation="horizontal">
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/lyrics_font_spotify" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/lyrics_font_default" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/lyrics_font_apple" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+                        </LinearLayout>
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content"
+                                      android:orientation="vertical" android:gravity="end">
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/font_spotify"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/font_beautiful_lyrics"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/font_apple_music"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"/>
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </RadioGroup>
+
+            <RadioGroup
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical">
+                    <LinearLayout
+                            android:layout_height="0dp"
+                            android:layout_width="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                        <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/interlude_duration"
+                                android:textColor="@color/white"
+                                android:textSize="15sp"
+                                android:paddingBottom="4dp"
+                        />
+
+                        <TextView
+                                style="@style/TextAppearance.Material3.BodySmall"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/interlude_duration_desc"
+                                android:textColor="?attr/colorOnSurfaceVariant"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:orientation="horizontal">
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/interlude_default" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/interlude_spicy" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/interlude_spotifyplus" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/interlude_apple" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+                        </LinearLayout>
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content"
+                                      android:orientation="vertical" android:gravity="end">
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_beautiful_lyrics_interlude"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_spicy_lyrics_interlude"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_spotify_plus_interlude"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_apple_music_interlude"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"/>
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </RadioGroup>
+
+            <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="@drawable/row_click_bg"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
+
+                <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/line_spacing"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:paddingBottom="4dp" />
+
+                <TextView
+                        style="@style/TextAppearance.Material3.BodySmall"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/line_spacing_desc"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:paddingBottom="16dp" />
+
+                <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:layout_marginRight="12dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false">
+
+                    <TextView
+                            android:id="@+id/line_spacing_min"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/line_spacing_compact"
+                            android:textColor="#AFAFAF"
+                            android:textSize="13sp"
+                            android:paddingEnd="12dp" />
+
+                    <FrameLayout
+                            android:id="@+id/line_spacing_slider_container"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:clipChildren="false"
+                            android:clipToPadding="false">
+
+                        <TextView
+                                android:id="@+id/line_spacing_value_label"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="top|start"
+                                android:background="@drawable/slider_value_bubble"
+                                android:text="@string/line_spacing_default"
+                                android:textColor="@android:color/white"
+                                android:textSize="12sp"
+                                android:paddingStart="8dp"
+                                android:paddingEnd="8dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:visibility="gone" />
+
+                        <com.google.android.material.slider.Slider
+                                android:id="@+id/line_spacing_slider"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="bottom"
+                                android:valueFrom="0"
+                                android:valueTo="4"
+                                android:value="1"
+                                android:stepSize="1"
+                                app:labelBehavior="gone"
+                                app:haloRadius="0dp"
+                                app:thumbColor="@android:color/white"
+                                app:thumbRadius="2dp"
+                                app:trackHeight="4dp"
+                                app:trackColorActive="#1ED760"
+                                app:trackColorInactive="#5A5A5A"
+                                app:trackStopIndicatorSize="0dp"
+                                app:tickVisible="false" />
+                    </FrameLayout>
+
+                    <TextView
+                            android:id="@+id/line_spacing_max"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/line_spacing_max"
+                            android:textColor="#AFAFAF"
+                            android:textSize="13sp"
+                            android:paddingStart="12dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                    <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_background"
+                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:paddingBottom="4dp" />
+
+                    <TextView
+                            style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_background_desc"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_enable_background"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp"
+                        android:checked="true"
+                        android:contentDescription="@string/enable_background_desc"/>
+            </LinearLayout>
+
+            <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                    <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_line_gradient"
+                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:paddingBottom="4dp" />
+
+                    <TextView
+                            style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_line_gradient_desc"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_enable_line_gradient"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp"
+                        android:checked="true"
+                        android:contentDescription="@string/enable_line_gradient_desc"/>
+            </LinearLayout>
+
+            <RadioGroup
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical">
+                    <LinearLayout
+                            android:layout_height="0dp"
+                            android:layout_width="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                        <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/background_quality"
+                                android:textColor="@color/white"
+                                android:textSize="15sp"
+                                android:paddingBottom="4dp"
+                        />
+
+                        <TextView
+                                style="@style/TextAppearance.Material3.BodySmall"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/background_quality_desc"
+                                android:textColor="?attr/colorOnSurfaceVariant"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:orientation="horizontal">
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/background_quality_high" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/background_quality_mid" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/background_quality_low" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+
+                            <TextView android:layout_width="wrap_content" android:layout_height="48dp"
+                                      android:text="@string/background_quality_superlow" style="@style/TextAppearance.Material3.BodyMedium"
+                                      android:gravity="center_vertical"/>
+                        </LinearLayout>
+
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                                      android:layout_height="wrap_content"
+                                      android:orientation="vertical" android:gravity="end">
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_background_high"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_background_mid"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:checked="true"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_background_low"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"/>
+
+                            <com.google.android.material.radiobutton.MaterialRadioButton
+                                    android:id="@+id/rb_background_superlow"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"/>
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </RadioGroup>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout>

@@ -1,0 +1,24 @@
+{
+    "name": "beautiful-lyrics",
+    "version": "1.0.0",
+    "dependencies": {
+        "cubic-spline": "^3.0.3",
+        "curve-interpolator": "^3.3.1",
+        "d3-ease": "^3.0.1",
+        "esbuild": "^0.28.0",
+        "franc": "^6.2.0",
+        "kuroshiro": "^1.2.0",
+        "pinyin": "^4.0.0",
+        "spotifyplus": "latest",
+        "typescript-cubic-spline": "^1.0.1"
+    },
+    "devDependencies": {
+        "@types/d3-ease": "^3.0.2",
+        "@types/node": "^25.9.1",
+        "@types/react": "^19.2.14"
+    },
+    "scripts": {
+        "build:native": "node tools/build-native.mjs",
+        "build": "node ../../app/src/main/assets/nodejs-src/tools/dev-cli.mjs build . --entry src/index.tsx --outfile ../../app/src/main/assets/nodejs/scriptss/beautiful-lyrics/index.js"
+    }
+}

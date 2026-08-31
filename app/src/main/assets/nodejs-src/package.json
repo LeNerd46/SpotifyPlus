@@ -1,0 +1,146 @@
+{
+    "name": "spotifyplus",
+    "version": "0.11.0.0",
+    "type": "commonjs",
+    "main": "./dist/index.cjs",
+    "types": "./dist/index.d.ts",
+    "bin": {
+        "spotifyplus": "./dist/dev.cjs"
+    },
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.cjs"
+        },
+        "./react": {
+            "types": "./dist/components.d.ts",
+            "default": "./dist/components.js"
+        },
+        "./react/animated": {
+            "types": "./dist/animated.d.ts",
+            "default": "./dist/animated.js"
+        },
+        "./react/reanimated": {
+            "types": "./dist/reanimated.d.ts",
+            "default": "./dist/reanimated.js"
+        },
+        "./react/Animated": {
+            "types": "./dist/reanimated.d.ts",
+            "default": "./dist/reanimated.js"
+        },
+        "./react/Gesture": {
+            "types": "./dist/gesture.d.ts",
+            "default": "./dist/gesture.js"
+        },
+        "./build": {
+            "types": "./dist/build.d.ts",
+            "import": "./dist/build.mjs",
+            "require": "./dist/build.cjs"
+        },
+        "./entities": {
+            "types": "./dist/entities.d.ts",
+            "default": "./dist/entities.js"
+        },
+        "./internal/components": {
+            "types": "./dist/internal/components.d.ts",
+            "default": "./dist/components.js"
+        },
+        "./internal/legacy-animated": {
+            "types": "./dist/internal/legacy-animated.d.ts",
+            "default": "./dist/components.js"
+        },
+        "./internal/native-animation": {
+            "types": "./dist/internal/native-animation.d.ts",
+            "default": "./dist/animated.js"
+        },
+        "./internal/native-animation-core": {
+            "types": "./dist/internal/native-animation-core.d.ts",
+            "default": "./dist/animated.js"
+        },
+        "./internal/renderer": {
+            "types": "./dist/internal/renderer.d.ts",
+            "default": "./dist/components.js"
+        },
+        "./internal/script-api": {
+            "types": "./dist/internal/script-api.d.ts",
+            "default": "./dist/index.cjs"
+        },
+        "./internal/script-registry": {
+            "types": "./dist/internal/script-registry.d.ts",
+            "default": "./dist/index.cjs"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "typesVersions": {
+        "*": {
+            "react": [
+                "dist/components.d.ts"
+            ],
+            "react/animated": [
+                "dist/animated.d.ts"
+            ],
+            "react/reanimated": [
+                "dist/reanimated.d.ts"
+            ],
+            "react/Animated": [
+                "dist/reanimated.d.ts"
+            ],
+            "react/Gesture": [
+                "dist/gesture.d.ts"
+            ],
+            "build": [
+                "dist/build.d.ts"
+            ],
+            "entities": [
+                "dist/entities.d.ts"
+            ],
+            "internal/components": [
+                "dist/internal/components.d.ts"
+            ],
+            "internal/legacy-animated": [
+                "dist/internal/legacy-animated.d.ts"
+            ],
+            "internal/native-animation": [
+                "dist/internal/native-animation.d.ts"
+            ],
+            "internal/native-animation-core": [
+                "dist/internal/native-animation-core.d.ts"
+            ],
+            "internal/renderer": [
+                "dist/internal/renderer.d.ts"
+            ],
+            "internal/script-api": [
+                "dist/internal/script-api.d.ts"
+            ],
+            "internal/script-registry": [
+                "dist/internal/script-registry.d.ts"
+            ]
+        }
+    },
+    "scripts": {
+        "clean:runtime-js": "node tools/clean-runtime-output.mjs",
+        "generate:sdk-react": "node tools/generate-react-sdk.mjs",
+        "transform:runtime-scripts": "node tools/transform-emitted-scripts.mjs",
+        "build:sdk-package": "node tools/build-sdk-package.mjs",
+        "build": "npm run clean:runtime-js && npm run generate:sdk-react && tsc -p tsconfig.json && npm run transform:runtime-scripts && npm run build:sdk-package",
+        "test": "node --test tools/tests/worklet-transform.test.mjs tools/tests/extension-build.test.mjs tools/tests/extension-assets.test.mjs tools/tests/extension-event-emitter.test.mjs tools/tests/cli-options.test.mjs tools/tests/runtime-bootstrap.test.mjs tools/tests/fetch-globals.test.mjs tools/tests/shareable-types.test.mjs tools/tests/hot-reload-policy.test.mjs tools/tests/dev-source-map.test.mjs tools/tests/logger-format.test.mjs tools/tests/navigation-compatibility.test.mjs",
+        "test:sdk-types": "tsc -p tools/tests/fixtures/sdk-consumer/tsconfig.json && tsc -p tools/tests/fixtures/sdk-consumer/tsconfig.node10.json"
+    },
+    "devDependencies": {
+        "@types/node": "^22.19.17",
+        "@types/react-reconciler": "^0.33.0",
+        "typescript": "^5.9.3"
+    },
+    "dependencies": {
+        "@babel/core": "^7.29.0",
+        "@babel/generator": "^7.29.0",
+        "@babel/plugin-transform-typescript": "^7.28.6",
+        "esbuild": "^0.28.2",
+        "react": "^19.2.4",
+        "react-reconciler": "^0.33.0",
+        "scheduler": "^0.27.0",
+        "ts-morph": "^28.0.0"
+    }
+}
