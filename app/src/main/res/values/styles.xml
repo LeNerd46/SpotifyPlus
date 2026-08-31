@@ -25,14 +25,6 @@
         <item name="android:statusBarColor">?attr/colorSurface</item>
     </style>
 
-    <!--    <style name="Widget.SpotifyPlus.Toolbar" parent="Widget.Material3.Toolbar">-->
-    <!--        <item name="android:background">?attr/colorSurface</item>-->
-    <!--        <item name="titleTextColor">?attr/colorOnSurface</item>-->
-    <!--        <item name="subtitleTextColor">?attr/colorOnSurface</item>-->
-    <!--        <item name="navigationIconTint">?attr/colorOnSurface</item>-->
-    <!--        <item name="popupTheme">@style/ThemeOverlay.SpotifyPlus.Material</item>-->
-    <!--    </style>-->
-
     <color name="spotifyplus_background">#141414</color>
     <color name="spotifyplus_black">#121212</color>
     <color name="spotifyplus_surface">#181818</color>
@@ -142,12 +134,4 @@
     <dimen name="spx_card_pad">14dp</dimen>
     <dimen name="spx_list_item_height">56dp</dimen>
     <dimen name="spx_list_icon_size">24dp</dimen>
-
-    <style name="SpotifyPlus_BottomSheetShape">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSizeTopLeft">24dp</item>
-        <item name="cornerSizeTopRight">24dp</item>
-        <item name="cornerSizeBottomLeft">0dp</item>
-        <item name="cornerSizeBottomRight">0dp</item>
-    </style>
 </resources>

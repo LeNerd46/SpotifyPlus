@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "baseUrl": "../../../..",
+        "esModuleInterop": true,
+        "module": "CommonJS",
+        "moduleResolution": "Node",
+        "noEmit": true,
+        "paths": {
+            "spotifyplus/react": [
+                "dist/components.d.ts"
+            ],
+            "spotifyplus/react/animated": [
+                "dist/animated.d.ts"
+            ],
+            "spotifyplus/react/reanimated": [
+                "dist/reanimated.d.ts"
+            ]
+        },
+        "skipLibCheck": false,
+        "strict": true,
+        "target": "ES2020"
+    },
+    "files": [
+        "node10.ts"
+    ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "node ../../app/src/main/assets/nodejs-src/tools/dev-cli.mjs build . --entry src/index.tsx --outfile ../../app/src/main/assets/nodejs/elevated/marketplace/index.js"
+  },
+  "dependencies": {
+    "spotifyplus": "^0.1.9",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "node": ">=18.17.0",
+    "react": "latest",
+    "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

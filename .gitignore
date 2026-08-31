@@ -200,4 +200,13 @@ README.html
 .idea
 .exercism
 /app/release
-/.codex-remote-attachments
+/.gradle
+/app/.cxx
+/app/src/main/assets/nodejs-src/node_modules
+/app/src/main/assets/nodejs
+/scripts/node_modules
+/scripts/lyrics/node_modules
+/scripts/lyrics/src/node_modules
+/app/src/main/assets/nodejs-src/dist
+/scripts/lyrics/dist
+/.codex

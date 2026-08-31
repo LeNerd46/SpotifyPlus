@@ -1,0 +1,16 @@
+{
+    "id": "com.lenerd.beautifullyrics",
+    "name": "Beautiful Lyrics",
+    "description": "Adds beautiful lyrics to Spotify!",
+    "version": "1.0.0",
+    "main": "index.js",
+    "author": "Devon Shoutz",
+    "api": 2,
+    "assets": [
+        "assets/**/*"
+    ],
+    "native": {
+        "apk": "lyrics.apk",
+        "pluginClass": "com.lenerd.lyricsnative.NativePlugin"
+    }
+}

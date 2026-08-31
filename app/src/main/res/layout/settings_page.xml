@@ -49,12 +49,12 @@
                               android:paddingStart="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="General" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/general_section" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Check for updates • Startup page" android:textColor="?attr/colorOnSurfaceVariant"/>
+                              android:text="@string/general_subtitle" android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>
 
@@ -71,61 +71,38 @@
                               android:paddingLeft="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="Beautiful Lyrics" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/lyrics_section" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Lyrics Font • Interlude Duration"
+                              android:text="@string/lyrics_subtitle"
                               android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>
 
-            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
-                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
-                          android:background="@drawable/row_click_bg" android:id="@+id/settings_theme">
+<!--            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"-->
+<!--                          android:orientation="horizontal" android:clickable="true" android:focusable="true"-->
+<!--                          android:background="@drawable/row_click_bg" android:id="@+id/settings_experimental">-->
 
-                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                           android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="Theme Section" android:src="@drawable/palette"/>
+<!--                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"-->
+<!--                           android:layout_gravity="center" android:paddingStart="6dp"-->
+<!--                           android:contentDescription="Experimental Section" android:src="@drawable/experiment"/>-->
 
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                              android:orientation="vertical" android:layout_gravity="center_vertical"
-                              android:paddingLeft="8dp">
+<!--                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"-->
+<!--                              android:orientation="vertical" android:layout_gravity="center_vertical"-->
+<!--                              android:paddingLeft="8dp">-->
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="Theme" style="@style/TextAppearance.Material3.TitleMedium"
-                              android:paddingBottom="2dp"/>
+<!--                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"-->
+<!--                              android:text="Experimental" style="@style/TextAppearance.Material3.TitleMedium"-->
+<!--                              android:paddingBottom="2dp"/>-->
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Create Custom Theme • Auto Theme"
-                              android:textColor="?attr/colorOnSurfaceVariant"/>
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
-                          android:orientation="horizontal" android:clickable="true" android:focusable="true"
-                          android:background="@drawable/row_click_bg" android:id="@+id/settings_experimental">
-
-                <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                           android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="Experimental Section" android:src="@drawable/experiment"/>
-
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                              android:orientation="vertical" android:layout_gravity="center_vertical"
-                              android:paddingLeft="8dp">
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="Experimental" style="@style/TextAppearance.Material3.TitleMedium"
-                              android:paddingBottom="2dp"/>
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="New scrolling system • Animated Album Artwork"
-                              android:textColor="?attr/colorOnSurfaceVariant"/>
-                </LinearLayout>
-            </LinearLayout>
+<!--                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"-->
+<!--                              style="@style/TextAppearance.Material3.BodySmall"-->
+<!--                              android:text="New scrolling system • Animated Album Artwork"-->
+<!--                              android:textColor="?attr/colorOnSurfaceVariant"/>-->
+<!--                </LinearLayout>-->
+<!--            </LinearLayout>-->
 
 <!--            <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"-->
 <!--                          android:orientation="horizontal" android:clickable="true" android:focusable="true"-->
@@ -163,12 +140,12 @@
                               android:paddingLeft="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="About" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/about_section" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Version • GitHub"
+                              android:text="@string/about_subtitle"
                               android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>

@@ -1,0 +1,23 @@
+{
+  "name": "settings",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "node ../../app/src/main/assets/nodejs-src/tools/dev-cli.mjs build . --entry src/index.tsx --outfile ../../app/src/main/assets/nodejs/elevated/settings/index.js"
+  },
+  "dependencies": {
+    "spotifyplus": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "node": ">=18.17.0",
+    "react": "latest",
+    "@types/react": "latest",
+    "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

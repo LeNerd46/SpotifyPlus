@@ -33,7 +33,7 @@
                     android:layout_height="40dp"
                     android:layout_gravity="center_horizontal"
                     android:layout_marginBottom="14dp"
-                    android:contentDescription="Update available"
+                    android:contentDescription="@string/update_modal_subtitle"
                     android:src="@drawable/info"/>
 
             <TextView
@@ -41,7 +41,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:text="Update Available"
+                    android:text="@string/update_modal_header"
                     android:textColor="@color/white"
                     android:textSize="22sp"
                     android:textStyle="bold"
@@ -52,7 +52,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:text="A new version of Spotify Plus is available."
+                    android:text="@string/update_modal_subtitle"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="14sp"
                     android:layout_marginBottom="12dp"/>
@@ -62,7 +62,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:text="Current: null  •  Latest: null"
+                    android:text="@string/update_modal_compare"
                     android:textColor="#B3FFFFFF"
                     android:textSize="13sp"
                     android:layout_marginBottom="20dp"/>
@@ -71,7 +71,7 @@
                     android:id="@+id/btn_download_update"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Download"
+                    android:text="@string/update_modal_download"
                     android:textAllCaps="false"
                     android:layout_marginBottom="10dp"/>
 
@@ -80,7 +80,7 @@
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Dismiss"
+                    android:text="@string/update_modal_dismiss"
                     android:textAllCaps="false"
                     android:textColor="@color/white"/>
 

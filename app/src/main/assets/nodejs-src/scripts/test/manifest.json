@@ -1,0 +1,13 @@
+{
+    "id": "com.lenerd.test",
+    "name": "Test Script",
+    "version": "1.0.0",
+    "main": "index.js",
+    "description": "Script used for testing",
+    "author": "Devon Shoutz",
+    "permissions": [
+        "experimental",
+        "unsafe"
+    ],
+    "api": 1
+}

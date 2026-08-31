@@ -1,130 +1,108 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<FrameLayout
         xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
-        android:id="@+id/lastfm_sheet_content"
+        android:id="@+id/lastfm_popup_root"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="24dp"
-        android:background="@color/spotifyplus_background">
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:clickable="true"
+        android:focusable="true">
 
-    <View
-            android:id="@+id/lastfm_sheet_handle"
-            android:layout_width="42dp"
-            android:layout_height="4dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="22dp"
-            android:background="@drawable/spotifyplus_bottom_sheet_handle"/>
-
-    <LinearLayout
-            android:layout_width="match_parent"
+    <com.google.android.material.card.MaterialCardView
+            android:id="@+id/lastfm_popup_card"
+            android:layout_width="320dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="18dp">
-
-        <ImageView
-                android:id="@+id/lastfm_icon"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:src="@drawable/lastfm"
-                android:contentDescription="Last.fm"/>
+            android:layout_gravity="center"
+            android:layout_margin="24dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="10dp"
+            app:strokeColor="#33FFFFFF"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/spotifyplus_background">
 
         <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="14dp"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="20dp">
+
+            <ImageView
+                    android:id="@+id/lastfm_icon"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginBottom="14dp"
+                    android:src="@drawable/lastfm"
+                    android:contentDescription="Last.fm"/>
 
             <TextView
                     android:id="@+id/lastfm_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Connect Last.fm"
+                    android:gravity="center"
+                    android:text="@string/last_fm_modal_header"
                     android:textColor="@color/white"
                     android:textSize="22sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp"/>
 
             <TextView
                     android:id="@+id/lastfm_description"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Enter your Last.fm username to show your scrobbles in Spotify Plus."
+                    android:gravity="center"
+                    android:text="@string/last_fm_modal_subtitle"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="14sp"
-                    android:lineSpacingExtra="2dp"/>
+                    android:layout_marginBottom="16dp"/>
+
+            <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/lastfm_username_layout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="18dp"
+                    android:hint="@string/last_fm_modal_text"
+                    app:boxStrokeColor="#55FFFFFF"
+                    app:hintTextColor="#AAFFFFFF">
+
+                <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/input_lastfm_username"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/white"
+                        android:textColorHint="#88FFFFFF"
+                        android:inputType="textPersonName"
+                        android:maxLines="1"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_submit_lastfm"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/last_fm_modal_submit"
+                    android:textAllCaps="false"
+                    android:layout_marginBottom="10dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_clear_lastfm"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/last_fm_modal_clear"
+                    android:textAllCaps="false"
+                    android:textColor="@color/white"
+                    android:layout_marginBottom="10dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_cancel_lastfm"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/last_fm_modal_cancel"
+                    android:textAllCaps="false"
+                    android:textColor="?attr/colorOnSurfaceVariant"/>
 
         </LinearLayout>
-
-    </LinearLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/lastfm_username_layout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="18dp"
-            android:hint="Last.fm username"
-            app:boxStrokeColor="#55FFFFFF"
-            app:hintTextColor="#AAFFFFFF">
-
-        <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/input_lastfm_username"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textColorHint="#88FFFFFF"
-                android:inputType="textPersonName"
-                android:singleLine="true"/>
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_submit_lastfm"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="Connect"
-            android:textAllCaps="false"
-            android:textStyle="bold"
-            app:cornerRadius="999dp"/>
-
-    <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_clear_lastfm"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:text="Clear"
-                android:textAllCaps="false"
-                android:textColor="@color/white"
-                app:cornerRadius="999dp"/>
-
-        <Space
-                android:layout_width="10dp"
-                android:layout_height="1dp"/>
-
-        <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_cancel_lastfm"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:text="Cancel"
-                android:textAllCaps="false"
-                android:textColor="@color/white"
-                app:cornerRadius="999dp"/>
-
-    </LinearLayout>
-
-</LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</FrameLayout>

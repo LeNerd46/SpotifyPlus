@@ -1,0 +1,12 @@
+{
+  "id": "com.lenerd.marketplace",
+  "name": "Marketplace",
+  "description": "A marketplace to install and manage extensions",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Devon Shoutz",
+  "api": 2,
+  "assets": [
+    "assets/**/*"
+  ]
+}

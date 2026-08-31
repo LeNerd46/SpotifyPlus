@@ -22,7 +22,7 @@
                 android:background="#272727"
                 android:gravity="center"
                 app:titleCentered="true"
-                app:title="General"
+                app:title="@string/general_title"
                 app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium"
                 app:navigationIcon="?attr/homeAsUpIndicator"/>
     </com.google.android.material.appbar.AppBarLayout>
@@ -32,7 +32,7 @@
                   app:layout_behavior="@string/appbar_scrolling_view_behavior" android:paddingStart="16dp"
                   android:paddingTop="16dp">
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="General" style="@style/TextAppearance.Material3.TitleLarge"
+                  android:text="@string/general_header" style="@style/TextAppearance.Material3.TitleLarge"
                   android:paddingBottom="12dp"/>
 
         <LinearLayout
@@ -53,17 +53,16 @@
                 <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Check For Updates"
+                        android:text="@string/check_updates"
                         android:textColor="@color/white"
                         android:textSize="15sp"
                         android:paddingBottom="4dp"
                 />
-
                 <TextView
                         style="@style/TextAppearance.Material3.BodySmall"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Whether to check for updates on start"
+                        android:text="@string/check_updates_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
             </LinearLayout>
 
@@ -73,7 +72,7 @@
                     android:layout_height="wrap_content"
                     android:paddingEnd="8dp"
                     android:checked="true"
-                    android:contentDescription="Check for updates"/>
+                    android:contentDescription="@string/check_updates_desc"/>
         </LinearLayout>
 
         <LinearLayout
@@ -94,7 +93,7 @@
                 <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Set Last.fm Username"
+                        android:text="@string/lastfm_username"
                         android:textColor="@color/white"
                         android:textSize="15sp"
                         android:paddingBottom="4dp"
@@ -104,7 +103,7 @@
                         style="@style/TextAppearance.Material3.BodySmall"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Sets the username for retrieving your scrobbles"
+                        android:text="@string/last_fm_username_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
 
                 <LinearLayout android:id="@+id/current_lastfm_username_group" android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="invisible">
@@ -117,7 +116,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Currently set to "
+                            android:text="@string/lastfm_info"
                             android:textAlignment="viewStart"
                             android:textColor="#FFFFFFFF"/>
                 </LinearLayout>
@@ -128,15 +127,15 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="8dp"
-                    android:text="Set Username"
+                    android:text="@string/last_fm_button_text"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:textColor="@color/white"
-                    android:contentDescription="Set your Last.fm username"/>
+                    android:contentDescription="@string/last_fm_username_desc"/>
         </LinearLayout>
 
         <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="86dp"
+                android:layout_height="56dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:layout_marginBottom="8dp"
@@ -152,32 +151,17 @@
                 <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Block Ads (Beta)"
+                        android:text="@string/block_ads"
                         android:textColor="@color/white"
                         android:textSize="15sp"
                         android:paddingBottom="4dp"
                 />
-
                 <TextView
                         style="@style/TextAppearance.Material3.BodySmall"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Attempts to block ads across the app. This feature is still in beta, and is not guaranteed to work"
+                        android:text="@string/block_ads_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
-
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" >
-
-                    <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center"
-                               android:src="@drawable/info"/>
-
-                    <TextView
-                            style="@style/TextAppearance.Material3.BodySmall"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Requires restart to take effect"
-                            android:textAlignment="viewStart"
-                            android:textColor="#FFFFFFFF" android:layout_marginStart="8dp"/>
-                </LinearLayout>
             </LinearLayout>
 
             <com.google.android.material.materialswitch.MaterialSwitch
@@ -186,7 +170,7 @@
                     android:layout_height="wrap_content"
                     android:paddingEnd="8dp"
                     android:checked="true"
-                    android:contentDescription="Block ads"/>
+                    android:contentDescription="@string/check_updates_desc"/>
         </LinearLayout>
 
         <LinearLayout
@@ -207,70 +191,26 @@
                 <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Persistent Private Session"
+                        android:text="@string/block_telemetry"
                         android:textColor="@color/white"
                         android:textSize="15sp"
                         android:paddingBottom="4dp"
                 />
-
                 <TextView
                         style="@style/TextAppearance.Material3.BodySmall"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Always keep private session enabled"
+                        android:text="@string/block_telemetry_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
             </LinearLayout>
 
             <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/switch_private_session"
+                    android:id="@+id/switch_block_telemetry"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingEnd="8dp"
                     android:checked="true"
-                    android:contentDescription="Enable private session"/>
-        </LinearLayout>
-
-        <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="8dp"
-                android:clickable="true" android:focusable="true"
-                android:background="@drawable/row_click_bg">
-
-            <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Manage Custom Sleep Timers"
-                        android:textColor="@color/white"
-                        android:textSize="15sp"
-                        android:paddingBottom="4dp"
-                />
-
-                <TextView
-                        style="@style/TextAppearance.Material3.BodySmall"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Reorder and delete the sleep timer values"
-                        android:textColor="?attr/colorOnSurfaceVariant"/>
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_manage_timers"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="8dp"
-                    android:text="Manage"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:textColor="@color/white"
-                    android:contentDescription="Manage your custom sleep timers"/>
+                    android:contentDescription="@string/block_telemetry_desc"/>
         </LinearLayout>
 
         <View
@@ -282,7 +222,7 @@
                 android:layout_marginBottom="16dp"/>
 
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="UI" style="@style/TextAppearance.Material3.TitleLarge" android:paddingBottom="12dp"/>
+                  android:text="@string/ui_header" style="@style/TextAppearance.Material3.TitleLarge" android:paddingBottom="12dp"/>
 
         <LinearLayout
                 android:layout_width="match_parent"
@@ -302,7 +242,7 @@
                 <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Remove Create Button"
+                        android:text="@string/remove_create_button"
                         android:textColor="@color/white"
                         android:textSize="15sp"
                         android:paddingBottom="4dp"
@@ -312,7 +252,7 @@
                         style="@style/TextAppearance.Material3.BodySmall"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Removes the create button in the navbar. Does not work after v9.1.0.1187"
+                        android:text="@string/remove_create_button_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
             </LinearLayout>
 
@@ -322,7 +262,7 @@
                     android:layout_height="wrap_content"
                     android:paddingEnd="8dp"
                     android:checked="true"
-                    android:contentDescription="Remove Create Button"/>
+                    android:contentDescription="@string/remove_create_button_desc"/>
         </LinearLayout>
 
         <RadioGroup
@@ -345,7 +285,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Startup Page"
+                            android:text="@string/start_page"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:paddingBottom="4dp"
@@ -355,7 +295,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="What page Spotify should open when you start the app"
+                            android:text="@string/start_page_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
 
@@ -365,19 +305,19 @@
                     <LinearLayout android:layout_width="0dp" android:layout_weight="1"
                                   android:layout_height="wrap_content" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="48dp"
-                                  android:text="Home" style="@style/TextAppearance.Material3.BodyMedium"
+                                  android:text="@string/start_page_home" style="@style/TextAppearance.Material3.BodyMedium"
                                   android:gravity="center_vertical"/>
 
                         <TextView android:layout_width="wrap_content" android:layout_height="48dp"
-                                  android:text="Search" style="@style/TextAppearance.Material3.BodyMedium"
+                                  android:text="@string/start_page_search" style="@style/TextAppearance.Material3.BodyMedium"
                                   android:gravity="center_vertical"/>
 
                         <TextView android:layout_width="wrap_content" android:layout_height="48dp"
-                                  android:text="Explore" style="@style/TextAppearance.Material3.BodyMedium"
+                                  android:text="@string/start_page_explore" style="@style/TextAppearance.Material3.BodyMedium"
                                   android:gravity="center_vertical"/>
 
                         <TextView android:layout_width="wrap_content" android:layout_height="48dp"
-                                  android:text="Library" style="@style/TextAppearance.Material3.BodyMedium"
+                                  android:text="@string/start_page_library" style="@style/TextAppearance.Material3.BodyMedium"
                                   android:gravity="center_vertical"/>
                     </LinearLayout>
 
@@ -409,6 +349,48 @@
                 </LinearLayout>
             </LinearLayout>
         </RadioGroup>
+
+        <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp"
+                android:clickable="true" android:focusable="true"
+                android:background="@drawable/row_click_bg">
+
+            <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/animated_album_artwork"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:paddingBottom="4dp"
+                />
+
+                <TextView
+                        style="@style/TextAppearance.Material3.BodySmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxWidth="300dp"
+                        android:text="@string/animated_album_artwork_desc"
+                        android:textColor="?attr/colorOnSurfaceVariant"/>
+            </LinearLayout>
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/switch_animated_art"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="8dp"
+                    android:checked="true"
+                    android:contentDescription="@string/animated_album_artwork_desc"/>
+        </LinearLayout>
     </LinearLayout>
 
 </com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout>

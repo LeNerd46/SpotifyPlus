@@ -1,0 +1,7 @@
+{
+    "id": "tools.api1",
+    "name": "API 1 build fixture",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "api": 1
+}

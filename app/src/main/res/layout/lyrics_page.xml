@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GridLayout xmlns:android="http://schemas.android.com/apk/res/android" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent" android:rowCount="2" android:columnCount="1" android:elevation="10dp" android:clickable="true" android:focusable="true" android:clipChildren="true" android:clipToPadding="false">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_row="0" android:layout_column="0">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_gravity="center_vertical" android:paddingHorizontal="22dp" android:paddingTop="32dp" android:paddingBottom="18dp">
+            <ImageView android:id="@+id/album_cover" android:layout_width="56dp" android:layout_height="56dp" android:scaleType="centerCrop" android:contentDescription="@string/album_cover_desc"/>
+
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="12dp">
+                <TextView android:id="@+id/text_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:textColor="#FFFFFF"/>
+                <TextView android:id="@+id/text_artist" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#cccccc"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout android:layout_row="0" android:layout_rowSpan="2" android:layout_column="0" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#32000000"/>
+
+    <ScrollView android:id="@+id/lyrics_scroller" android:layout_width="match_parent" android:layout_row="1" android:layout_column="0" android:layout_height="match_parent" android:clipToPadding="false" android:clipChildren="false" android:scrollbars="none" android:visibility="gone">
+        <LinearLayout android:id="@+id/lyrics_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
+    </ScrollView>
+
+    <FrameLayout android:id="@+id/apple_music_viewport" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_row="1" android:layout_column="0" android:clipChildren="false" android:clipToPadding="false" android:visibility="gone">
+        <LinearLayout android:id="@+id/apple_music_container" android:layout_width="match_parent" android:layout_height="40000dp" android:orientation="vertical" android:clipChildren="true" android:clipToPadding="false"/>
+    </FrameLayout>
+</GridLayout>

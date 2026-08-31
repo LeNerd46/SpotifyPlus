@@ -1,0 +1,12 @@
+{
+  "id": "com.lenerd.settings",
+  "name": "Settings",
+  "description": "Control Spotify Plus settings",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Devon Shoutz",
+  "api": 2,
+  "assets": [
+    "assets/settings.png"
+  ]
+}
