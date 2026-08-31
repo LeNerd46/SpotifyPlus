@@ -43,17 +43,21 @@ import java.util.stream.Collectors;
 public class NewContextMenuHook extends SpotifyHook {
     private static final String LAST_FM_MARKER = "spotifyplus_open_last_fm";
     private static final String LYRICS_MARKER = "spotifyplus_open_lyrics";
+    private static final String GENERATE_LYRICS_MARKER = "spotifyplus_generate_lyrics";
     private static volatile Object cachedOriginalViewModel = null;
     private static volatile Object cachedViewModel = null;
     private static volatile Object cachedLyricsViewModel = null;
+    private static volatile Object cachedGenerateLyricsViewModel = null;
 
     private static String trackTitle = "";
     private static String trackArtist = "";
+    private static volatile String contextTrackUri = null;
 
     private static final ThreadLocal<Integer> spotifyPlusRenderDepth = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<String> spotifyPlusRenderMarker = new ThreadLocal<>();
     private static volatile Object cachedSpotifyPlusTrf = null;
     private static volatile Object cachedSpotifyPlusLyricsTrf = null;
+    private static volatile Object cachedSpotifyPlusGenerateLyricsTrf = null;
     private static final Map<Object, NextUpAction> nextUpActions = Collections.synchronizedMap(new WeakHashMap<>());
     private static final Set<Class<?>> nextUpClickHookClasses = Collections.synchronizedSet(new HashSet<>());
     private static final Map<Class<?>, Method> menuItemViewModelAccessors = new ConcurrentHashMap<>();
@@ -97,7 +101,7 @@ public class NewContextMenuHook extends SpotifyHook {
                     try {
                         List<?> list = (List<?>) param.args[1];
                         if (list == null) return;
-                        String contextTrackUri = getSingleTrackUri(findMenuItem(list, "queue_track"));
+                        contextTrackUri = getSingleTrackUri(findMenuItem(list, "queue_track"));
                         trackTitle = "";
                         trackArtist = "";
                         if (contextTrackUri != null) updateLastFmHeader(param.args[0], headerTitleField, headerSubtitleField, contextTrackUri);
@@ -129,6 +133,7 @@ public class NewContextMenuHook extends SpotifyHook {
 
                         boolean hasLastFmItem = hasMenuItem(list, LAST_FM_MARKER);
                         boolean hasLyricsItem = hasMenuItem(list, LYRICS_MARKER);
+                        boolean hasGenerateLyricsItem = hasMenuItem(list, GENERATE_LYRICS_MARKER);
 
                         ArrayList<Object> newList = new ArrayList<>(list);
                         boolean changed = false;
@@ -149,6 +154,15 @@ public class NewContextMenuHook extends SpotifyHook {
                             Context context = AndroidAppHelper.currentApplication();
                             if (context != null) {
                                 Object radioButton = XposedHelpers.newInstance(radioButtonClass, context, LAST_FM_MARKER);
+                                newList.add(0, radioButton);
+                                changed = true;
+                            }
+                        }
+
+                        if (contextTrackUri != null && !hasGenerateLyricsItem) {
+                            Context context = AndroidAppHelper.currentApplication();
+                            if (context != null) {
+                                Object radioButton = XposedHelpers.newInstance(radioButtonClass, context, GENERATE_LYRICS_MARKER);
                                 newList.add(0, radioButton);
                                 changed = true;
                             }
@@ -182,14 +196,26 @@ public class NewContextMenuHook extends SpotifyHook {
 
                     if (marker.equals(LYRICS_MARKER) && cachedLyricsViewModel != null) {
                         viewModel = cachedLyricsViewModel;
+                    } else if (marker.equals(GENERATE_LYRICS_MARKER) && cachedGenerateLyricsViewModel != null) {
+                        viewModel = cachedGenerateLyricsViewModel;
                     } else if (marker.equals(LAST_FM_MARKER) && cachedViewModel != null) {
                         viewModel = cachedViewModel;
                     } else {
                         if (cachedOriginalViewModel == null) return;
 
-                        viewModel = cloneMenuViewModel(cachedOriginalViewModel, marker, marker.equals(LYRICS_MARKER) ? "Lyrics" : "Open in Last.fm");
+                        String title;
+                        if (marker.equals(LYRICS_MARKER)) {
+                            title = "Lyrics";
+                        } else if (marker.equals(GENERATE_LYRICS_MARKER)) {
+                            title = "Generate AI lyrics";
+                        } else {
+                            title = "Open in Last.fm";
+                        }
+
+                        viewModel = cloneMenuViewModel(cachedOriginalViewModel, marker, title);
 
                         if (marker.equals(LYRICS_MARKER)) cachedLyricsViewModel = viewModel;
+                        else if (marker.equals(GENERATE_LYRICS_MARKER)) cachedGenerateLyricsViewModel = viewModel;
                         else cachedViewModel = viewModel;
                     }
 
@@ -204,16 +230,21 @@ public class NewContextMenuHook extends SpotifyHook {
                     try {
                         Intent intent = (Intent) param.args[0];
 
-                        if (intent.getComponent().getClassName().equals("com.spotify.radio.radio.formatlist.RadioFormatListService") && intent.hasExtra(".seed_uri")) {
+                        if (intent.getComponent() != null && intent.getComponent().getClassName().equals("com.spotify.radio.radio.formatlist.RadioFormatListService") && intent.hasExtra(".seed_uri")) {
                             String seed = intent.getStringExtra(".seed_uri");
 
-                            if (seed.equals(LYRICS_MARKER)) {
+                            if (LYRICS_MARKER.equals(seed)) {
                                 param.setResult(null);
                                 Activity activity = References.currentActivity;
                                 if (activity != null) {
                                     new Handler(Looper.getMainLooper()).post(() -> activity.getWindow().getDecorView().post(() -> BeautifulLyricsHook.showOverlay(activity, false)));
                                 }
-                            } else if (seed.equals(LAST_FM_MARKER)) {
+                            } else if (GENERATE_LYRICS_MARKER.equals(seed)) {
+                                param.setResult(null);
+
+                                String spotifyId = getSpotifyTrackId(contextTrackUri);
+                                if (spotifyId != null) onGenerateLyricsPressed(spotifyId);
+                            } else if (LAST_FM_MARKER.equals(seed)) {
                                 Context context = (Context) param.thisObject;
 
                                 Intent newIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.last.fm/music/" + URLEncoder.encode(trackArtist) + "/_/" + URLEncoder.encode(trackTitle)));
@@ -350,6 +381,7 @@ public class NewContextMenuHook extends SpotifyHook {
     private Object getSpotifyPlusIcon(String marker) {
         try {
             if (LYRICS_MARKER.equals(marker) && cachedSpotifyPlusLyricsTrf != null) return cachedSpotifyPlusLyricsTrf;
+            if (GENERATE_LYRICS_MARKER.equals(marker) && cachedSpotifyPlusGenerateLyricsTrf != null) return cachedSpotifyPlusGenerateLyricsTrf;
             if (LAST_FM_MARKER.equals(marker) && cachedSpotifyPlusTrf != null) return cachedSpotifyPlusTrf;
 
             Context appContext = AndroidAppHelper.currentApplication();
@@ -358,7 +390,15 @@ public class NewContextMenuHook extends SpotifyHook {
                 return null;
             }
 
-            Drawable drawable = References.modResources.getDrawable(LYRICS_MARKER.equals(marker) ? R.drawable.music_note : R.drawable.lastfm);
+            int drawableId;
+            if (LAST_FM_MARKER.equals(marker)) {
+                drawableId = R.drawable.lastfm;
+            } else if (GENERATE_LYRICS_MARKER.equals(marker)) {
+                drawableId = R.drawable.wand;
+            } else {
+                drawableId = R.drawable.music_note;
+            }
+            Drawable drawable = References.modResources.getDrawable(drawableId);
 
             if (drawable == null) {
                 XposedBridge.log("[SpotifyPlus] module drawable was null");
@@ -400,6 +440,7 @@ public class NewContextMenuHook extends SpotifyHook {
             }
             if (customIcon == null) throw new IllegalStateException("[NewContextMenuHook] Could not find a " + interfaceClass.getName() + " implementation backed by Drawable or LayerDrawable");
             if (LYRICS_MARKER.equals(marker)) cachedSpotifyPlusLyricsTrf = customIcon;
+            else if (GENERATE_LYRICS_MARKER.equals(marker)) cachedSpotifyPlusGenerateLyricsTrf = customIcon;
             else cachedSpotifyPlusTrf = customIcon;
             return customIcon;
         } catch (Throwable t) {
@@ -439,7 +480,7 @@ public class NewContextMenuHook extends SpotifyHook {
     }
 
     private static String findSpotifyPlusMarker(Object value, int remainingDepth, IdentityHashMap<Object, Boolean> visited) {
-        if (LAST_FM_MARKER.equals(value) || LYRICS_MARKER.equals(value)) return (String) value;
+        if (LAST_FM_MARKER.equals(value) || LYRICS_MARKER.equals(value) || GENERATE_LYRICS_MARKER.equals(value)) return (String) value;
         if (value == null || remainingDepth == 0 || visited.put(value, Boolean.TRUE) != null) return null;
         Class<?> valueClass = value.getClass();
         if (valueClass.isPrimitive() || valueClass.isEnum() || valueClass.isArray() || valueClass.getName().startsWith("java.") || valueClass.getName().startsWith("android.") || valueClass.getName().startsWith("kotlin.")) return null;
@@ -465,7 +506,7 @@ public class NewContextMenuHook extends SpotifyHook {
                 try {
                     field.setAccessible(true);
                     Object value = field.get(item);
-                    if (LAST_FM_MARKER.equals(value) || LYRICS_MARKER.equals(value)) return (String) value;
+                    if (LAST_FM_MARKER.equals(value) || LYRICS_MARKER.equals(value) || GENERATE_LYRICS_MARKER.equals(value)) return (String) value;
                 } catch (Throwable ignored) {
                 }
             }
@@ -577,6 +618,20 @@ public class NewContextMenuHook extends SpotifyHook {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private static String getSpotifyTrackId(String uri) {
+        String prefix = "spotify:track:";
+        if (uri == null || !uri.startsWith(prefix)) return null;
+
+        String spotifyId = uri.substring(prefix.length());
+        if (spotifyId.isBlank() || spotifyId.contains(":")) return null;
+
+        return spotifyId;
+    }
+
+    private static void onGenerateLyricsPressed(String spotifyId) {
+        XposedBridge.log("[SpotifyPlus] Generate lyrics pressed for Spotify track " + spotifyId);
     }
 
     private Object createPlayNextTrackItem(Object addToQueueItem) {

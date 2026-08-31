@@ -2,17 +2,17 @@ package com.lenerd46.spotifyplus;
 
 import android.app.Activity;
 import android.app.Application;
-import android.content.ContentResolver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
+import android.content.*;
+import android.content.pm.ApplicationInfo;
 import android.content.res.Resources;
 import android.content.res.XModuleResources;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.*;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -20,21 +20,23 @@ import com.google.android.material.button.MaterialButton;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.hooks.*;
+import com.yausername.youtubedl_android.YoutubeDL;
 import de.robv.android.xposed.*;
 import de.robv.android.xposed.callbacks.XC_InitPackageResources;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 import org.luckypray.dexkit.DexKitBridge;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Enumeration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitPackageResources {
     static {
@@ -93,6 +95,15 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 Activity activity = (Activity) param.thisObject;
                 Typeface beautifulFont = References.beautifulFont.get();
 
+                File outDir = new File(activity.getCodeCacheDir(), "spotifyplus-libs");
+
+                try {
+                    Context libraryContext = new LibraryContext(activity, outDir);
+                    YoutubeDL.getInstance().init(libraryContext);
+                } catch(Exception e) {
+                    XposedBridge.log(e);
+                }
+
                 if (beautifulFont != null)
                     return;
 
@@ -128,15 +139,22 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 Context context = (Context) param.args[0];
                 cleanUpCache(context);
 
+                File outDir = new File(context.getCodeCacheDir(), "spotifyplus-libs");
+                if (!outDir.exists() && !outDir.mkdirs())
+                    throw new IllegalStateException("Failed to create cache directory");
+
+                extractLibraries(modulePath, outDir);
+                loadNativeLibraries(outDir);
+
                 SpotifyBottomSheet.initialize(bridge, lpparam.classLoader);
                 // new ScriptManager().init(context, lpparam.classLoader);
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam, bridge);
                 new NowPlayingLyricsGradientHook().init(lpparam, bridge);
-//                new NowPlayingLandscapeHook().init(lpparam, bridge);
-//                new NowPlayingSwipeHook().init(lpparam, bridge);
-//                new NowPlayingCardsHook().init(lpparam, bridge);
-//                new NowPlayingControlsHook().init(lpparam, bridge);
+                new NowPlayingLandscapeHook().init(lpparam, bridge);
+                new NowPlayingSwipeHook().init(lpparam, bridge);
+                new NowPlayingCardsHook().init(lpparam, bridge);
+                new NowPlayingControlsHook().init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
                 new NetworkHook(context).init(lpparam, bridge);
                 new LastFmHook().init(lpparam, bridge);
@@ -470,6 +488,138 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
         } catch (Throwable t) {
             XposedBridge.log("[SpotifyPlus] Failed to replace color resource: " + name);
             XposedBridge.log(t);
+        }
+    }
+
+    private static void extractLibraries(String apkPath, File outDir) throws Exception {
+        if(!outDir.exists() && !outDir.mkdirs()) throw new IllegalStateException("Failed to create cache directory");
+
+        try(ZipFile zip = new ZipFile(apkPath)) {
+            String abi = findBestAbi(zip);
+            if(abi == null) throw new IllegalStateException("No compatible native libraries found");
+
+            String prefix = "lib/" + abi + "/";
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+
+            while(entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+
+                if(entry.isDirectory() || !entry.getName().startsWith(prefix)) continue;
+
+                String fileName = entry.getName().substring(prefix.length());
+                if(fileName.isEmpty()) continue;
+
+                File outFile = new File(outDir, fileName);
+
+                try(InputStream in = zip.getInputStream(entry); FileOutputStream out = new FileOutputStream(outFile, false)) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+
+                    while((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+                }
+
+                Log.d("SpotifyPlus", "Extracted native file: " + fileName);
+            }
+        }
+    }
+
+    private static String findBestAbi(ZipFile zip) {
+        for(String abi : Build.SUPPORTED_ABIS) {
+            String prefix = "lib/" + abi + "/";
+
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while(entries.hasMoreElements()) {
+                if(entries.nextElement().getName().startsWith(prefix)) return abi;
+            }
+        }
+
+        return null;
+    }
+
+    private static void loadNativeLibraries(File dir) {
+        loadIfExists(dir, "libandroid-support.so");
+
+        loadIfExists(dir, "libpython.so");
+
+        loadIfExists(dir, "libavutil.so.59");
+        loadIfExists(dir, "libswresample.so.5");
+        loadIfExists(dir, "libswscale.so.8");
+        loadIfExists(dir, "libavcodec.so.61");
+        loadIfExists(dir, "libavformat.so.61");
+        loadIfExists(dir, "libavfilter.so.10");
+        loadIfExists(dir, "libavdevice.so.61");
+
+        loadIfExists(dir, "libffmpeg.so");
+    }
+
+    private static void loadIfExists(File dir, String name) {
+        File file = new File(dir, name);
+
+        if(!file.exists()) {
+            Log.d("SpotifyPlus", "Native library does not exist: " + name);
+            return;
+        }
+
+        Log.d("SpotifyPlus", "Loading native library: " + file.getAbsolutePath());
+        System.load(file.getAbsolutePath());
+    }
+
+    private static void extractAndLoad(String apkPath, File outDir, String libName) throws Exception {
+        ZipEntry entry = findBestLibEntry(apkPath, libName);
+        if (entry == null) {
+            Log.d("SpotifyPlus", "Library not found in APK, skipping: " + libName);
+            return;
+        }
+
+        File outFile = new File(outDir, libName);
+        extractEntry(apkPath, entry, outFile);
+        Log.d("SpotifyPlus", "Loading " + outFile.getAbsolutePath());
+        System.load(outFile.getAbsolutePath());
+    }
+
+    private static ZipEntry findBestLibEntry(String apkPath, String libName) throws Exception {
+        try (ZipFile zip = new ZipFile(apkPath)) {
+            for (String abi : Build.SUPPORTED_ABIS) {
+                ZipEntry entry = zip.getEntry("lib/" + abi + "/" + libName);
+                if (entry != null) return entry;
+            }
+
+            ZipEntry fallback = zip.getEntry("lib/arm64-v8a/" + libName);
+            if (fallback != null) return fallback;
+
+            fallback = zip.getEntry("lib/armeabi-v7a/" + libName);
+            if (fallback != null) return fallback;
+
+            fallback = zip.getEntry("lib/x86_64/" + libName);
+            if (fallback != null) return fallback;
+
+            fallback = zip.getEntry("lib/x86/" + libName);
+            return fallback;
+        }
+    }
+
+    private static void extractEntry(String apkPath, ZipEntry entry, File outFile) throws Exception {
+        try (ZipFile zip = new ZipFile(apkPath); InputStream in = zip.getInputStream(entry); FileOutputStream out = new FileOutputStream(outFile, false)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+            out.flush();
+        }
+    }
+
+    public class LibraryContext extends ContextWrapper {
+        private final ApplicationInfo applicationInfo;
+
+        public LibraryContext(Context base, File nativeLibraryDir) {
+            super(base);
+
+            applicationInfo = new ApplicationInfo(base.getApplicationInfo());
+            applicationInfo.nativeLibraryDir = nativeLibraryDir.getAbsolutePath();
+        }
+
+        @Override
+        public ApplicationInfo getApplicationInfo() {
+            return applicationInfo;
         }
     }
 }
