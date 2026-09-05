@@ -237,10 +237,32 @@ val buildLyricsExtension by tasks.registering(Exec::class) {
     }
 }
 
+val installSettingsExtensionDependencies by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Installs the locked Settings extension dependencies."
+    dependsOn(buildNodeAssets)
+    workingDir(settingsExtensionDir.asFile)
+    commandLine(npmExecutable, "ci", "--ignore-scripts")
+    inputs.file(settingsExtensionDir.file("package.json"))
+    inputs.file(settingsExtensionDir.file("package-lock.json"))
+    outputs.file(settingsExtensionDir.file("node_modules/.package-lock.json"))
+}
+
+val installMarketplaceExtensionDependencies by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Installs the locked Marketplace extension dependencies."
+    dependsOn(buildNodeAssets)
+    workingDir(marketplaceExtensionDir.asFile)
+    commandLine(npmExecutable, "ci", "--ignore-scripts")
+    inputs.file(marketplaceExtensionDir.file("package.json"))
+    inputs.file(marketplaceExtensionDir.file("package-lock.json"))
+    outputs.file(marketplaceExtensionDir.file("node_modules/.package-lock.json"))
+}
+
 val buildSettingsExtension by tasks.registering(Exec::class) {
     group = "build"
     description = "Builds the transformed API-2 Settings extension."
-    dependsOn(buildNodeAssets)
+    dependsOn(installSettingsExtensionDependencies)
     workingDir(settingsExtensionDir.asFile)
     commandLine(npmExecutable, "run", "build")
 
@@ -267,7 +289,7 @@ val buildSettingsExtension by tasks.registering(Exec::class) {
 val buildMarketplaceExtension by tasks.registering(Exec::class) {
     group = "build"
     description = "Builds the transformed API-2 Marketplace extension."
-    dependsOn(buildNodeAssets)
+    dependsOn(installMarketplaceExtensionDependencies)
     workingDir(marketplaceExtensionDir.asFile)
     commandLine(npmExecutable, "run", "build")
 

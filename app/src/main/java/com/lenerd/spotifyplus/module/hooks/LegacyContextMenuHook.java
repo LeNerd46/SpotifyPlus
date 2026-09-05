@@ -65,10 +65,10 @@ public class LegacyContextMenuHook extends SpotifyHook {
     private Class<?> v6e;
     private Method f2eAcceptMethod;
     private Constructor<?> headerCtor;
-    private Method setAdapterMethod;
-    private Method getItemCountMethod;
-    private Method getItemViewTypeMethod;
-    private Method onBindViewHolderMethod;
+    private final Set<Member> setAdapterMethods = new HashSet<>();
+    private final Set<Member> getItemCountMethods = new HashSet<>();
+    private final Set<Member> getItemViewTypeMethods = new HashSet<>();
+    private final Set<Member> onBindViewHolderMethods = new HashSet<>();
 
     private Field c3eField;
     private Field artworkField;
@@ -77,6 +77,11 @@ public class LegacyContextMenuHook extends SpotifyHook {
 
     @Override
     protected void hookSetup() {
+        try {
+            headerCtor = findClass("com.spotify.bottomsheet.core.ScrollableContentWithHeaderLayout")
+                    .getDeclaredConstructor(Context.class, android.util.AttributeSet.class);
+            hook(headerCtor);
+        } catch (Exception e) { logError(e); }
         try {
             final var v6eClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("ContextMenuViewModel cannot contain items with duplicate itemResId. id=").fieldCount(4)));
             var h2eClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("ContextMenuViewModel cannot contain items with duplicate itemResId. id=").fieldCount(16)));
@@ -99,11 +104,10 @@ public class LegacyContextMenuHook extends SpotifyHook {
             listField = bridge.findField(FindField.create().searchInClass(Collections.singletonList(bridge.getClassData(v6e))).matcher(FieldMatcher.create().type(List.class))).get(0).getFieldInstance(classLoader);
             stringFields = bridge.findField(FindField.create().searchInClass(Collections.singletonList(bridge.getClassData(c3e))).matcher(FieldMatcher.create().type(String.class)));
 
-            f2eAcceptMethod = f2e.getMethod("accept");
+            f2eAcceptMethod = f2e.getMethod("accept", Object.class);
             hook(f2eAcceptMethod);
 
-            headerCtor = findClass("com.spotify.bottomsheet.core.ScrollableContentWithHeaderLayout").getConstructor();
-            hook(headerCtor);
+
         } catch (Exception e) {
             logError(e);
         }
@@ -119,19 +123,19 @@ public class LegacyContextMenuHook extends SpotifyHook {
     protected void beforeHook(SpotifyCallback callback) {
         Member member = callback.getMember();
         try {
-            if (member == getItemViewTypeMethod) {
+            if (getItemViewTypeMethods.contains(member)) {
                 int pos = (int) callback.getArgs()[0];
                 if (pos == 0) {
                     callback.returnAndSkip(1);
                 } else {
                     callback.getArgs()[0] = pos - 1;
                 }
-            } else if (member == onBindViewHolderMethod) {
+            } else if (onBindViewHolderMethods.contains(member)) {
                 Object holder = callback.getArgs()[0];
                 int pos = (int) callback.getArgs()[1];
 
                 if (pos == 0) {
-                    View item = (View) holder.getClass().getDeclaredField("itemView").get(holder);
+                    View item = (View) holder.getClass().getField("itemView").get(holder);
                     if (item != null) {
                         ensureRow(item);
 
@@ -169,14 +173,14 @@ public class LegacyContextMenuHook extends SpotifyHook {
                 String probablyTitle = (String) (stringFields.get(0).getFieldInstance(classLoader)).get(headerObject);
                 String probablyArtist = (String) (stringFields.get(1).getFieldInstance(classLoader)).get(headerObject);
 
-                if (probablyArtist.contains("•")) {
+                if (probablyArtist.contains("â€¢")) {
                     subtitle = probablyArtist;
-                    artist = probablyArtist.split(" • ")[0];
+                    artist = probablyArtist.split(" â€¢ ")[0];
                 } else title = probablyArtist;
 
-                if (probablyTitle.contains("•")) {
+                if (probablyTitle.contains("â€¢")) {
                     subtitle = probablyTitle;
-                    artist = probablyTitle.split(" • ")[0];
+                    artist = probablyTitle.split(" â€¢ ")[0];
                 } else title = probablyTitle;
 
                 if (title == null || title.isEmpty() || artist == null || artist.isEmpty()) return;
@@ -219,12 +223,12 @@ public class LegacyContextMenuHook extends SpotifyHook {
                                     return;
                                 }
 
-                                Object newHeader = c3e.getDeclaredConstructors()[0].newInstance(finalTitle, artwork, finalSubtitle + " • " + scrobbles + " scrobbles");
+                                Object newHeader = c3e.getDeclaredConstructors()[0].newInstance(finalTitle, artwork, finalSubtitle + " â€¢ " + scrobbles + " scrobbles");
                                 Object newVm = v6e.getDeclaredConstructors()[0].newInstance(v6e, newHeader, items, false);
 
                                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                                     try {
-                                        consumerObject.getClass().getDeclaredMethod("accept").invoke(consumerObject, newVm);
+                                        consumerObject.getClass().getMethod("accept", Object.class).invoke(consumerObject, newVm);
                                     } catch (Throwable t) {
                                         logError(t);
                                     }
@@ -283,10 +287,10 @@ public class LegacyContextMenuHook extends SpotifyHook {
                 View rv = findContextMenuRecycler(sheet);
                 if (rv != null) hookAdapterWhenReady(rv);
             });
-        } else if (member == setAdapterMethod) {
+        } else if (setAdapterMethods.contains(member)) {
             Object ad = (callback.getArgs().length > 0) ? callback.getArgs()[0] : null;
             if (ad != null) hookAdapterClass(ad.getClass());
-        } else if (member == getItemCountMethod) {
+        } else if (getItemCountMethods.contains(member)) {
             int orig = (int) callback.getResult();
             callback.setResult(orig + 1);
         }
@@ -331,8 +335,10 @@ public class LegacyContextMenuHook extends SpotifyHook {
         }
 
         try {
-            setAdapterMethod = rv.getClass().getMethod("setAdapter");
-            SpotifyHook.hook(setAdapterMethod, LegacyContextMenuHook.class);
+            for (Method method : rv.getClass().getMethods()) {
+                if (method.getName().equals("setAdapter") && method.getParameterCount() == 1
+                        && setAdapterMethods.add(method)) hook(method);
+            }
         } catch (Throwable ignore) {
         }
     }
@@ -341,13 +347,13 @@ public class LegacyContextMenuHook extends SpotifyHook {
         if (!HOOKED_ADAPTER_CLASSES.add(cls)) return;
 
         try {
-            getItemCountMethod = cls.getMethod("getItemCount");
-            getItemViewTypeMethod = cls.getMethod("getItemViewType");
-            onBindViewHolderMethod = cls.getMethod("onBindViewHolder");
-
-            hook(getItemCountMethod, LegacyContextMenuHook.class);
-            hook(getItemViewTypeMethod, LegacyContextMenuHook.class);
-            hook(onBindViewHolderMethod, LegacyContextMenuHook.class);
+            for (Method method : cls.getMethods()) {
+                Set<Member> methods = null;
+                if (method.getName().equals("getItemCount") && method.getParameterCount() == 0) methods = getItemCountMethods;
+                else if (method.getName().equals("getItemViewType") && Arrays.equals(method.getParameterTypes(), new Class<?>[]{int.class})) methods = getItemViewTypeMethods;
+                else if (method.getName().equals("onBindViewHolder") && method.getParameterCount() >= 2 && method.getParameterTypes()[1] == int.class && !method.isBridge()) methods = onBindViewHolderMethods;
+                if (methods != null && methods.add(method)) hook(method);
+            }
         } catch (Exception e) {
             logError(e);
         }

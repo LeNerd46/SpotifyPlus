@@ -118,7 +118,8 @@ public class NetworkHook extends SpotifyHook {
             String url = (String) callback.getArgs()[0];
 
             if (SpotifyPlusSettings.blockAds) {
-                if (url.contains("/ads")) {
+                if (url.contains("/ads") || url.contains("ad.") || url.contains("ad-logic")
+                        || url.contains("videoamp") || url.contains("aet") || url.contains("secure-gl")) {
                     callback.getArgs()[0] = "https://127.0.0.1:404/";
                 }
             } else if (url.contains("gabo-receiver-service") || url.contains("net-fortune") || url.contains("darwin-experiments") || url.contains("speechless-sharing") || url.contains("pendragon")) {

@@ -41,16 +41,11 @@ import io.github.libxposed.api.annotations.BeforeInvocation;
 import io.github.libxposed.api.annotations.XposedHooker;
 import org.json.JSONObject;
 import org.luckypray.dexkit.query.FindClass;
-import org.luckypray.dexkit.query.FindField;
 import org.luckypray.dexkit.query.FindMethod;
-import org.luckypray.dexkit.query.enums.MatchType;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.query.matchers.FieldMatcher;
 import org.luckypray.dexkit.query.matchers.FieldsMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
-import org.luckypray.dexkit.query.matchers.MethodsMatcher;
-import org.luckypray.dexkit.query.matchers.ParametersMatcher;
-import org.luckypray.dexkit.result.ClassDataList;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
@@ -72,40 +67,22 @@ public class SideDrawerHook extends SpotifyHook {
     private static int idToUse = 8001;
     private static int resourceIdToUse = 2131957898;
     private static SharedPreferences prefs;
-    private static boolean isNewSideDrawer = false;
     private static final AtomicReference<Object> sideDrawerBackDispatcher = new AtomicReference<>();
     private static final AtomicReference<Object> sideDrawerBackCallback = new AtomicReference<>();
 
-    private static ClassDataList fwd0Classes;
-    private static ClassDataList dwd0Classes;
-    private static ClassDataList propertiesClasses;
-    private static ClassDataList onClickClasses;
-    private static Class<?> whateverThisInterfaceDoes;
-    private static Class<?> iconInterface;
-    private static Class<?> wwk;
     private static Class<?> bti0Class;
-    private static Class<?> buttonClass;
-    private static Class<?> sideDrawerItemClass;
-    private static Class<?> propertiesClass;
-    private static Class<?> onClickClass;
-    private static Class<?> qbpInterface;
-    private static Class<?> zpj0Interface;
-    private static Class<?> cbpInterface;
-    private static Field sideDrawerArrayField;
 
     private static Constructor<?> navigationBarConstructor;
     private static Method routeIntentMethod;
     private static Method routeRewriteMethod;
     private static Method mainOnCreateMethod;
     private static Method mainOnNewIntentMethod;
-    private static Method invokeSuspendMethod;
-    private static Method onClickMethod;
-    private static Object targetOnClick;
-    private static Runnable onClickRunnable;
-    private static Method resourceMethod;
+    private static final Map<Member, Field> drawerArrayMethods = new HashMap<>();
+    private static final Set<Method> clickMethods = new HashSet<>();
+    private static final Set<Member> resourceMethods = new HashSet<>();
 
-    private static final List<ScriptSideDrawerItem> scriptItems = new ArrayList<>();
-    private static final Map<Pair<String, String>, Runnable> clickHandlers = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final List<ScriptSideDrawerItem> scriptItems = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final Map<Object, Runnable> clickHandlers = Collections.synchronizedMap(new IdentityHashMap<>());
 
     //    private static final ConcurrentHashMap<Pair<Integer, String>, List<SettingItem.SettingSection>> scriptSettings = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Pair<Integer, String>, Runnable> scriptSideButtons = new ConcurrentHashMap<>();
@@ -125,8 +102,6 @@ public class SideDrawerHook extends SpotifyHook {
             log("[SpotifyPlus] Constructor class not found");
         }
 
-//        SpotifyTitleOverride.install();
-
         Class<?> id30 = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("FeatureIdentifier.InternalReferrer.Persistable", "extra_animation_in"))).get(0).getInstance(classLoader);
         log("id30: " + id30.getName());
         routeIntentMethod = bridge.findMethod(FindMethod.create().searchInClass(Collections.singletonList(bridge.getClassData(id30))).matcher(MethodMatcher.create().returnType(Intent.class))).get(0).getMethodInstance(classLoader);
@@ -145,7 +120,7 @@ public class SideDrawerHook extends SpotifyHook {
                 if (methodData.getName().equals("<init>")) continue;
                 if (!methodData.getUsingStrings().isEmpty()) continue;
                 if (!methodData.getReturnType().getName().equals(bti0Class.getName())) continue;
-                if (methodData.getParamTypeNames().size() != 1 && methodData.getParamTypeNames().get(0).equals("String"))
+                if (methodData.getParamTypeNames().size() != 1 || !methodData.getParamTypeNames().get(0).equals("java.lang.String"))
                     continue;
 
                 Method method = methodData.getMethodInstance(classLoader);
@@ -170,100 +145,25 @@ public class SideDrawerHook extends SpotifyHook {
                 .add(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(Object[].class))
         )));
         var methodsThing = bridge.findMethod(FindMethod.create().searchInClass(modifyDataListClass).matcher(MethodMatcher.create().returnType(Object.class).modifiers(Modifier.PUBLIC | Modifier.FINAL).paramCount(1).paramTypes(Object.class)));
-        invokeSuspendMethod = methodsThing.get(methodsThing.toArray().length - 1).getMethodInstance(classLoader);
-        Class<?> correctClass = invokeSuspendMethod.getDeclaringClass();
-        sideDrawerArrayField = bridge.findField(FindField.create().searchInClass(Collections.singletonList(bridge.getClassData(correctClass))).matcher(FieldMatcher.create().modifiers(Modifier.PUBLIC).type(Object[].class))).get(0).getFieldInstance(classLoader);
-        hook(invokeSuspendMethod);
-
-        var whateverInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("quick_add_to_playlist_item")));
-        var iconInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("getState(Lcom/spotify/alignedcuration/firstsave/page/contents/DefaultSaveDestinationElement$Props;)Lkotlinx/coroutines/flow/Flow;")));
-        var wwkList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Encore.Vector.CopyAlt16")));
-        dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("SideDrawerListItem(element=")));
-        if (dwd0Classes.isEmpty())
-            dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("SideDrawerListItem(content=")));
-        if (dwd0Classes.isEmpty())
-            dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL).superClass(ClassMatcher.create()).methods(MethodsMatcher.create()
-                    .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(boolean.class).params(ParametersMatcher.create().add(Object.class)).name("equals"))
-                    .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0))
-                    .add(MethodMatcher.create().name("<init>").paramCount(1))
-                    .add(MethodMatcher.create().name("<init>").paramCount(1))
-                    .add(MethodMatcher.create().name("<init>").paramCount(7))
-            ).fieldCount(1)));
-
-        fwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL).fields(FieldsMatcher.create().count(2).add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(int.class))).usingStrings("ListItem(id=")));
-        if (fwd0Classes.isEmpty())
-            fwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL).superClass(ClassMatcher.create()).methods(MethodsMatcher.create().count(3)
-                    .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(boolean.class).params(ParametersMatcher.create().add(Object.class)).name("equals"))
-                    .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0).usingNumbers(31))
-                    .add(MethodMatcher.create().name("<init>").paramCount(2))
-            ).fields(FieldsMatcher.create().count(2)
-                    .add(FieldMatcher.create().type(int.class))
-                    .add(FieldMatcher.create().type(dwd0Classes.get(0).getInstance(classLoader)))
-            )));
-
-        propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Props(icon=", ", title=", ", titleRes=", ", uriToNavigate=", ", isNew=", ", instrumentation=", ", hasNotification=")));
-        if (propertiesClasses.isEmpty())
-            propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Navigation(icon=", "title=null", "uriToNavigate=", "isNew=", "instrumentation=")));
-        if (propertiesClasses.isEmpty())
-            propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(1).methods(MethodsMatcher.create()
-                    .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(boolean.class).params(ParametersMatcher.create().add(Object.class)).name("equals"))
-                    .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0).usingNumbers(961, 1231, 1237))
-            ).fields(FieldsMatcher.create().count(6)
-                    .add(FieldMatcher.create().type(Integer.class).modifiers(Modifier.PUBLIC | Modifier.FINAL))
-                    .add(FieldMatcher.create().type(String.class).modifiers(Modifier.PUBLIC | Modifier.FINAL))
-                    .add(FieldMatcher.create().type(boolean.class).modifiers(Modifier.PUBLIC | Modifier.FINAL))
-            )));
-
-        onClickClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Instrumentation(node=", ", onClick=", ", onImpression=").fieldCount(3)));
-        if (onClickClasses.isEmpty()) {
-            Class<?> interfaceToUse = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("tracks_section", "footer_section", "location").fieldCount(3).methodCount(2))).get(0).getInstance(classLoader).getInterfaces()[0];
-            onClickClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL).superClass(ClassMatcher.create()).methods(MethodsMatcher.create().count(3)
-                    .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(boolean.class).params(ParametersMatcher.create().add(Object.class)).name("equals"))
-                    .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0).usingNumbers(31, 0))
-                    .add(MethodMatcher.create().name("<init>").paramCount(3))
-            ).fields(FieldsMatcher.create().count(3)
-                    .add(FieldMatcher.create().type(Object.class))
-                    .add(FieldMatcher.create().type(interfaceToUse))
-            )));
+        for (var candidate : methodsThing) {
+            Method method = candidate.getMethodInstance(classLoader);
+            for (Field field : method.getDeclaringClass().getDeclaredFields()) {
+                if (!Modifier.isStatic(field.getModifiers()) && field.getType() == Object[].class) {
+                    field.setAccessible(true);
+                    if (drawerArrayMethods.putIfAbsent(method, field) == null) hook(method);
+                    break;
+                }
+            }
         }
 
-        var qbpInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().modifiers(Modifier.FINAL, MatchType.Equals).interfaceCount(1).fields(FieldsMatcher.create().add(FieldMatcher.create().type(int.class)).count(2)).methods(MethodsMatcher.create()
-                .count(4)
-                .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(Object.class).name("invoke").paramTypes(Object.class, Object.class))
-                .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(Object.class).name("invokeSuspend").paramTypes(Object.class))
-        )));
-        var zpj0InterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("premium_row")));
-        var cbpInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("video_surface_view_seek_frame_tag")));
-
-        if (whateverInterfaceList.isEmpty() || iconInterfaceList.isEmpty() || wwkList.isEmpty() || fwd0Classes.isEmpty() || dwd0Classes.isEmpty() || propertiesClasses.isEmpty() || onClickClasses.isEmpty() || qbpInterfaceList.isEmpty() || zpj0InterfaceList.isEmpty() || cbpInterfaceList.isEmpty()) {
-            log("[SpotifyPlus] whatever interface: " + whateverInterfaceList.size());
-            log("[SpotifyPlus] icon interface: " + iconInterfaceList.size());
-            log("[SpotifyPlus] wwk: " + wwkList.size());
-            log("[SpotifyPlus] fwd0: " + fwd0Classes.size());
-            log("[SpotifyPlus] dwd0: " + dwd0Classes.size());
-            log("[SpotifyPlus] props: " + propertiesClasses.size());
-            log("[SpotifyPlus] onClick: " + onClickClasses.size());
-            log("[SpotifyPlus] qbp interface: " + qbpInterfaceList.size());
-            log("[SpotifyPlus] zpj0 interface: " + zpj0InterfaceList.size());
-            log("[SpotifyPlus] cbpInterface interface: " + cbpInterfaceList.size());
-            log("[SpotifyPlus] No classes found");
-            return;
+        // Main uses XResources replacements; modern Xposed supplies equivalent method hooks.
+        for (Method method : android.content.res.Resources.class.getDeclaredMethods()) {
+            if ((method.getName().equals("getString") || method.getName().equals("getText"))
+                    && method.getParameterCount() > 0 && method.getParameterTypes()[0] == int.class) {
+                resourceMethods.add(method);
+                hook(method);
+            }
         }
-
-        whateverThisInterfaceDoes = whateverInterfaceList.get(0).getInstance(classLoader).getInterfaces()[0];
-        iconInterface = iconInterfaceList.get(0).getInstance(classLoader).getInterfaces()[0];
-        wwk = wwkList.get(0).getInstance(classLoader).getSuperclass();
-        buttonClass = fwd0Classes.get(0).getInstance(classLoader);
-        sideDrawerItemClass = dwd0Classes.get(0).getInstance(classLoader);
-        propertiesClass = propertiesClasses.get(0).getInstance(classLoader);
-        onClickClass = onClickClasses.get(0).getInstance(classLoader);
-        qbpInterface = qbpInterfaceList.get(0).getInstance(classLoader).getInterfaces()[0];
-        zpj0Interface = zpj0InterfaceList.get(0).getInstance(classLoader).getInterfaces()[0];
-        cbpInterface = cbpInterfaceList.get(0).getInstance(classLoader).getMethod("getOnScrubEnd").getReturnType();
-
-        var resourceClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("ad.skippable_ad_delay")));
-        resourceMethod = bridge.findMethod(FindMethod.create().searchInClass(resourceClass).matcher(MethodMatcher.create().returnType(String.class).paramCount(2))).get(0).getMethodInstance(classLoader);
-        hook(resourceMethod);
 
         SpotifyNativeBridge.registerHandler("side", this);
     }
@@ -280,8 +180,9 @@ public class SideDrawerHook extends SpotifyHook {
         Member member = callback.getMember();
 
         try {
-            if (member == resourceMethod) {
-                int id = (int) callback.getArgs()[1];
+            if (resourceMethods.contains(member)) {
+                if (currentActivity.get() == null || callback.getThisObject() != currentActivity.get().getResources()) return;
+                int id = (int) callback.getArgs()[0];
 
                 if (id == 2131957897) {
                     callback.returnAndSkip(Utils.getString(currentActivity.get(), R.string.settings_label));
@@ -357,31 +258,41 @@ public class SideDrawerHook extends SpotifyHook {
                 return;
             }
 
-            if (member == invokeSuspendMethod) {
+            if (drawerArrayMethods.containsKey(member)) {
+                Field arrayField = drawerArrayMethods.get(member);
+                Object[] items = (Object[]) arrayField.get(callback.getThisObject());
+                if (items == null) return;
+                Object[] originalItems = Arrays.stream(items).filter(Objects::nonNull).toArray();
+                if (originalItems.length < 4) return;
+                if (Arrays.stream(originalItems).anyMatch(item -> containsDrawerDestination(item, 4, new IdentityHashMap<>(), "spotify:null"))) return;
+                Class<?> runtimeButtonClass = originalItems[0].getClass();
+                if (Arrays.stream(originalItems).anyMatch(item -> !runtimeButtonClass.isInstance(item))) return;
+                int settingsIndex = findSettingsItemIndex(originalItems);
+                if (settingsIndex < 0) return;
+                Object template = originalItems[settingsIndex];
+                List<Object> additions = new ArrayList<>();
+                Object settings = createSideDrawerButton("Spotify Plus Settings", template, 2131957897, this::showSettingsOverlay, null);
+                if (settings != null) additions.add(settings);
+                for (var item : new ArrayList<>(scriptItems)) {
+                    Object button = createSideDrawerButton(item.title, template, item.resourceId, () -> {
+                        try {
+                            JSONObject json = new JSONObject();
+                            json.put("id", item.id);
+                            json.put("scriptId", item.scriptId);
+                            SpotifyNativeBridge.sendEvent("side.press", json.toString());
+                        } catch (Exception e) { logError(e); }
+                    }, item);
+                    if (button != null) additions.add(button);
+                }
+                if (additions.isEmpty()) return;
+                List<Object> updated = new ArrayList<>(Arrays.asList(originalItems));
+                updated.addAll(settingsIndex + 1, additions);
+                Object[] newArray = (Object[]) Array.newInstance(runtimeButtonClass, updated.size());
+                arrayField.set(callback.getThisObject(), updated.toArray(newArray));
                 try {
                     ReactManager.registerSurfaceSilent("sideDrawer", (ViewGroup) currentActivity.get().getWindow().getDecorView());
-                } catch(Exception ignored) {}
-
-                Object[] originalItemsWithNull = (Object[]) sideDrawerArrayField.get(callback.getThisObject());
-                if (originalItemsWithNull == null) return;
-                Object[] originalItems = Arrays.stream(originalItemsWithNull).filter(Objects::nonNull).toArray(Object[]::new);
-                if (originalItems.length < 4 || originalItems[0].getClass() != buttonClass) return;
-
-                isNewSideDrawer = originalItems.length >= 6 && originalItems.length != 12;
-                Object newArray = Array.newInstance(buttonClass, originalItems.length + 2 + scriptItems.size());
-                for (int i = 0; i < originalItems.length; i++) Array.set(newArray, i, originalItems[i]);
-
-                Object template = originalItems[isNewSideDrawer ? originalItems.length - 2 : originalItems.length - 1];
-                Object templateLightning = originalItems[isNewSideDrawer ? 2 : 1];
-                Array.set(newArray, originalItems.length, createSideDrawerButton("Spotify Plus Settings", template, 2131957897, "spotifyplus:settings", null));
-
-                int index = originalItems.length + 2;
-                for (var item : scriptItems) {
-                    Array.set(newArray, index, createSideDrawerButton(item.title, templateLightning, item.resourceId, "spotifyplus:side?scriptId=" + Uri.encode(item.scriptId) + "&id=" + Uri.encode(item.id), item));
-                    index++;
-                }
-
-                sideDrawerArrayField.set(callback.getThisObject(), newArray);
+                } catch (Exception ignored) { }
+                return;
             }
 
             if (member.getName().equals("invoke")) {
@@ -393,6 +304,7 @@ public class SideDrawerHook extends SpotifyHook {
 
                 try {
                     runnable.run();
+                    callback.returnAndSkip(defaultValue(((Method) member).getReturnType()));
                 } catch (Exception e) {
                     logError(e);
                 }
@@ -542,7 +454,7 @@ public class SideDrawerHook extends SpotifyHook {
                 String iconAssetId = args.length > 3 && args[3] instanceof String ? (String) args[3] : null;
 
                 ScriptSideDrawerItem item = new ScriptSideDrawerItem(itemId, scriptId, title, iconAssetId);
-                if (scriptItems.contains(item)) return null;
+                if (scriptItems.stream().anyMatch(existing -> existing.id.equals(itemId) && existing.scriptId.equals(scriptId))) return null;
                 log("Registering " + itemId + " | " + scriptId);
 
                 item.resourceId = resourceIdToUse;
@@ -584,102 +496,259 @@ public class SideDrawerHook extends SpotifyHook {
         activity.runOnUiThread(() -> dispatcher.unregisterOnBackInvokedCallback(callback));
     }
 
-    private Object createSideDrawerButton(String title, Object template, int resId, String uri, ScriptSideDrawerItem item) {
+    private int findSettingsItemIndex(Object[] items) {
+        for (int i = 0; i < items.length; i++) {
+            if (containsSettingsDestination(items[i], 4, new IdentityHashMap<>())) return i;
+        }
+        return -1;
+    }
+
+    private boolean containsSettingsDestination(Object value, int remainingDepth, IdentityHashMap<Object, Boolean> visited) {
+        return containsDrawerDestination(value, remainingDepth, visited, "spotify:settings", "spotify:preferences", "spotify:config");
+    }
+
+    private boolean containsDrawerDestination(Object value, int remainingDepth, IdentityHashMap<Object, Boolean> visited, String... destinations) {
+        if (value instanceof String && Arrays.asList(destinations).contains(value)) return true;
+        if (value == null || remainingDepth == 0 || visited.put(value, Boolean.TRUE) != null) return false;
+        Class<?> valueClass = value.getClass();
+        if (valueClass.isPrimitive() || valueClass.isEnum() || valueClass.isArray() || valueClass.getName().startsWith("java.") || valueClass.getName().startsWith("android.") || valueClass.getName().startsWith("kotlin.")) return false;
+        for (Class<?> type = valueClass; type != null && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    if (containsDrawerDestination(field.get(value), remainingDepth - 1, visited, destinations)) return true;
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return false;
+    }
+
+    private Object findDirectChildContainingSettings(Object owner) {
+        if (owner == null) return null;
+        for (Class<?> type = owner.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(owner);
+                    if (containsSettingsDestination(value, 3, new IdentityHashMap<>())) return value;
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    private Object createSideDrawerButton(String title, Object template, int resId, Runnable onClick, ScriptSideDrawerItem item) {
         try {
-            var dwd0List = bridge.findField(FindField.create().searchInClass(fwd0Classes).matcher(FieldMatcher.create().type(sideDrawerItemClass)));
-            var fieldList = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(Object.class)));
-            if (fieldList.isEmpty()) fieldList = bridge.findField(FindField.create().searchInClass(dwd0Classes));
-            var bwd0List = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(onClickClass)));
-            var nodeList = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(whateverThisInterfaceDoes)));
-            var impressionList = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(cbpInterface)));
-            if (impressionList.isEmpty())
-                impressionList = bridge.findField(FindField.create().searchInClass(onClickClasses).matcher(FieldMatcher.create().type(Object.class)));
-            var iconList = bridge.findField(FindField.create().searchInClass(dwd0Classes).matcher(FieldMatcher.create().type(iconInterface)));
-            if (iconList.isEmpty())
-                iconList = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().name("a")));
-            var whateverList = bridge.findField(FindField.create().searchInClass(propertiesClasses).matcher(FieldMatcher.create().type(wwk)));
-
-            if (dwd0List.isEmpty() || fieldList.isEmpty() || bwd0List.isEmpty() || nodeList.isEmpty() || impressionList.isEmpty() || iconList.isEmpty() || whateverList.isEmpty()) {
-                log("[SpotifyPlus] dwd0: " + dwd0List.size());
-                log("[SpotifyPlus] field: " + fieldList.size());
-                log("[SpotifyPlus] bwd0: " + bwd0List.size());
-                log("[SpotifyPlus] node: " + nodeList.size());
-                log("[SpotifyPlus] impression: " + impressionList.size());
-                log("[SpotifyPlus] icon: " + iconList.size());
-                log("[SpotifyPlus] whatever: " + whateverList.size());
-                log("[SpotifyPlus] No classes found");
-                return null;
+            Object originalContent = findDirectChildContainingSettings(template);
+            Object originalProps = findDirectChildContainingSettings(originalContent);
+            if (originalContent == null || originalProps == null) throw new IllegalStateException("[SideDrawerHook] Could not resolve the live Settings row content and props.");
+            List<Field> propsFields = getInstanceFields(originalProps.getClass());
+            int instrumentationIndex = findInstrumentationIndex(originalProps, propsFields);
+            Object originalInstrumentation = readField(propsFields.get(instrumentationIndex), originalProps);
+            List<Field> instrumentationFields = getInstanceFields(originalInstrumentation.getClass());
+            Object[] instrumentationValues = readFieldValues(originalInstrumentation, instrumentationFields);
+            int clickIndex = findClickIndex(instrumentationFields, instrumentationValues);
+            Constructor<?> instrumentationConstructor = findCompatibleConstructor(originalInstrumentation.getClass(), instrumentationValues);
+            instrumentationValues[clickIndex] = createClickCallback(instrumentationFields.get(clickIndex).getType(), instrumentationConstructor.getParameterTypes()[clickIndex], instrumentationValues[clickIndex], resId, onClick);
+            Object newInstrumentation = instantiateLike(originalInstrumentation.getClass(), instrumentationValues);
+            Object[] propsValues = readFieldValues(originalProps, propsFields);
+            boolean replacedTitleResource = false;
+            for (int i = 0; i < propsValues.length; i++) {
+                if (i == instrumentationIndex) propsValues[i] = newInstrumentation;
+                else if (propsValues[i] instanceof String && containsSettingsDestination(propsValues[i], 1, new IdentityHashMap<>())) propsValues[i] = "spotify:null";
+                else if (propsValues[i] instanceof String && isSettingsTitle((String) propsValues[i])) propsValues[i] = title;
+                else if (propsValues[i] instanceof Integer && isSettingsTitleResource((Integer) propsValues[i])) {
+                    propsValues[i] = resId;
+                    replacedTitleResource = true;
+                }
             }
-
-            Object originalDwd0 = dwd0List.get(0).getFieldInstance(classLoader).get(template);
-            Field field = fieldList.get(0).getFieldInstance(classLoader);
-            Object originalProps = field.get(originalDwd0);
-            Object originalBwd0 = bwd0List.get(0).getFieldInstance(classLoader).get(originalProps);
-            Object originalNode = nodeList.get(0).getFieldInstance(classLoader).get(originalBwd0);
-            Object originalImpression = impressionList.get(0).getFieldInstance(classLoader).get(originalBwd0);
-            Object originalIcon;
-            try {
-                originalIcon = iconList.get(0).getFieldInstance(classLoader).get(originalDwd0);
-            } catch (Throwable t) {
-                originalIcon = originalProps.getClass().getFields()[0].get(originalProps);
+            if (!replacedTitleResource) {
+                List<Integer> integerFields = new ArrayList<>();
+                for (int i = 0; i < propsFields.size(); i++) if (propsFields.get(i).getType() == int.class || propsFields.get(i).getType() == Integer.class) integerFields.add(i);
+                if (integerFields.size() == 1) propsValues[integerFields.get(0)] = resId;
             }
-            Object drawerIcon = originalIcon;
             if (item != null && item.iconAssetId != null) {
-                if (item.icon == null) item.icon = createDrawerIcon(originalIcon, item.iconAssetId);
-                if (item.icon != null) drawerIcon = item.icon;
+                // Preserve modern-api extension icons while cloning the live row.
+                Object icon = propsValues[0];
+                if (item.icon == null) item.icon = createDrawerIcon(icon, item.iconAssetId);
+                if (item.icon != null) propsValues[0] = item.icon;
             }
-            Object weirdField = whateverList.get(0).getFieldInstance(classLoader).get(originalProps);
-
-            Object originalOnClick = null;
-            if (isNewSideDrawer) {
-                Class<?> vjwCls = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Could not retrieve pinned shortcuts"))).get(0).getInstance(classLoader).getSuperclass();
-                for (Field f : originalBwd0.getClass().getDeclaredFields()) {
-                    f.setAccessible(true);
-                    Object v = f.get(originalBwd0);
-                    if (v != null && vjwCls.isAssignableFrom(v.getClass())) {
-                        originalOnClick = v;
-                        break;
-                    }
-                }
-
-                if (originalOnClick != null) {
-//                    clickHandlers.put(originalOnClick, onClick);
-
-                    for (Method method : originalOnClick.getClass().getDeclaredMethods()) {
-                        if (!method.getName().equals("invoke")) continue;
-                        hook(method);
-                    }
-                }
-            }
-
-            Object newOnClick = java.lang.reflect.Proxy.newProxyInstance(classLoader, new Class[]{qbpInterface}, (proxy, method, args) -> null);
-
-            Constructor<?> bwd0Ctor = onClickClass.getConstructor(zpj0Interface, qbpInterface, cbpInterface);
-            Constructor<?> propsCtor = propertiesClass.getConstructors()[0];
-            int mask = 1 | 2 | 4 | 16;
-
-            Object newInstrumentation;
-            try {
-                newInstrumentation = bwd0Ctor.newInstance(originalNode, isNewSideDrawer ? originalOnClick : newOnClick, originalImpression);
-            } catch (Throwable t) {
-                logError(t);
-                return null;
-            }
-
-//            SpotifyTitleOverride.overrideSpotifyStringById(resId, title);
-            Object newProps;
-            try {
-                newProps = propsCtor.newInstance(drawerIcon, resId, uri, false, newInstrumentation, false, mask);
-            } catch (Throwable t) {
-                newProps = propsCtor.newInstance(drawerIcon, resId, uri, false, newInstrumentation, originalProps.getClass().getFields()[5].get(originalProps));
-            }
-
-            Object newDwd0 = !isNewSideDrawer ? newInstance(sideDrawerItemClass, originalIcon, newProps) : newInstance(sideDrawerItemClass, newProps);
-            return newInstance(buttonClass, idToUse++, newDwd0);
-        } catch (Throwable t) {
-            logError(t);
+            Object newProps = instantiateLike(originalProps.getClass(), propsValues);
+            Object newContent = cloneReplacingIdentity(originalContent, originalProps, newProps, null);
+            Object newButton = cloneReplacingIdentity(template, originalContent, newContent, idToUse++);
+            logError("[SpotifyPlus] Injected " + title + " by cloning runtime classes " + template.getClass().getName() + " -> " + originalContent.getClass().getName() + " -> " + originalProps.getClass().getName() + " -> " + originalInstrumentation.getClass().getName());
+            return newButton;
+        } catch (Throwable throwable) {
+            logError(throwable);
             return null;
         }
+    }
+
+    private List<Field> getInstanceFields(Class<?> type) {
+        List<Field> fields = Arrays.stream(type.getDeclaredFields()).filter(field -> !Modifier.isStatic(field.getModifiers())).collect(java.util.stream.Collectors.toList());
+        fields.forEach(field -> field.setAccessible(true));
+        return fields;
+    }
+
+    private Object readField(Field field, Object owner) throws IllegalAccessException {
+        field.setAccessible(true);
+        return field.get(owner);
+    }
+
+    private Object[] readFieldValues(Object owner, List<Field> fields) throws IllegalAccessException {
+        Object[] values = new Object[fields.size()];
+        for (int i = 0; i < fields.size(); i++) values[i] = readField(fields.get(i), owner);
+        return values;
+    }
+
+    private int findInstrumentationIndex(Object props, List<Field> fields) throws IllegalAccessException {
+        List<Integer> candidates = new ArrayList<>();
+        for (int i = 0; i < fields.size(); i++) {
+            Object value = readField(fields.get(i), props);
+            if (value == null) continue;
+            List<Field> childFields = getInstanceFields(value.getClass());
+            if (childFields.size() < 2 || childFields.size() > 3) continue;
+            Object[] childValues = readFieldValues(value, childFields);
+            if (findClickIndexOrNegative(childFields, childValues) >= 0) candidates.add(i);
+        }
+        if (candidates.size() != 1) throw new IllegalStateException("[SideDrawerHook] Expected one live Settings instrumentation field in " + props.getClass().getName() + " but found " + candidates.size() + ": " + candidates);
+        return candidates.get(0);
+    }
+
+    private int findClickIndex(List<Field> fields, Object[] values) {
+        int index = findClickIndexOrNegative(fields, values);
+        if (index < 0) throw new IllegalStateException("[SideDrawerHook] Could not identify the live Settings click callback.");
+        return index;
+    }
+
+    private int findClickIndexOrNegative(List<Field> fields, Object[] values) {
+        if (fields.size() > 1 && isInvokeCallback(fields.get(1).getType(), values[1])) return 1;
+        List<Integer> candidates = new ArrayList<>();
+        for (int i = 0; i < fields.size(); i++) if (isInvokeCallback(fields.get(i).getType(), values[i])) candidates.add(i);
+        return candidates.size() == 1 ? candidates.get(0) : -1;
+    }
+
+    private boolean isInvokeCallback(Class<?> declaredType, Object value) {
+        if (Arrays.stream(declaredType.getMethods()).anyMatch(method -> method.getName().equals("invoke"))) return true;
+        return value != null && Arrays.stream(value.getClass().getMethods()).anyMatch(method -> method.getName().equals("invoke"));
+    }
+
+    private Object createClickCallback(Class<?> fieldType, Class<?> constructorType, Object originalClick, int resId, Runnable onClick) throws Exception {
+        if (fieldType.isInterface() && constructorType.isInterface()) return java.lang.reflect.Proxy.newProxyInstance(classLoader, new Class[]{constructorType}, (proxy, method, args) -> {
+            if (method.getName().equals("invoke")) runSideDrawerClick(resId, onClick);
+            return defaultValue(method.getReturnType());
+        });
+        List<Field> clickFields = getInstanceFields(originalClick.getClass());
+        Object clonedClick = instantiateCallbackLike(originalClick, readFieldValues(originalClick, clickFields));
+        clickHandlers.put(clonedClick, () -> runSideDrawerClick(resId, onClick));
+        for (Method method : clonedClick.getClass().getDeclaredMethods()) {
+            if (method.getName().equals("invoke") && clickMethods.add(method)) hook(method);
+        }
+        return clonedClick;
+    }
+
+    private Object instantiateCallbackLike(Object originalClick, Object[] values) throws Exception {
+        try {
+            return instantiateLike(originalClick.getClass(), values);
+        } catch (IllegalStateException ignored) {
+            int invokeArity = Arrays.stream(originalClick.getClass().getDeclaredMethods()).filter(method -> method.getName().equals("invoke") && !method.isBridge()).mapToInt(Method::getParameterCount).max().orElse(0);
+            List<Constructor<?>> candidates = Arrays.stream(originalClick.getClass().getDeclaredConstructors()).filter(constructor -> constructor.getParameterCount() == values.length + 1 && wrapPrimitive(constructor.getParameterTypes()[0]) == Integer.class && parametersAccept(Arrays.copyOfRange(constructor.getParameterTypes(), 1, constructor.getParameterCount()), values)).collect(java.util.stream.Collectors.toList());
+            if (candidates.size() != 1) throw new IllegalStateException("[SideDrawerHook] Could not clone concrete click callback " + originalClick.getClass().getName() + " from its captured fields; constructors: " + Arrays.toString(originalClick.getClass().getDeclaredConstructors()));
+            candidates.get(0).setAccessible(true);
+            Object[] constructorValues = new Object[values.length + 1];
+            constructorValues[0] = invokeArity;
+            System.arraycopy(values, 0, constructorValues, 1, values.length);
+            return candidates.get(0).newInstance(constructorValues);
+        }
+    }
+
+    private void runSideDrawerClick(int resId, Runnable onClick) {
+        if (resId == 2131957897 && !overlayShown.compareAndSet(false, true)) return;
+        try {
+            onClick.run();
+        } catch (Throwable throwable) {
+            if (resId == 2131957897) overlayShown.set(false);
+            logError(throwable);
+        }
+    }
+
+    private Constructor<?> findCompatibleConstructor(Class<?> type, Object[] values) {
+        List<Constructor<?>> candidates = Arrays.stream(type.getDeclaredConstructors()).filter(constructor -> constructor.getParameterCount() == values.length).filter(constructor -> parametersAccept(constructor.getParameterTypes(), values)).collect(java.util.stream.Collectors.toList());
+        if (candidates.size() != 1) throw new IllegalStateException("[SideDrawerHook] Expected one primary constructor in " + type.getName() + " for " + values.length + " live fields but found " + candidates.size() + ": " + Arrays.toString(type.getDeclaredConstructors()));
+        candidates.get(0).setAccessible(true);
+        return candidates.get(0);
+    }
+
+    private boolean parametersAccept(Class<?>[] parameterTypes, Object[] values) {
+        for (int i = 0; i < parameterTypes.length; i++) if (values[i] == null ? parameterTypes[i].isPrimitive() : !wrapPrimitive(parameterTypes[i]).isInstance(values[i])) return false;
+        return true;
+    }
+
+    private Class<?> wrapPrimitive(Class<?> type) {
+        if (!type.isPrimitive()) return type;
+        if (type == boolean.class) return Boolean.class;
+        if (type == byte.class) return Byte.class;
+        if (type == short.class) return Short.class;
+        if (type == int.class) return Integer.class;
+        if (type == long.class) return Long.class;
+        if (type == float.class) return Float.class;
+        if (type == double.class) return Double.class;
+        if (type == char.class) return Character.class;
+        return Void.class;
+    }
+
+    private Object instantiateLike(Class<?> type, Object[] values) throws Exception {
+        return findCompatibleConstructor(type, values).newInstance(values);
+    }
+
+    private Object cloneReplacingIdentity(Object template, Object oldChild, Object newChild, Integer replacementId) throws Exception {
+        List<Field> fields = getInstanceFields(template.getClass());
+        Object[] values = readFieldValues(template, fields);
+        boolean childReplaced = false;
+        boolean hasIdField = fields.stream().anyMatch(field -> field.getType() == int.class || field.getType() == Integer.class) || Arrays.stream(values).anyMatch(value -> value instanceof Integer);
+        boolean idReplaced = replacementId == null || !hasIdField;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == oldChild) {
+                values[i] = newChild;
+                childReplaced = true;
+            } else if (!idReplaced && (fields.get(i).getType() == int.class || fields.get(i).getType() == Integer.class || values[i] instanceof Integer)) {
+                values[i] = replacementId;
+                idReplaced = true;
+            }
+        }
+        if (!childReplaced || !idReplaced) throw new IllegalStateException("[SideDrawerHook] Could not clone " + template.getClass().getName() + ": childReplaced=" + childReplaced + ", idReplaced=" + idReplaced);
+        return instantiateLike(template.getClass(), values);
+    }
+
+    private boolean isSettingsTitle(String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.contains("settings") || normalized.contains("privacy");
+    }
+
+    private boolean isSettingsTitleResource(int resourceId) {
+        try {
+            String entryName = currentActivity.get().getResources().getResourceEntryName(resourceId).toLowerCase(Locale.ROOT);
+            if (entryName.contains("settings") || entryName.contains("privacy")) return true;
+            return isSettingsTitle(currentActivity.get().getString(resourceId));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private Object defaultValue(Class<?> returnType) {
+        if (!returnType.isPrimitive() || returnType == void.class) return null;
+        if (returnType == boolean.class) return false;
+        if (returnType == char.class) return '\0';
+        if (returnType == byte.class) return (byte) 0;
+        if (returnType == short.class) return (short) 0;
+        if (returnType == int.class) return 0;
+        if (returnType == long.class) return 0L;
+        if (returnType == float.class) return 0.0f;
+        return 0.0d;
     }
 
     private Object createDrawerIcon(Object templateIcon, String assetId) {

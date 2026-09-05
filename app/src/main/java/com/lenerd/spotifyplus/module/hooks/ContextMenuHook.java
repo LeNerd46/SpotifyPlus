@@ -10,33 +10,27 @@ import android.os.Build;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd.spotifyplus.R;
-import com.lenerd.spotifyplus.manager.bridge.BridgeClient;
 import com.lenerd.spotifyplus.module.SpotifyCallback;
 import com.lenerd.spotifyplus.module.SpotifyHook;
 import com.lenerd.spotifyplus.module.SpotifyPlusSettings;
 import com.lenerd.spotifyplus.module.Utils;
 import com.lenerd.spotifyplus.module.scripting.ScriptContextMenu;
-import com.lenerd.spotifyplus.module.scripting.ScriptManager;
 import com.lenerd.spotifyplus.module.scripting.SpotifyNativeBridge;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.annotations.AfterInvocation;
 import io.github.libxposed.api.annotations.BeforeInvocation;
 import io.github.libxposed.api.annotations.XposedHooker;
-import kotlin.jvm.functions.Function0;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.json.JSONObject;
 import org.luckypray.dexkit.query.FindClass;
-import org.luckypray.dexkit.query.FindField;
 import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.*;
 
-import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -46,442 +40,313 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import java.lang.reflect.Modifier;
+import java.util.concurrent.ConcurrentHashMap;
+
 @XposedHooker
 public class ContextMenuHook extends SpotifyHook {
-    private static final String GENERATE_LYRICS_MENU_ID = "spotifyplus_generate_lyrics";
-
-    private static volatile Object cachedOriginalViewModel;
-    private static volatile Object cachedViewModel;
-    private static volatile Object cachedSpotifyPlusTrf;
-
-    private static String trackTitle;
-    private static String trackArtist;
-    private static boolean newContextMenu;
-
-    private static final ThreadLocal<Integer> spotifyPlusRenderDepth = ThreadLocal.withInitial(() -> 0);
-    private static Class<?> c8f;
+    private static final String LAST_FM_MARKER = "spotifyplus_open_last_fm";
+    private static final String GENERATE_LYRICS_MARKER = "spotifyplus_generate_lyrics";
+    private static String trackTitle = "";
+    private static String trackArtist = "";
+    private static volatile String lastContextMenuUri;
+    private static Object cachedOriginalViewModel;
+    private static Object cachedSpotifyPlusTrf;
+    private static Object cachedSpotifyPlusGenerateLyricsTrf;
     private static Class<?> interfaceClass;
-    private static Class<?> jffClass;
-    private static Class<?> headerObject;
-    private static Class<?> radioButtonClass;
-    private static Class<?> uweClass;
-    private static Method iconMethod;
-    private static Method replaceResourceIdMethod;
-
-    private final List<ScriptContextMenu> scriptMenus = new ArrayList<>();
-    private int idToUse = 2131957898;
-    private int generateLyricsResourceId = -1;
+    private static Constructor<?> directTextTitleConstructor;
+    private Constructor<?> contextMenuConstructor;
+    private Constructor<?> radioConstructor;
+    private Method radioAccessor;
+    private Method startServiceMethod;
+    private Field headerTitleField;
+    private Field headerSubtitleField;
+    private Method iconRenderer;
+    private Field renderBranch;
+    private final Set<Method> rowRenderMethods = new HashSet<>();
+    private final ThreadLocal<Deque<Optional<String>>> renderMarkers = ThreadLocal.withInitial(ArrayDeque::new);
+    private final Map<Class<?>, Method> menuItemViewModelAccessors = new ConcurrentHashMap<>();
+    private final List<ScriptContextMenu> scriptMenus = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @Override
     protected void hookSetup() throws NoSuchMethodException, ClassNotFoundException, NoSuchFieldException {
-        try {
-            Class<?> kyx0 = findClass("com.spotify.localfiles.mediastoreimpl.LocalFilesProperties$dataProps$2").getInterfaces()[0];
-
-            var jffClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().methods(MethodsMatcher.create().count(3)
-                    .add(MethodMatcher.create().returnType(boolean.class).name("equals").paramCount(1))
-                    .add(MethodMatcher.create().returnType(int.class).name("hashCode").paramCount(0).usingNumbers(31, 0))
-                    .add(MethodMatcher.create().name("<init>").paramCount(4))
-            ).fields(FieldsMatcher.create().count(3)
-                    .add(FieldMatcher.create().type(String.class))
-                    .add(FieldMatcher.create().type(kyx0))
-            )));
-
-            if (jffClasses.isEmpty()) {
-                jffClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().methods(MethodsMatcher.create().count(3)
-                        .add(MethodMatcher.create().returnType(boolean.class).name("equals").paramCount(1))
-                        .add(MethodMatcher.create().returnType(int.class).name("hashCode").paramCount(0).usingNumbers(31, 0))
-                        .add(MethodMatcher.create().name("<init>").paramCount(3))
-                ).fields(FieldsMatcher.create().count(2)
-                        .add(FieldMatcher.create().type(Function0.class))
-                )));
-
-                newContextMenu = true;
-            } else {
-                newContextMenu = false;
+            var contextMenuClassResults = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("ContextMenuViewModel cannot contain items with duplicate itemResId. id=")));
+            List<Class<?>> contextMenuClasses = new ArrayList<>();
+            for (var classData : contextMenuClassResults) {
+                Class<?> candidate = classData.getInstance(classLoader);
+                if (Arrays.stream(candidate.getDeclaredConstructors()).anyMatch(constructor -> constructor.getParameterCount() == 3 && List.class.isAssignableFrom(constructor.getParameterTypes()[1]) && constructor.getParameterTypes()[2] == boolean.class)) contextMenuClasses.add(candidate);
             }
-
-            jffClass = jffClasses.get(0).getInstance(classLoader);
-            var c8fClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("mute_playback", "resume_pause_button", "hit", "item_to_be_resumed", "seek_bar")));
-
-            if (newContextMenu) {
-                c8fClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("block_confirmation_dialog", "request_received_view", "ui_reveal", "reject_confirmation_dialog")));
-            }
-
-            c8f = c8fClasses.get(0).getInstance(classLoader);
-            hook(c8f.getDeclaredMethod("invoke", Object.class, Object.class, Object.class, Object.class));
+            if (contextMenuClasses.size() != 1) throw new IllegalStateException("[NewContextMenuHook/DexKit] Expected one class using the ContextMenuViewModel duplicate-item diagnostic and declaring a (header, List, boolean) constructor but found " + contextMenuClasses.size() + ": " + contextMenuClasses.stream().map(Class::getName).collect(Collectors.joining(", ")));
+            Class<?> headerObject = contextMenuClasses.get(0);
+            List<Constructor<?>> contextMenuConstructors = Arrays.stream(headerObject.getDeclaredConstructors()).filter(constructor -> constructor.getParameterCount() == 3 && List.class.isAssignableFrom(constructor.getParameterTypes()[1]) && constructor.getParameterTypes()[2] == boolean.class).collect(Collectors.toList());
+            if (contextMenuConstructors.size() != 1) throw new IllegalStateException("[NewContextMenuHook/DexKit] Expected one (header, List, boolean) constructor in the ContextMenuViewModel class " + headerObject.getName() + " but found " + contextMenuConstructors.size() + ": " + contextMenuConstructors.stream().map(Constructor::toString).collect(Collectors.joining(", ")));
+            contextMenuConstructor = contextMenuConstructors.get(0);
+            Class<?> headerClass = contextMenuConstructor.getParameterTypes()[0];
+            List<Constructor<?>> headerConstructors = Arrays.stream(headerClass.getDeclaredConstructors()).filter(constructor -> constructor.getParameterCount() == 3 && constructor.getParameterTypes()[0] == String.class && !constructor.getParameterTypes()[1].isPrimitive() && constructor.getParameterTypes()[2] == String.class).collect(Collectors.toList());
+            if (headerConstructors.size() != 1) throw new IllegalStateException("[NewContextMenuHook/DexKit] Expected the ContextMenuViewModel header type " + headerClass.getName() + " to have one (String, artwork, String) constructor but found " + headerConstructors.size() + ": " + headerConstructors.stream().map(Constructor::toString).collect(Collectors.joining(", ")));
+            List<Field> headerTextFields = Arrays.stream(headerClass.getDeclaredFields()).filter(field -> !Modifier.isStatic(field.getModifiers()) && field.getType() == String.class).collect(Collectors.toList());
+            if (headerTextFields.size() != 2) throw new IllegalStateException("[NewContextMenuHook/DexKit] Expected the ContextMenuViewModel header type " + headerClass.getName() + " to have two String fields for title and subtitle but found " + headerTextFields.size() + ": " + headerTextFields.stream().map(Field::toString).collect(Collectors.joining(", ")));
+            headerTitleField = headerTextFields.get(0);
+            headerSubtitleField = headerTextFields.get(1);
+            headerTitleField.setAccessible(true);
+            headerSubtitleField.setAccessible(true);
 
             // Buttons
+            Class<?> radioButtonClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("audiobook_supplementary_content"))).get(0).getInstance(classLoader);
+            radioAccessor = findMenuItemViewModelAccessor(radioButtonClass);
+            radioConstructor = radioButtonClass.getDeclaredConstructor(Context.class, String.class);
+            radioConstructor.setAccessible(true);
+            startServiceMethod = ContextWrapper.class.getDeclaredMethod("startService", Intent.class);
+        hook(contextMenuConstructor);
+        hook(radioAccessor);
+        hook(startServiceMethod);
+        SpotifyNativeBridge.registerHandler("menu", this);
+        installIconRenderer();
+    }
 
-            headerObject = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("ContextMenuViewModel cannot contain items with duplicate itemResId. id="))).get(0).getInstance(classLoader);
-            radioButtonClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("audiobook_supplementary_content"))).get(0).getInstance(classLoader);
-            for (Constructor<?> constructor : headerObject.getConstructors()) {
-                hook(constructor);
+    private void installIconRenderer() {
+        // Main also writes icons directly into the view model, so this renderer is optional.
+        try {
+            var iconClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingEqStrings("ContextMenuItem")));
+            var methods = bridge.findMethod(FindMethod.create().searchInClass(iconClasses)
+                    .matcher(MethodMatcher.create().paramCount(6)));
+            var renderers = methods.stream().filter(method -> method.isMethod()
+                    && method.getReturnTypeName().equals("void") && Modifier.isStatic(method.getModifiers())).collect(Collectors.toList());
+            if (renderers.size() != 1) return;
+            iconRenderer = renderers.get(0).getMethodInstance(classLoader);
+            var rowClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create()
+                    .fields(FieldsMatcher.create().count(2).add(FieldMatcher.create().type(int.class)))
+                    .usingStrings("CreateMenuItemElement")));
+            if (rowClasses.size() != 1) return;
+            Class<?> rowClass = rowClasses.get(0).getInstance(classLoader);
+            renderBranch = Arrays.stream(rowClass.getDeclaredFields())
+                    .filter(field -> !Modifier.isStatic(field.getModifiers()) && field.getType() == int.class)
+                    .findFirst().orElseThrow(() -> new NoSuchFieldException("Context-menu render branch"));
+            renderBranch.setAccessible(true);
+            for (Method method : rowClass.getDeclaredMethods()) {
+                if (method.getName().equals("invoke") && rowRenderMethods.add(method)) hook(method);
             }
-
-            hook(radioButtonClass.getDeclaredMethod("getViewModel"));
-            hook(ContextWrapper.class.getDeclaredMethod("startService", Intent.class));
-
-            // Icon
-
-            Class<?> iconClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingEqStrings("ContextMenuItem"))).get(0).getInstance(classLoader);
-            var methods = bridge.findMethod(FindMethod.create().searchInClass(Collections.singletonList(bridge.getClassData(iconClass))).matcher(MethodMatcher.create().params(ParametersMatcher.create().count(6))));
-            iconMethod = methods.get(0).getMethodInstance(classLoader);
-            hook(iconMethod);
-
-            var uweClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().fields(FieldsMatcher.create().count(2).add(FieldMatcher.create().type(int.class))).usingStrings("CreateMenuItemElement")));
-            uweClass = uweClasses.get(0).getInstance(classLoader);
-            hook(uweClass.getDeclaredMethod("invoke", Object.class, Object.class, Object.class, Object.class, Object.class));
-
-            var resourceIdClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("your_library_tag_share_header_action_button")));
-            replaceResourceIdMethod = bridge.findMethod(FindMethod.create().searchInClass(resourceIdClass).matcher(MethodMatcher.create().returnType(String.class))).stream().filter(x -> !x.getMethodName().equals("getDebugIdentifier")).collect(Collectors.toList()).get(0).getMethodInstance(classLoader);
-            hook(replaceResourceIdMethod);
-
-            SpotifyNativeBridge.registerHandler("menu", this);
-        } catch (Exception e) {
-            logError(e);
-        }
+            hook(iconRenderer);
+        } catch (Exception e) { logError(e); }
     }
 
     @BeforeInvocation
     public static void before(XposedInterface.BeforeHookCallback callback) {
         ContextMenuHook hook = getHook(ContextMenuHook.class);
-        if(hook == null) return;
-        hook.beforeHook(buildCallback(callback));
+        if (hook != null) hook.beforeHook(buildCallback(callback));
     }
 
+    @Override
     protected void beforeHook(SpotifyCallback callback) {
-        Member member = callback.getMember();
-
+        if (rowRenderMethods.contains(callback.getMember())) {
+            // One frame per invocation keeps nested native/custom rows balanced in both Xposed APIs.
+            String marker = null;
+            try {
+                if (renderBranch.getInt(callback.getThisObject()) == 10 && callback.getArgs().length >= 2)
+                    marker = findSpotifyPlusMarker(callback.getArgs()[1], 2, new IdentityHashMap<>());
+            } catch (Exception e) { logError(e); }
+            renderMarkers.get().push(Optional.ofNullable(marker));
+            return;
+        }
         try {
-            if (member.getDeclaringClass() == c8f) {
-                Object jff = callback.getArgs()[0];
-                if (jff == null || jff.getClass() != jffClass) return;
-
-                for (int i = 0; i < callback.getArgs().length; i++) {
-                    var obj = callback.getArgs()[i];
-
-                    if(obj.getClass().getName().equals("p.yqf")) {
-                        Object vqf = obj.getClass().getDeclaredField("a").get(obj);
-
-                        String a = (String) vqf.getClass().getDeclaredField("a").get(vqf);
-                        String c = (String) vqf.getClass().getDeclaredField("c").get(vqf);
-                    }
+            if (callback.getMember().equals(iconRenderer)) {
+                Deque<Optional<String>> markers = renderMarkers.get();
+                if (!markers.isEmpty() && markers.peek().isPresent()) {
+                    Object icon = getSpotifyPlusIcon(markers.peek().get());
+                    if (icon != null) callback.getArgs()[1] = icon;
                 }
-
-                String username = SpotifyPlusSettings.lastfmUsername;
-                if (username.equals("null")) return;
-
-                Object gff = jff.getClass().getDeclaredField(newContextMenu ? "a" : "b").get(jff);
-                if (gff == null) {
-                    logError("It did not stay as b :(");
-                }
-
-                String title = (String) gff.getClass().getDeclaredField("a").get(gff);
-                String subtitleTextFull = (String) gff.getClass().getDeclaredField("c").get(gff);
-
-                if (subtitleTextFull.contains("scrobbles")) {
-                    return;
-                }
-
-                String artist = subtitleTextFull.split(" • ")[0];
-
-                trackTitle = title;
-                trackArtist = artist;
-
-                WeakReference<String> oldSubtitle = new WeakReference<>(subtitleTextFull);
-                WeakReference<Object> subtitleObject = new WeakReference<>(gff);
-
-                // If it takes longer than 3 seconds, just give up. You can try it again, but sometimes you just want to open the context menu quickly
-                OkHttpClient client = new OkHttpClient.Builder().connectTimeout(3, TimeUnit.SECONDS).readTimeout(3, TimeUnit.SECONDS).writeTimeout(3, TimeUnit.SECONDS).build();
-                Request request;
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {                                      //  Yeah I know this is bad, but whatever
-                    request = new Request.Builder().url("https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=3713c2e0b7493e945555b7f52dc4232e&artist=" + URLEncoder.encode(artist, StandardCharsets.UTF_8) + "&track=" + URLEncoder.encode(title, StandardCharsets.UTF_8) + "&format=json&user=" + URLEncoder.encode(username, StandardCharsets.UTF_8)).build();
-                } else {
-                    request = new Request.Builder().url("https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=3713c2e0b7493e945555b7f52dc4232e&artist=" + URLEncoder.encode(artist) + "&track=" + URLEncoder.encode(title) + "&format=json&user=" + URLEncoder.encode(username)).build();
-                }
-
-                // Probably not the best way to do this, but you know what, it works
-                // We're blocking the main UI thread here, which Android explicitly asks you not to do
-                CountDownLatch latch = new CountDownLatch(1);
-                AtomicReference<String> resultRef = new AtomicReference<>();
-                AtomicReference<Exception> exceptionRef = new AtomicReference<>();
-
-                new Thread(() -> {
-                    try (Response response = client.newCall(request).execute()) {
-                        ResponseBody body = response.body();
-                        resultRef.set(body != null ? body.string() : null);
-                    } catch (Exception e) {
-                        exceptionRef.set(e);
-                    } finally {
-                        latch.countDown();
-                    }
-                }).start();
-                try {
-                    latch.await();
-
-                    if (exceptionRef.get() != null) {
-                        throw new RuntimeException(exceptionRef.get());
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-
-                if (resultRef.get() != null) {
-                    try {
-                        JsonObject root = JsonParser.parseString(resultRef.get()).getAsJsonObject();
-                        String scrobbles = root.getAsJsonObject("track").get("userplaycount").getAsString();
-
-                        Object subtitle = subtitleObject.get();
-                        String oldSubtitleText = oldSubtitle.get();
-
-                        Field c = subtitle.getClass().getDeclaredField("c");
-                        c.setAccessible(true);
-                        c.set(subtitle, oldSubtitleText + " • " + scrobbles + " scrobbles");
-                    } catch (Exception e) {
-                        logError("Failed to fetch scrobbles", e);
-                        toast("Failed to fetch scrobbles");
-                    }
-                }
-            } else if (member.getDeclaringClass() == headerObject) {
+            } else if (callback.getMember().equals(contextMenuConstructor)) {
                 List<?> list = (List<?>) callback.getArgs()[1];
                 if (list == null) return;
-
-                String uri = captureContextMenuUri(list);
-                lastContextMenuUri = uri;
-
-                if (cachedOriginalViewModel == null && list.size() >= 3) {
-                    Object probablyAddToPlaylist = list.get(3);
-                    cachedOriginalViewModel = probablyAddToPlaylist.getClass().getMethod("getViewModel").invoke(probablyAddToPlaylist);
-
-                    interfaceClass = Arrays.stream(cachedOriginalViewModel.getClass().getDeclaredFields()).filter(x -> x.getName().equals("d")).collect(Collectors.toList()).get(0).get(cachedOriginalViewModel).getClass().getInterfaces()[0];
-                }
-
-                if (list.stream().anyMatch(item -> {
-                    try {
-                        if (item == null || item.getClass() != radioButtonClass) return false;
-                        Object markerValue = item.getClass().getDeclaredField("c").get(item);
-                        return markerValue.equals("spotifyplus_open_last_fm");
-                    } catch (Exception e) {
-                        logError(e);
-                        return false;
-                    }
-                })) return;
-
-                if (currentActivity == null) {
-                    logError("Current activity is null");
-                    return;
-                }
-
-                Object radioButton = radioButtonClass.getDeclaredConstructor(Context.class, String.class).newInstance(currentActivity, "spotifyplus_open_last_fm");
-
-                ArrayList<Object> newList = new ArrayList<>(list.size() + 2 + scriptMenus.size());
-                newList.add(radioButton);
-
-                if (getSpotifyTrackId(uri) != null) {
-                    Object generateLyricsButton = radioButtonClass.getDeclaredConstructor(Context.class, String.class).newInstance(currentActivity, GENERATE_LYRICS_MENU_ID);
-                    newList.add(generateLyricsButton);
-                }
-
-                // THIS IS WHERE YOU ADD BUTTONS
-                for(var menu : scriptMenus) {
-                    Object newButton = radioButtonClass.getDeclaredConstructor(Context.class, String.class).newInstance(currentActivity, menu.id);
-                    newList.add(newButton);
-                }
-                newList.addAll(list);
-                callback.getArgs()[1] = newList;
-            } else if (member.getName().equals("getViewModel")) {
-                String marker = callback.getThisObject().getClass().getDeclaredField("c").get(callback.getThisObject()).toString();
-                boolean isGenerateLyrics = GENERATE_LYRICS_MENU_ID.equals(marker);
-                var thing = scriptMenus.stream().filter(x -> x.id.equals(marker)).findFirst();
-
-                if (!isGenerateLyrics && thing.isEmpty()) return;
-
-                ScriptContextMenu menu = thing.orElse(null);
-                int resourceId = idToUse;
-
-                if (isGenerateLyrics) {
-                    generateLyricsResourceId = resourceId;
-                } else {
-                    menu.resourceId = resourceId;
-                }
-
-                Object viewModel;
-
-                if (cachedViewModel != null) {
-                    viewModel = cachedViewModel;
-                } else {
+                String trackUri = getSingleTrackUri(findMenuItem(list, "queue_track"));
+                lastContextMenuUri = trackUri != null ? trackUri : captureContextMenuUri(list);
+                trackTitle = "";
+                trackArtist = "";
+                if (trackUri != null) updateLastFmHeader(callback.getArgs()[0], headerTitleField, headerSubtitleField, trackUri);
+                if ((cachedOriginalViewModel == null || directTextTitleConstructor == null || interfaceClass == null) && list.size() >= 4) {
+                    cachedOriginalViewModel = getMenuItemViewModel(list.get(3));
                     if (cachedOriginalViewModel == null) return;
-                    Class<?> pgf = cachedOriginalViewModel.getClass();
+                    List<Field> viewModelFields = Arrays.stream(cachedOriginalViewModel.getClass().getDeclaredFields()).filter(field -> !Modifier.isStatic(field.getModifiers())).collect(Collectors.toList());
+                    Class<?> titleType = viewModelFields.get(1).getType();
+                    List<Constructor<?>> directTextTitleConstructors = Arrays.stream(cachedOriginalViewModel.getClass().getDeclaredConstructors()).flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())).filter(parameterType -> parameterType != titleType && titleType.isAssignableFrom(parameterType)).distinct().map(parameterType -> getStringConstructor(parameterType)).filter(Objects::nonNull).collect(Collectors.toList());
+                    if (directTextTitleConstructors.size() != 1) throw new IllegalStateException("[ContextMenuHook] Expected the menu view-model constructors to reference one direct-text implementation of " + titleType.getName() + " but found " + directTextTitleConstructors.size() + ": " + directTextTitleConstructors.stream().map(constructor -> constructor.getDeclaringClass().getName()).collect(Collectors.joining(", ")));
+                    directTextTitleConstructor = directTextTitleConstructors.get(0);
+                    directTextTitleConstructor.setAccessible(true);
+                    Field iconField = viewModelFields.get(3);
+                    iconField.setAccessible(true);
+                    Object icon = iconField.get(cachedOriginalViewModel);
+                    if (icon == null || icon.getClass().getInterfaces().length == 0) throw new IllegalStateException("[ContextMenuHook] Could not identify the icon interface from " + cachedOriginalViewModel.getClass().getName());
+                    interfaceClass = icon.getClass().getInterfaces()[0];
 
-                    Object oldTitleObject = cachedOriginalViewModel.getClass().getDeclaredField("b").get(cachedOriginalViewModel);
-                    if (oldTitleObject == null) return;
-
-                    Object title = oldTitleObject.getClass().getDeclaredConstructor(int.class).newInstance(resourceId);
-                    Object template = cachedOriginalViewModel;
-                    if (template == null) return;
-
-                    Constructor<?> ctor = Arrays.stream(pgf.getDeclaredConstructors()).filter(x -> x.getParameterCount() == 10 && x.getParameterTypes()[x.getParameterCount() - 1] == int.class).collect(Collectors.toList()).get(0);
-                    Class<?>[] parameters = ctor.getParameterTypes();
-
-                    // I don't know what button we cached for sure, so we look for these fields reflectively
-                    Object hgf = getField(template, parameters[3]);
-                    Object y6y0 = getField(template, parameters[4]);
-                    Object h0y0 = getField(template, parameters[8]);
-
-                    Boolean[] booleans = getFirstBooleans(template);
-
-                    viewModel = ctor.newInstance(marker, title, null, hgf, y6y0, booleans[0], booleans[1], booleans[2], h0y0, 1988);
-                    idToUse++;
                 }
-
-                callback.returnAndSkip(viewModel);
-            } else if (member.getName().equals("startService")) {
+                if (cachedOriginalViewModel == null || currentActivity == null) return;
+                ArrayList<Object> updated = new ArrayList<>(list);
+                if (trackUri != null && !hasMenuItem(list, LAST_FM_MARKER))
+                    updated.add(0, radioConstructor.newInstance(currentActivity, LAST_FM_MARKER));
+                if (getSpotifyTrackId(lastContextMenuUri) != null && !hasMenuItem(list, GENERATE_LYRICS_MARKER))
+                    updated.add(0, radioConstructor.newInstance(currentActivity, GENERATE_LYRICS_MARKER));
+                int scriptIndex = 0;
+                for (ScriptContextMenu menu : scriptMenus) {
+                    if (!hasMenuItem(updated, menu.id)) updated.add(scriptIndex++, radioConstructor.newInstance(currentActivity, menu.id));
+                }
+                if (updated.size() != list.size()) callback.getArgs()[1] = updated;
+            } else if (callback.getMember().equals(radioAccessor)) {
+                String marker = getSpotifyPlusItemMarker(callback.getThisObject());
+                if (marker == null || cachedOriginalViewModel == null) return;
+                String title;
+                if (LAST_FM_MARKER.equals(marker)) title = "Open in Last.fm";
+                else if (GENERATE_LYRICS_MARKER.equals(marker)) title = Utils.getString(currentActivity, R.string.generate_lyrics);
+                else {
+                    ScriptContextMenu menu = scriptMenus.stream().filter(item -> item.id.equals(marker)).findFirst().orElse(null);
+                    if (menu == null) return;
+                    title = menu.title;
+                }
+                callback.returnAndSkip(cloneMenuViewModel(cachedOriginalViewModel, marker, title));
+            } else if (callback.getMember().equals(startServiceMethod)) {
                 Intent intent = (Intent) callback.getArgs()[0];
-
-                if (intent.getComponent().getClassName().equals("com.spotify.radio.radio.formatlist.RadioFormatListService") && intent.hasExtra(".seed_uri")) {
-                    String seed = intent.getStringExtra(".seed_uri");
-
-                    if (GENERATE_LYRICS_MENU_ID.equals(seed)) {
-                        String spotifyId = getSpotifyTrackId(lastContextMenuUri);
-
-                        if (spotifyId != null) {
-                            onGenerateLyricsPressed(spotifyId);
-                        }
-
-                        callback.returnAndSkip(null);
-                        return;
-                    }
-
-                    var thing = scriptMenus.stream().filter(x -> x.id.equals(seed)).findFirst();
-                    if(thing.isEmpty()) return;
-                    ScriptContextMenu menu = thing.get();
-
+                if (intent == null || intent.getComponent() == null || !intent.getComponent().getClassName().equals("com.spotify.radio.radio.formatlist.RadioFormatListService") || !intent.hasExtra(".seed_uri")) return;
+                String marker = intent.getStringExtra(".seed_uri");
+                if (!isCustomMarker(marker)) return;
+                callback.returnAndSkip(null);
+                if (LAST_FM_MARKER.equals(marker)) {
+                    Intent link = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.last.fm/music/" + URLEncoder.encode(trackArtist, "UTF-8") + "/_/" + URLEncoder.encode(trackTitle, "UTF-8")));
+                    link.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ((Context) callback.getThisObject()).startActivity(link);
+                } else if (GENERATE_LYRICS_MARKER.equals(marker)) {
+                    String id = getSpotifyTrackId(lastContextMenuUri);
+                    if (id != null) onGenerateLyricsPressed(id);
+                } else {
+                    ScriptContextMenu menu = scriptMenus.stream().filter(item -> item.id.equals(marker)).findFirst().orElse(null);
+                    if (menu == null) return;
                     JSONObject json = new JSONObject();
                     json.put("id", menu.id);
                     json.put("scriptId", menu.scriptId);
                     json.put("uri", lastContextMenuUri);
-
                     SpotifyNativeBridge.sendEvent("menu.press", json.toString());
-//                    ScriptManager.send("", "event", "menu.press", json);
-
-                    callback.returnAndSkip(null);
-
-//                    if (seed.equals("spotifyplus_open_last_fm")) {
-//                        Context context = (Context) callback.getThisObject();
-//
-//                        Intent newIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.last.fm/music/" + URLEncoder.encode(trackArtist) + "/_/" + URLEncoder.encode(trackTitle)));
-//                        newIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//                        context.startActivity(newIntent);
-//
-//                        callback.returnAndSkip(null);
-//                    }
-                }
-            } else if (member == iconMethod) {
-                if (!isRenderingSpotifyPlusRow()) return;
-
-                Object customTrf = getLastfmIcon();
-                if (customTrf == null) return;
-
-                callback.getArgs()[1] = customTrf;
-            } else if (member.getDeclaringClass() == uweClass) {
-                int branch = bridge.findField(FindField.create().searchInClass(Collections.singletonList(bridge.getClassData(uweClass))).matcher(FieldMatcher.create().type(int.class))).get(0).getFieldInstance(classLoader).getInt(callback.getThisObject());
-                if (branch != 10) return;
-
-                if (callback.getArgs().length < 2) return;
-                Object obj2 = callback.getArgs()[1]; // psf in case 10
-                if (!isSpotifyPlusRow(obj2)) return;
-
-                pushSpotifyPlusRender();
-            } else if (member == replaceResourceIdMethod) {
-                try {
-                    if (callback.getArgs().length < 2) return;
-                    Object resourceObject = callback.getArgs()[1];
-                    if (resourceObject == null) return;
-
-                    int id = resourceObject.getClass().getDeclaredField("e").getInt(resourceObject);
-
-                    if (id == generateLyricsResourceId) {
-                        callback.returnAndSkip(Utils.getString(currentActivity.getApplicationContext(), R.string.generate_lyrics));
-                        return;
-                    }
-
-                    var thing = scriptMenus.stream().filter(x -> x.resourceId == id).findFirst();
-                    if(thing.isEmpty()) return;
-                    ScriptContextMenu menu = thing.get();
-                    callback.returnAndSkip(menu.title);
-
-//                    if (id == 0x7f1313b2) {
-//                        callback.returnAndSkip(Utils.getString(currentActivity.getApplicationContext(), R.string.open_last_fm));
-//                    }
-                } catch (IllegalArgumentException ignored) {
                 }
             }
-        } catch (Exception e) {
-            logError(e);
-        }
+        } catch (Exception e) { logError(e); }
     }
 
     @AfterInvocation
     public static void after(XposedInterface.AfterHookCallback callback) {
         ContextMenuHook hook = getHook(ContextMenuHook.class);
-        if (hook == null) return;
-        hook.afterHook(buildCallback(callback));
-    }
-
-    protected void afterHook(SpotifyCallback callback) {
-        try {
-            if (callback.getMember().getDeclaringClass() == uweClass && spotifyPlusRenderDepth.get() > 0) {
-                int branch = bridge.findField(FindField.create().searchInClass(Collections.singletonList(bridge.getClassData(uweClass))).matcher(FieldMatcher.create().type(int.class))).get(0).getFieldInstance(classLoader).getInt(callback.getThisObject());
-                if (branch != 10) return;
-
-                if (callback.getArgs().length < 2) return;
-                Object obj2 = callback.getArgs()[1]; // psf in case 10
-                if (!isSpotifyPlusRow(obj2)) return;
-
-                popSpotifyPlusRender();
-            }
-        } catch (Exception e) {
-            logError(e);
-        }
+        if (hook != null) hook.afterHook(buildCallback(callback));
     }
 
     @Override
-    public Object handle(String command, Object[] args) {
-        if (command.equals("register")) {
-            try {
-                String menuId = (String) args[0];
-                String scriptId = (String) args[1];
-                String title = (String) args[2];
+    protected void afterHook(SpotifyCallback callback) {
+        if (!rowRenderMethods.contains(callback.getMember())) return;
+        Deque<Optional<String>> markers = renderMarkers.get();
+        if (!markers.isEmpty()) markers.pop();
+        if (markers.isEmpty()) renderMarkers.remove();
+    }
 
-                ScriptContextMenu menu = new ScriptContextMenu(menuId, scriptId, title);
-                if(scriptMenus.contains(menu)) return null;
-
-                scriptMenus.add(menu);
-            } catch(Exception ignored) { }
-        } else if (command.equals("unregisterScript")) {
-            try {
-                String scriptId = (String) args[0];
-                scriptMenus.removeIf(menu -> menu.scriptId.equals(scriptId));
-            } catch (Exception ignored) { }
+    private String findSpotifyPlusMarker(Object value, int depth, IdentityHashMap<Object, Boolean> visited) {
+        if (isCustomMarker(value)) return (String) value;
+        if (value == null || depth == 0 || visited.put(value, Boolean.TRUE) != null) return null;
+        Class<?> valueClass = value.getClass();
+        if (valueClass.isPrimitive() || valueClass.isEnum() || valueClass.isArray()
+                || valueClass.getName().startsWith("java.") || valueClass.getName().startsWith("android.")
+                || valueClass.getName().startsWith("kotlin.")) return null;
+        for (Class<?> type = valueClass; type != null && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    String marker = findSpotifyPlusMarker(field.get(value), depth - 1, visited);
+                    if (marker != null) return marker;
+                } catch (Exception ignored) { }
+            }
         }
-
         return null;
     }
 
-    private Object getLastfmIcon() {
-        try {
-            if (cachedSpotifyPlusTrf != null) return cachedSpotifyPlusTrf;
+    private boolean isCustomMarker(Object value) {
+        return LAST_FM_MARKER.equals(value) || GENERATE_LYRICS_MARKER.equals(value)
+                || scriptMenus.stream().anyMatch(menu -> menu.id.equals(value));
+    }
 
-            if (currentActivity == null) {
-                logError("Current activity is null");
+    private void updateLastFmHeader(Object header, Field titleField, Field subtitleField, String trackUri) {
+        if (header == null || trackUri == null || !trackUri.startsWith("spotify:track:")) return;
+
+        try {
+            String title = (String) titleField.get(header);
+            String subtitleTextFull = (String) subtitleField.get(header);
+            if (title == null || title.isEmpty() || subtitleTextFull == null || subtitleTextFull.isEmpty()) return;
+
+            String artist = subtitleTextFull.split(" â€¢ ")[0];
+            trackTitle = title;
+            trackArtist = artist;
+            if (subtitleTextFull.contains("scrobbles")) return;
+
+            String username = SpotifyPlusSettings.lastfmUsername;
+            if (username == null || username.equals("null")) return;
+
+            
+            OkHttpClient client = new OkHttpClient.Builder().callTimeout(3, TimeUnit.SECONDS).build();
+            Request request;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                request = new Request.Builder().url("https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=3713c2e0b7493e945555b7f52dc4232e&artist=" + URLEncoder.encode(artist, StandardCharsets.UTF_8) + "&track=" + URLEncoder.encode(title, StandardCharsets.UTF_8) + "&format=json&user=" + URLEncoder.encode(username, StandardCharsets.UTF_8)).build();
+            } else {
+                request = new Request.Builder().url("https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=3713c2e0b7493e945555b7f52dc4232e&artist=" + URLEncoder.encode(artist) + "&track=" + URLEncoder.encode(title) + "&format=json&user=" + URLEncoder.encode(username)).build();
+            }
+
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<String> resultRef = new AtomicReference<>();
+            AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+            new Thread(() -> {
+                try (Response response = client.newCall(request).execute()) {
+                    ResponseBody body = response.body();
+                    resultRef.set(body != null ? body.string() : null);
+                } catch (Exception e) {
+                    exceptionRef.set(e);
+                } finally {
+                    latch.countDown();
+                }
+            }).start();
+            try {
+                if (!latch.await(3, TimeUnit.SECONDS)) return;
+                if (exceptionRef.get() != null) throw new RuntimeException(exceptionRef.get());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            if (resultRef.get() == null) throw new IllegalStateException("Last.fm returned no response body");
+            JsonObject root = JsonParser.parseString(resultRef.get()).getAsJsonObject();
+            String scrobbles = root.getAsJsonObject("track").get("userplaycount").getAsString();
+            subtitleField.set(header, subtitleTextFull + " â€¢ " + scrobbles + " scrobbles");
+        } catch (Exception e) {
+            logError("[SpotifyPlus] Failed to fetch scrobbles for " + trackUri);
+            logError("[SpotifyPlus] " + e);
+            
+            toast("Failed to fetch scrobbles");
+        }
+    }
+
+    private Object getSpotifyPlusIcon(String marker) {
+        try {
+            if (GENERATE_LYRICS_MARKER.equals(marker) && cachedSpotifyPlusGenerateLyricsTrf != null) return cachedSpotifyPlusGenerateLyricsTrf;
+            if (!GENERATE_LYRICS_MARKER.equals(marker) && cachedSpotifyPlusTrf != null) return cachedSpotifyPlusTrf;
+
+            Context appContext = currentActivity;
+            if (appContext == null) {
+                logError("[SpotifyPlus] appContext was null");
                 return null;
             }
 
-            Drawable drawable = Utils.getDrawable(currentActivity, R.drawable.lastfm);
+            int drawableId;
+            if (LAST_FM_MARKER.equals(marker)) {
+                drawableId = R.drawable.lastfm;
+            } else if (GENERATE_LYRICS_MARKER.equals(marker)) {
+                drawableId = R.drawable.lastfm;
+            } else {
+                drawableId = R.drawable.lastfm;
+            }
+            Drawable drawable = Utils.getDrawable(appContext, drawableId);
 
             if (drawable == null) {
-                logError("module drawable was null");
+                logError("[SpotifyPlus] module drawable was null");
                 return null;
             }
 
@@ -493,59 +358,166 @@ public class ContextMenuHook extends SpotifyHook {
             }
 
             var classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().addInterface(interfaceClass.getName())));
-
-            // I see no obvious way to differentiate the two, so why not try both? One of them should work
-            Class<?> firstClass = classes.get(0).getInstance(classLoader);
-            Class<?> secondClass = firstClass.getFields()[0].getType();
-
-            for (var clazz : classes) {
-                Class<?> tryClass = clazz.getInstance(classLoader);
-                Class<?> a = tryClass.getFields()[0].getType();
-
-                if (a.getFields()[0].getDeclaringClass() == LayerDrawable.class) {
-                    firstClass = tryClass;
-                    secondClass = a;
+            Object customIcon = null;
+            for (var classData : classes) {
+                Class<?> outerClass = classData.getInstance(classLoader);
+                if (outerClass.isInterface() || Modifier.isAbstract(outerClass.getModifiers())) continue;
+                for (Constructor<?> outerConstructor : outerClass.getDeclaredConstructors()) {
+                    if (outerConstructor.getParameterCount() != 1) continue;
+                    Class<?> outerParameter = outerConstructor.getParameterTypes()[0];
+                    Object outerArgument = getDrawableConstructorArgument(outerParameter, drawable, layerDrawable);
+                    if (outerArgument == null) {
+                        for (Constructor<?> innerConstructor : outerParameter.getDeclaredConstructors()) {
+                            if (innerConstructor.getParameterCount() != 1) continue;
+                            Object innerArgument = getDrawableConstructorArgument(innerConstructor.getParameterTypes()[0], drawable, layerDrawable);
+                            if (innerArgument == null) continue;
+                            innerConstructor.setAccessible(true);
+                            outerArgument = innerConstructor.newInstance(innerArgument);
+                            break;
+                        }
+                    }
+                    if (outerArgument == null) continue;
+                    outerConstructor.setAccessible(true);
+                    customIcon = outerConstructor.newInstance(outerArgument);
+                    break;
                 }
+                if (customIcon != null) break;
             }
-
-            Object rsf = secondClass.getDeclaredConstructor(LayerDrawable.class).newInstance(layerDrawable);
-            Object trf = firstClass.getDeclaredConstructor(rsf.getClass()).newInstance(rsf);
-
-            cachedSpotifyPlusTrf = trf;
-            return trf;
+            if (customIcon == null) throw new IllegalStateException("[ContextMenuHook] Could not find a " + interfaceClass.getName() + " implementation backed by Drawable or LayerDrawable");
+            if (GENERATE_LYRICS_MARKER.equals(marker)) cachedSpotifyPlusGenerateLyricsTrf = customIcon;
+            else cachedSpotifyPlusTrf = customIcon;
+            return customIcon;
         } catch (Throwable t) {
-            logError(t);
+            logError("[SpotifyPlus] Failed to create custom trf: " + t);
             return null;
         }
     }
 
-    private void pushSpotifyPlusRender() {
-        spotifyPlusRenderDepth.set(spotifyPlusRenderDepth.get() + 1);
+    private Object getDrawableConstructorArgument(Class<?> parameterType, Drawable drawable, LayerDrawable layerDrawable) {
+        if (!Drawable.class.isAssignableFrom(parameterType)) return null;
+        if (parameterType.isInstance(drawable)) return drawable;
+        return parameterType.isInstance(layerDrawable) ? layerDrawable : null;
     }
 
-    private void popSpotifyPlusRender() {
-        int depth = spotifyPlusRenderDepth.get() - 1;
-        if (depth <= 0) {
-            spotifyPlusRenderDepth.remove();
-        } else {
-            spotifyPlusRenderDepth.set(depth);
+    private String getSpotifyPlusItemMarker(Object item) {
+        if (item == null) return null;
+        for (Class<?> type = item.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(item);
+                    if (isCustomMarker(value)) return (String) value;
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    private Method findMenuItemViewModelAccessor(Class<?> itemClass) throws NoSuchMethodException {
+        Method cached = menuItemViewModelAccessors.get(itemClass);
+        if (cached != null) return cached;
+        List<Method> candidates = Arrays.stream(itemClass.getMethods()).filter(method -> !Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0 && method.getDeclaringClass() != Object.class && !method.getReturnType().isPrimitive() && method.getReturnType() != String.class && Arrays.stream(method.getReturnType().getDeclaredFields()).anyMatch(field -> !Modifier.isStatic(field.getModifiers()) && field.getType() == String.class)).collect(Collectors.toList());
+        Method accessor = candidates.stream().filter(method -> method.getName().equals("getViewModel")).findFirst().orElse(candidates.size() == 1 ? candidates.get(0) : null);
+        if (accessor == null) throw new NoSuchMethodException("[ContextMenuHook] Could not identify the view-model accessor on " + itemClass.getName() + "; candidates: " + candidates.stream().map(Method::toString).collect(Collectors.joining(", ")));
+        accessor.setAccessible(true);
+        menuItemViewModelAccessors.put(itemClass, accessor);
+        return accessor;
+    }
+
+    private Object getMenuItemViewModel(Object item) throws ReflectiveOperationException {
+        if (item == null) return null;
+        return findMenuItemViewModelAccessor(item.getClass()).invoke(item);
+    }
+
+    private Constructor<?> getStringConstructor(Class<?> type) {
+        try {
+            return type.getDeclaredConstructor(String.class);
+        } catch (NoSuchMethodException ignored) {
+            return null;
         }
     }
 
-    private boolean isRenderingSpotifyPlusRow() {
-        Integer depth = spotifyPlusRenderDepth.get();
-        return depth != null && depth > 0;
+    private Object cloneMenuViewModel(Object template, String marker, String title) throws ReflectiveOperationException {
+        List<Field> fields = Arrays.stream(template.getClass().getDeclaredFields()).filter(field -> !Modifier.isStatic(field.getModifiers())).collect(Collectors.toList());
+        Class<?>[] fieldTypes = fields.stream().map(Field::getType).toArray(Class<?>[]::new);
+        Constructor<?> constructor = Arrays.stream(template.getClass().getDeclaredConstructors()).filter(candidate -> Arrays.equals(candidate.getParameterTypes(), fieldTypes)).findFirst().orElseThrow(() -> new NoSuchMethodException("[ContextMenuHook] No primary data-class constructor matches the fields of " + template.getClass().getName()));
+        Object[] values = new Object[fields.size()];
+        boolean markerReplaced = false;
+        boolean titleReplaced = false;
+        boolean iconReplaced = false;
+        for (int i = 0; i < fields.size(); i++) {
+            Field field = fields.get(i);
+            field.setAccessible(true);
+            Object value = field.get(template);
+            if (i == 0 && field.getType() == String.class) {
+                value = marker;
+                markerReplaced = true;
+            } else if (i == 1 && directTextTitleConstructor != null && field.getType().isAssignableFrom(directTextTitleConstructor.getDeclaringClass())) {
+                value = directTextTitleConstructor.newInstance(title);
+                titleReplaced = true;
+            } else if (i == 3 && interfaceClass != null && field.getType().isAssignableFrom(interfaceClass)) {
+                value = getSpotifyPlusIcon(marker);
+                iconReplaced = value != null;
+            }
+            values[i] = value;
+        }
+        if (!markerReplaced || !titleReplaced || !iconReplaced) throw new IllegalStateException("[ContextMenuHook] Could not replace the marker, title, and icon while cloning " + template.getClass().getName());
+        constructor.setAccessible(true);
+        return constructor.newInstance(values);
     }
 
-    private boolean isSpotifyPlusRow(Object obj) {
-        if (obj == null) return false;
+    private Object findMenuItem(List<?> items, String id) {
+        if (items == null) return null;
+
+        for (Object item : items) {
+            if (id.equals(getMenuItemId(item))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private boolean hasMenuItem(List<?> items, String id) {
+        return findMenuItem(items, id) != null;
+    }
+
+    private String getMenuItemId(Object item) {
+        if (item == null) return null;
+
         try {
-            Object dsf = obj.getClass().getDeclaredField("a").get(obj);
-            if (dsf == null) return false;
-            Object key = dsf.getClass().getDeclaredField("a").get(dsf);
-            return "spotifyplus_open_last_fm".equals(key);
+            Object viewModel = getMenuItemViewModel(item);
+            if (viewModel == null) return null;
+            for (Field field : viewModel.getClass().getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType() != String.class) continue;
+                field.setAccessible(true);
+                Object id = field.get(viewModel);
+                if (id instanceof String) return (String) id;
+            }
+            return null;
         } catch (Throwable ignored) {
-            return false;
+            return null;
+        }
+    }
+
+    private String getSingleTrackUri(Object addToQueueItem) {
+        if (addToQueueItem == null) return null;
+
+        try {
+            Object value = getField(addToQueueItem, List.class);
+            if (!(value instanceof List)) return null;
+
+            List<?> tracks = (List<?>) value;
+            if (tracks.size() != 1 || tracks.get(0) == null) return null;
+
+            Object uriValue = tracks.get(0).getClass().getMethod("uri").invoke(tracks.get(0));
+            if (!(uriValue instanceof String)) return null;
+
+            String uri = (String) uriValue;
+            return uri.startsWith("spotify:track:") ? uri : null;
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
@@ -565,25 +537,6 @@ public class ContextMenuHook extends SpotifyHook {
         }
         return null;
     }
-
-    private Boolean[] getFirstBooleans(Object obj) {
-        try {
-            ArrayList<Boolean> out = new ArrayList<>();
-            for (Field f : obj.getClass().getDeclaredFields()) {
-                if (f.getType() == boolean.class) {
-                    f.setAccessible(true);
-                    out.add(f.getBoolean(obj));
-                    if (out.size() == 3) break;
-                }
-            }
-            if (out.size() < 3) return null;
-            return out.toArray(new Boolean[0]);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private static volatile String lastContextMenuUri;
 
     private static String getSpotifyTrackId(String uri) {
         if (uri == null) return null;
@@ -618,13 +571,7 @@ public class ContextMenuHook extends SpotifyHook {
         for (String key : preferredKeys) {
             for (Object item : items) {
                 try {
-                    Method getViewModel = item.getClass().getMethod("getViewModel");
-                    Object vm = getViewModel.invoke(item);
-                    if (vm == null) continue;
-
-                    Field a = vm.getClass().getDeclaredField("a");
-                    a.setAccessible(true);
-                    Object value = a.get(vm);
+                    Object value = getMenuItemId(item);
                     if (!(value instanceof String vmKey)) continue;
                     if (!vmKey.equals(key)) continue;
 
@@ -670,4 +617,28 @@ public class ContextMenuHook extends SpotifyHook {
                 s.startsWith("spotify:episode:") ||
                 s.startsWith("spotify:show:");
     }
+
+    @Override
+    public Object handle(String command, Object[] args) {
+        if (command.equals("register")) {
+            try {
+                String menuId = (String) args[0];
+                String scriptId = (String) args[1];
+                String title = (String) args[2];
+
+                ScriptContextMenu menu = new ScriptContextMenu(menuId, scriptId, title);
+                if (isCustomMarker(menuId)) return null;
+
+                scriptMenus.add(menu);
+            } catch(Exception ignored) { }
+        } else if (command.equals("unregisterScript")) {
+            try {
+                String scriptId = (String) args[0];
+                scriptMenus.removeIf(menu -> menu.scriptId.equals(scriptId));
+            } catch (Exception ignored) { }
+        }
+
+        return null;
+    }
+
 }
