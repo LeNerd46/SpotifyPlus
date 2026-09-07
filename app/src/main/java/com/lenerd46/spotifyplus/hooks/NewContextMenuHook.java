@@ -160,12 +160,12 @@ public class NewContextMenuHook extends SpotifyHook {
                         }
 
                         if (contextTrackUri != null && !hasGenerateLyricsItem) {
-                            Context context = AndroidAppHelper.currentApplication();
-                            if (context != null) {
-                                Object radioButton = XposedHelpers.newInstance(radioButtonClass, context, GENERATE_LYRICS_MARKER);
-                                newList.add(0, radioButton);
-                                changed = true;
-                            }
+//                            Context context = AndroidAppHelper.currentApplication();
+//                            if (context != null) {
+//                                Object radioButton = XposedHelpers.newInstance(radioButtonClass, context, GENERATE_LYRICS_MARKER);
+//                                newList.add(0, radioButton);
+//                                changed = true;
+//                            }
                         }
 
                         if (!hasLyricsItem) {

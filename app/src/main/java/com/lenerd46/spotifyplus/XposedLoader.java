@@ -20,7 +20,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.hooks.*;
-import com.yausername.youtubedl_android.YoutubeDL;
+//import com.yausername.youtubedl_android.YoutubeDL;
 import de.robv.android.xposed.*;
 import de.robv.android.xposed.callbacks.XC_InitPackageResources;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
@@ -45,7 +45,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
     private DexKitBridge bridge;
     private String modulePath = null;
-    private static final String MODULE_VERSION = "0.7.1";
+    private static final String MODULE_VERSION = "0.7.2";
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
@@ -99,7 +99,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
                 try {
                     Context libraryContext = new LibraryContext(activity, outDir);
-                    YoutubeDL.getInstance().init(libraryContext);
+//                    YoutubeDL.getInstance().init(libraryContext);
                 } catch(Exception e) {
                     XposedBridge.log(e);
                 }
@@ -143,18 +143,18 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 if (!outDir.exists() && !outDir.mkdirs())
                     throw new IllegalStateException("Failed to create cache directory");
 
-                extractLibraries(modulePath, outDir);
-                loadNativeLibraries(outDir);
+//                extractLibraries(modulePath, outDir);
+//                loadNativeLibraries(outDir);
 
                 SpotifyBottomSheet.initialize(bridge, lpparam.classLoader);
                 // new ScriptManager().init(context, lpparam.classLoader);
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam, bridge);
                 new NowPlayingLyricsGradientHook().init(lpparam, bridge);
-                new NowPlayingLandscapeHook().init(lpparam, bridge);
-                new NowPlayingSwipeHook().init(lpparam, bridge);
-                new NowPlayingCardsHook().init(lpparam, bridge);
-                new NowPlayingControlsHook().init(lpparam, bridge);
+//                new NowPlayingLandscapeHook().init(lpparam, bridge);
+//                new NowPlayingSwipeHook().init(lpparam, bridge);
+//                new NowPlayingCardsHook().init(lpparam, bridge);
+//                new NowPlayingControlsHook().init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
                 new NetworkHook(context).init(lpparam, bridge);
                 new LastFmHook().init(lpparam, bridge);

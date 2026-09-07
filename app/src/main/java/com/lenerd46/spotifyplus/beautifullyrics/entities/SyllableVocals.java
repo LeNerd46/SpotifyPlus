@@ -383,7 +383,7 @@ public class SyllableVocals implements SyncableVocals {
                     textView.setTranslationY((float)yOffset * (isEmphasized ? 2f : 1f));
                     textView.setProgress(gradientProgress);
 
-                    textView.updateShadow(shadowOpacity, shadowRadius);
+                    textView.updateShadow(shadowOpacity * 100f, shadowRadius);
                 } else {
                     textView.setScaleX((float)scale);
                     textView.setScaleY((float)scale);
@@ -391,7 +391,7 @@ public class SyllableVocals implements SyncableVocals {
                     textView.setTranslationY((float)yOffset);
                     textView.setProgress(gradientProgress);
 
-                    textView.updateShadow(shadowOpacity, shadowRadius);
+                    textView.updateShadow(shadowOpacity * 100f, shadowRadius);
                 }
             });
         }

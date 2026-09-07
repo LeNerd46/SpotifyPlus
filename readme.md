@@ -5,7 +5,7 @@ Spotify Plus is the ultimate enhancement mod for Spotify
 
 Word by word lyrics, new features, customizations, and much more, all in one module
 
-![GitHub Downloads](https://img.shields.io/github/downloads/LeNerd46/SpotifyPlus/total)
+![GitHub Downloads](https://img.shields.io/github/downloads/Xposed-Modules-Repo/com.lenerd46.spotifyplus/total)
 ![GitHub Repo stars](https://img.shields.io/github/stars/LeNerd46/SpotifyPlus)
 <a href="https://t.me/spotifypluscool" target="_blank">
 ![Telegram Badge](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@spotifypluscool)
@@ -38,6 +38,13 @@ Replaces Spotify's boring line by line lyrics with a more beautiful experience! 
 <br/>
 Translate any song to English, making listening to songs in any language even better! There are also a few options to make it just how you want it. You can swap the translated line with the original line, or you can just hide the original line all together! It's completely up to you
 
+</details>
+
+<details>
+<summary><b>🎵✏️ Built In Lyrics Editor</b></summary>
+
+<br/>
+You can sync any line by line song you would like. Once you create your word by word lyrics, you can submit it for everyone else to enjoy! And the best part is, it's built right into Spotify. So you don't have to go messing around with other websites or random files or whatever. Just sync, submit, and enjoy!
 </details>
 
 <details>

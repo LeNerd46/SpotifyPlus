@@ -201,3 +201,4 @@ README.html
 .exercism
 /app/release
 /.codex-remote-attachments
+/app/.cxx

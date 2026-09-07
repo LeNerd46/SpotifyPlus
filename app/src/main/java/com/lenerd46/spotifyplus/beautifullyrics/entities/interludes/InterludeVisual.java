@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 public class InterludeVisual implements SyncableVocals {
     private final LinearLayout container;
+    private final boolean verticalOnly;
 
     private final double startTime;
     private final double duration;
@@ -104,6 +105,11 @@ public class InterludeVisual implements SyncableVocals {
     }
 
     public InterludeVisual(FlexboxLayout lineContainer, Interlude interludeMetadata, Activity activity) {
+        this(lineContainer, interludeMetadata, activity, false);
+    }
+
+    public InterludeVisual(FlexboxLayout lineContainer, Interlude interludeMetadata, Activity activity, boolean verticalOnly) {
+        this.verticalOnly = verticalOnly;
         LinearLayout container = new LinearLayout(lineContainer.getContext());
         container.setOrientation(LinearLayout.HORIZONTAL);
         container.setVisibility(LinearLayout.GONE);
@@ -298,7 +304,8 @@ public class InterludeVisual implements SyncableVocals {
         double opacity = liveText.springs.opacity.update(deltaTime);
 
         liveText.object.post(() -> {
-            liveText.object.setScaleX((float)scale);
+            // Scaling a full-width row around its center makes left-aligned dots drift sideways.
+            liveText.object.setScaleX(verticalOnly ? 1f : (float)scale);
             liveText.object.setScaleY((float)scale);
 
             liveText.object.setTranslationY((float)yOffset);

@@ -464,6 +464,7 @@ public class NowPlayingControlsHook extends SpotifyHook {
     }
 
     private void closeLyrics(View root, boolean animated) {
+        if (BeautifulLyricsHook.confirmCancelLyricsSync()) return;
         LyricsState state = state(root);
         if(!state.open || state.transitioning) return;
         state.open = false;
@@ -640,6 +641,7 @@ public class NowPlayingControlsHook extends SpotifyHook {
     private void showControls(View root) {
         LyricsState state = state(root);
         if(!state.open) return;
+        if (BeautifulLyricsHook.isSyncingLyrics()) { setControlVisibility(state, false, false); return; }
         if(root.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
             setControlVisibility(state, false, false);
             return;

@@ -12,8 +12,8 @@ android {
         applicationId "com.lenerd46.spotifyplus"
         minSdk 27
         targetSdk 35
-        versionCode 15
-        versionName "0.7.1"
+        versionCode 16
+        versionName "0.7.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -64,6 +64,6 @@ dependencies {
     implementation 'androidx.media3:media3-ui:1.8.0'
     implementation 'androidx.media3:media3-exoplayer-hls:1.8.0'
     implementation 'org.jsoup:jsoup:1.21.2'
-    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
-    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+//    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+//    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
 }

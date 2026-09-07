@@ -82,6 +82,7 @@ public class LyricUtilities {
                 for (Object vocalGroup : lyrics.lyrics.lineLyrics.content) {
                     Gson gson = new Gson();
                     JsonElement jsonElement = gson.toJsonTree(vocalGroup);
+                    if (jsonElement.isJsonObject() && jsonElement.getAsJsonObject().has("Type") && "Interlude".equals(jsonElement.getAsJsonObject().get("Type").getAsString())) continue;
                     LineVocal vocal = gson.fromJson(jsonElement, LineVocal.class);
 
                     if (vocal != null) {
@@ -150,6 +151,7 @@ public class LyricUtilities {
             for (Object vocalGroup : lyrics.lyrics.syllableLyrics.content) {
                 Gson gson = new Gson();
                 JsonElement jsonElement = gson.toJsonTree(vocalGroup);
+                if (jsonElement.isJsonObject() && jsonElement.getAsJsonObject().has("Type") && "Interlude".equals(jsonElement.getAsJsonObject().get("Type").getAsString())) continue;
                 SyllableVocalSet vocalSet = gson.fromJson(jsonElement, SyllableVocalSet.class);
 
                 if (vocalSet != null) {
