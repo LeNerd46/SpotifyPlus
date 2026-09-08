@@ -9,7 +9,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.LruCache;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -39,8 +39,11 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -66,6 +69,9 @@ public class ThemeHook extends SpotifyHook {
     private static volatile Method composeDisposeMethod;
     private static volatile Method composeCreateMethod;
     private volatile Method creativeWorkGetViewMethod;
+    private volatile Method encorePaletteAccessor;
+    private volatile Method encorePaletteProvider;
+    private static final ThreadLocal<Boolean> imageHeaderBody = new ThreadLocal<>();
     private volatile Object modernHomeFilterChipUnselectedStyle;
     private volatile Field modernHomeFilterChipProviderField;
     private volatile boolean modernHomeFilterChipProviderReplaced;
@@ -179,7 +185,10 @@ public class ThemeHook extends SpotifyHook {
 
         hookSpotifyConnectColor();
         hookCreativeWorkAlbumHeader();
-        hookAlbumTrackRows();
+        hookModernAlbumHeader();
+        hookImageHeaderChrome();
+        hookImageHeaderBody();
+        hookTrackRowColors();
         hookBottomNavigationGradient();
 
         hookVisibleActivity();
@@ -190,6 +199,7 @@ public class ThemeHook extends SpotifyHook {
     private void hookEncorePalette() {
         try {
             Method paletteAccessor = findEncorePaletteAccessor();
+            encorePaletteAccessor = paletteAccessor;
             XposedBridge.log("[SpotifyPlus] Encore palette accessor: " + paletteAccessor);
             XposedBridge.hookMethod(paletteAccessor, new XC_MethodHook() {
                 @Override
@@ -260,6 +270,7 @@ public class ThemeHook extends SpotifyHook {
         if (paletteProviders.isEmpty()) throw new IllegalStateException("Could not find the Encore palette providers in " + providerClass.getName());
         for (MethodData providerData : paletteProviders) {
             Method provider = providerData.getMethodInstance(lpparm.classLoader);
+            encorePaletteProvider = provider;
             XposedBridge.log("[SpotifyPlus] Encore palette provider: " + provider);
             XposedBridge.hookMethod(provider, new XC_MethodHook() {
                 @Override
@@ -821,9 +832,26 @@ public class ThemeHook extends SpotifyHook {
                     try {
                         applyCreativeWorkAlbumHeader(param.thisObject, null);
                     } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
                     }
                 }
             });
+            // Binding can reset text styles and add metadata after construction.
+            for (Method method : headerClass.getDeclaredMethods()) {
+                if (Modifier.isStatic(method.getModifiers()) || method.getReturnType() != void.class
+                        || method.getParameterCount() != 1 || method.getParameterTypes()[0] != Object.class) continue;
+                XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        if (!themeEnabled) return;
+                        try {
+                            applyCreativeWorkAlbumHeader(param.thisObject, null);
+                        } catch (Throwable throwable) {
+                            XposedBridge.log(throwable);
+                        }
+                    }
+                });
+            }
             XposedBridge.hookMethod(headerColorMethod, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
@@ -833,53 +861,325 @@ public class ThemeHook extends SpotifyHook {
                         int extractedColor = (Integer) param.args[1];
                         applyCreativeWorkAlbumHeader(header, extractedColor);
                     } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
                     }
                 }
             });
-
+            XposedBridge.log("[SpotifyPlus] Album header hooks installed: " + headerClass.getName());
         } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
         }
     }
 
-    private void themeAlbumHeaderText(View view) {
-        if (!themeEnabled) return;
-        if (view instanceof TextView) {
-            ((TextView) view).setTextColor(TEXT);
-        }
-
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-
-            for (int i = 0; i < group.getChildCount(); i++) {
-                themeAlbumHeaderText(group.getChildAt(i));
-            }
-        }
-    }
-
-    private void hookAlbumTrackRows() {
+    private void hookModernAlbumHeader() {
         try {
-            int rowLayoutId = resourceId("layout", "album_track_row_layout");
-            int titleId = resourceId("id", "title");
-            int subtitleId = resourceId("id", "subtitle");
-            Constructor<?> rowConstructor = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().name("<init>").paramCount(2).usingNumbers(rowLayoutId))).single().getConstructorInstance(lpparm.classLoader);
-            XposedBridge.hookMethod(rowConstructor, new XC_MethodHook() {
+            int expandedId = resourceId("layout", "expanded_header");
+            int condensedId = resourceId("layout", "condensed_header");
+            int backgroundId = resourceId("id", "cwp_header_artwork_background");
+            Constructor<?> constructor = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .name("<init>").usingNumbers(expandedId, condensedId))).single().getConstructorInstance(lpparm.classLoader);
+            Class<?> headerClass = constructor.getDeclaringClass();
+            Method getView = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .declaredClass(headerClass.getName()).returnType(View.class).paramCount(0))).single().getMethodInstance(lpparm.classLoader);
+            XC_MethodHook applyHeader = new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
                     if (!themeEnabled) return;
                     try {
-                        View row = findRootViewWithId(param.thisObject, titleId, 2);
-                        if (row == null) return;
-                        TextView title = row.findViewById(titleId);
-                        TextView subtitle = row.findViewById(subtitleId);
-                        ColorStateList titleColors = new ColorStateList(new int[][]{new int[]{android.R.attr.state_activated}, new int[]{android.R.attr.state_selected}, new int[]{}}, new int[]{ACCENT, ACCENT, TEXT});
-                        if (title != null) title.setTextColor(titleColors);
-                        if (subtitle != null) subtitle.setTextColor(TEXT_SUBDUED);
+                        applyAlbumHeader(param.thisObject, (View) getView.invoke(param.thisObject), null, true);
                     } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
+                    }
+                }
+            };
+            XposedBridge.hookMethod(constructor, applyHeader);
+            for (Method method : headerClass.getDeclaredMethods()) {
+                if (!Modifier.isStatic(method.getModifiers()) && method.getReturnType() == void.class
+                        && method.getParameterCount() == 1 && method.getParameterTypes()[0] == Object.class) {
+                    XposedBridge.hookMethod(method, applyHeader);
+                }
+            }
+            // The newer header receives artwork colors in a separate callback holder.
+            // Its DST_OVER filter would otherwise tint the already themed gradient again.
+            List<MethodData> callbacks = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .returnType(void.class).paramTypes(Object.class).usingNumbers(backgroundId)
+                    .addInvoke(MethodMatcher.create().name("setColorFilter").declaredClass("android.graphics.drawable.Drawable"))));
+            for (MethodData callback : callbacks) {
+                XposedBridge.hookMethod(callback.getMethodInstance(lpparm.classLoader), new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        if (!themeEnabled) return;
+                        try {
+                            Object header = findObjectOfType(param.thisObject, headerClass, 1, new IdentityHashMap<>());
+                            if (header == null) return;
+                            Integer color = param.args[0] instanceof Integer ? (Integer) param.args[0] : null;
+                            applyAlbumHeader(header, (View) getView.invoke(header), color, true);
+                        } catch (Throwable throwable) {
+                            XposedBridge.log(throwable);
+                        }
+                    }
+                });
+            }
+            XposedBridge.log("[SpotifyPlus] Modern album header hooks installed: " + headerClass.getName() + "; color callbacks: " + callbacks.size());
+            if (callbacks.isEmpty()) XposedBridge.log("[SpotifyPlus] No modern album artwork-color callback found");
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private void hookImageHeaderChrome() {
+        try {
+            int layoutId = resourceId("layout", "image_header_content");
+            Constructor<?> constructor = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .name("<init>").usingNumbers(layoutId))).single().getConstructorInstance(lpparm.classLoader);
+            Class<?> headerClass = constructor.getDeclaringClass();
+            Method getView = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .declaredClass(headerClass.getName()).returnType(View.class).paramCount(0))).single().getMethodInstance(lpparm.classLoader);
+            int toolbarId = resourceId("id", "toolbar");
+            int titleId = resourceId("id", "toolbar_title");
+            int backId = resourceId("id", "back_button");
+            int backBackgroundId = resourceId("id", "back_button_bg");
+            XC_MethodHook applyChrome = new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if (!themeEnabled) return;
+                    try {
+                        View root = (View) getView.invoke(param.thisObject);
+                        // R8 shares the holder with another component. Only touch the image header.
+                        if (root == null || root.findViewById(backId) == null) return;
+                        root.setBackgroundColor(BACKGROUND);
+                        View toolbar = root.findViewById(toolbarId);
+                        if (toolbar != null) toolbar.setBackgroundColor(BACKGROUND);
+                        themeTextTree(root.findViewById(titleId), TEXT);
+                        View back = root.findViewById(backId);
+                        if (back instanceof ImageView) ((ImageView) back).setColorFilter(TEXT, PorterDuff.Mode.SRC_IN);
+                        View backBackground = root.findViewById(backBackgroundId);
+                        if (backBackground != null && backBackground.getBackground() != null) {
+                            backBackground.getBackground().mutate().setTint(BACKGROUND);
+                        }
+                    } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
+                    }
+                }
+            };
+            XposedBridge.hookMethod(constructor, applyChrome);
+            for (Method method : headerClass.getDeclaredMethods()) {
+                if (!Modifier.isStatic(method.getModifiers()) && method.getReturnType() == void.class
+                        && method.getParameterCount() == 1 && method.getParameterTypes()[0] == Object.class) {
+                    XposedBridge.hookMethod(method, applyChrome);
+                }
+            }
+            XposedBridge.log("[SpotifyPlus] Artist header chrome hook installed: " + headerClass.getName());
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private void hookImageHeaderBody() {
+        try {
+            // The verified artist heading invokes the same scrim composable as the
+            // metadata/action area. Discover it by that semantic anchor, not its name.
+            MethodData scrimData = null;
+            for (MethodData source : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().usingStrings("verified_row")))) {
+                for (MethodData invoked : source.getInvokes()) {
+                    List<String> types = invoked.getParamTypeNames();
+                    if (!"void".equals(invoked.getReturnType().getName()) || types.size() != 7
+                            || !"float".equals(types.get(1)) || !"float".equals(types.get(2))
+                            || !"int".equals(types.get(5)) || !"int".equals(types.get(6))) continue;
+                    if (scrimData != null && !scrimData.getDescriptor().equals(invoked.getDescriptor())) {
+                        throw new IllegalStateException("Multiple image-header scrim composables found");
+                    }
+                    scrimData = invoked;
+                }
+            }
+            if (scrimData == null) throw new IllegalStateException("Could not find the image-header scrim composable");
+            MethodData gradientData = null;
+            for (MethodData invoked : scrimData.getInvokes()) {
+                List<String> types = invoked.getParamTypeNames();
+                if (!invoked.isConstructor() || !types.contains(List.class.getName())
+                        || Collections.frequency(types, "long") != 2) continue;
+                if (gradientData != null && !gradientData.getDescriptor().equals(invoked.getDescriptor())) {
+                    throw new IllegalStateException("Multiple image-header gradient constructors found");
+                }
+                gradientData = invoked;
+            }
+            if (gradientData == null) throw new IllegalStateException("Could not find the image-header gradient constructor");
+            int colorsIndex = gradientData.getParamTypeNames().indexOf(List.class.getName());
+            XposedBridge.hookMethod(gradientData.getConstructorInstance(lpparm.classLoader), new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!themeEnabled || !Boolean.TRUE.equals(imageHeaderBody.get())) return;
+                    try {
+                        List<?> original = (List<?>) param.args[colorsIndex];
+                        if (original == null || original.size() != 2) return;
+                        int first = unpackColor((Long) getInstanceFieldValue(original.get(0), long.class));
+                        int last = unpackColor((Long) getInstanceFieldValue(original.get(1), long.class));
+                        if (first != 0xBF121212 || last != 0xFF121212) return;
+                        ArrayList<Object> colors = new ArrayList<>(2);
+                        for (Object color : original) {
+                            long packed = (Long) getInstanceFieldValue(color, long.class);
+                            int alpha = Color.alpha(unpackColor(packed));
+                            int themed = (BACKGROUND & 0x00FFFFFF) | (alpha << 24);
+                            colors.add(XposedHelpers.newInstance(color.getClass(), packColor(themed)));
+                        }
+                        param.args[colorsIndex] = colors;
+                        imageHeaderBody.set(false);
+                    } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
                     }
                 }
             });
+            Class<?> contentInterface = scrimData.getMethodInstance(lpparm.classLoader).getParameterTypes()[3];
+            XposedBridge.hookMethod(scrimData.getMethodInstance(lpparm.classLoader), new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    param.setObjectExtra("previousImageHeaderBody", imageHeaderBody.get());
+                    // The photo uses 0 -> .75; only the body uses .75 -> 1.
+                    imageHeaderBody.set(themeEnabled && (Float) param.args[1] == 0.75f && (Float) param.args[2] == 1.0f);
+                    Object content = param.args[3];
+                    Method provider = encorePaletteProvider;
+                    if (Boolean.TRUE.equals(imageHeaderBody.get()) && content != null && provider != null && encorePaletteAccessor != null
+                            && provider.getParameterTypes()[1].isInstance(content)) {
+                        param.args[3] = Proxy.newProxyInstance(lpparm.classLoader, new Class<?>[]{contentInterface}, new ImageHeaderBodyContent(content));
+                    }
+                }
+
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    Boolean previous = (Boolean) param.getObjectExtra("previousImageHeaderBody");
+                    if (previous == null) imageHeaderBody.remove();
+                    else imageHeaderBody.set(previous);
+                }
+            });
+            XposedBridge.log("[SpotifyPlus] Artist header body hook installed: " + scrimData.getDescriptor());
         } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
         }
+    }
+
+    private final class ImageHeaderBodyContent implements InvocationHandler {
+        private final Object content;
+
+        private ImageHeaderBodyContent(Object content) {
+            this.content = content;
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            if (method.getDeclaringClass() == Object.class) {
+                if ("equals".equals(method.getName())) return proxy == args[0];
+                if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                return "SpotifyPlus image header body";
+            }
+            try {
+                if (!themeEnabled) return method.invoke(content, args);
+                Object palette = encorePaletteAccessor.invoke(null, args[0]);
+                Object themed = createLightEncorePalette(palette, BACKGROUND, BACKGROUND_HIGHLIGHT, BACKGROUND_PRESS);
+                // Provide a real composition local so independently recomposing buttons
+                // and metadata retain their theme after this invocation returns.
+                encorePaletteProvider.invoke(null, themed, content, args[0], 0);
+                return null;
+            } catch (InvocationTargetException exception) {
+                throw exception.getCause();
+            }
+        }
+    }
+
+    private void hookTrackRowColors() {
+        try {
+            Class<?> entityTitleClass = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .name("<init>").usingNumbers(resourceId("layout", "entity_title_view"), resourceId("id", "title_text"))))
+                    .single().getConstructorInstance(lpparm.classLoader).getDeclaringClass();
+            int textBase = resourceId("attr", "textBase");
+            int textSubdued = resourceId("attr", "textSubdued");
+            int textAccent = resourceId("attr", "textBrightAccent");
+            Set<String> resolvers = new HashSet<>();
+            // Modern entity titles resolve an attribute every time their playback
+            // state changes. Keep that state mapping, but supply our theme colors.
+            for (MethodData renderer : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .usingNumbers(textBase, textSubdued, textAccent)))) {
+                for (MethodData invoked : renderer.getInvokes()) {
+                    if (!"int".equals(invoked.getReturnType().getName())
+                            || !invoked.getParamTypeNames().equals(java.util.Arrays.asList("int", View.class.getName()))
+                            || !resolvers.add(invoked.getDescriptor())) continue;
+                    XposedBridge.hookMethod(invoked.getMethodInstance(lpparm.classLoader), new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) {
+                            if (!themeEnabled || !entityTitleClass.isInstance(param.args[1])) return;
+                            int attr = (Integer) param.args[0];
+                            if (attr == textBase) param.setResult(TEXT);
+                            else if (attr == textSubdued) param.setResult(TEXT_SUBDUED);
+                            else if (attr == textAccent) param.setResult(ACCENT);
+                        }
+                    });
+                }
+            }
+            if (resolvers.isEmpty()) throw new IllegalStateException("Could not find the entity title color resolver");
+            XposedBridge.log("[SpotifyPlus] Entity title color hook installed: " + entityTitleClass.getName());
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+        try {
+            // Album tracks and artist Popular tracks both inflate this inner row.
+            int rowLayoutId = resourceId("layout", "row_layout");
+            int titleId = resourceId("id", "title");
+            int subtitleId = resourceId("id", "subtitle");
+            Method rowFactory = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramTypes(LayoutInflater.class).usingNumbers(rowLayoutId))).single().getMethodInstance(lpparm.classLoader);
+            XposedBridge.hookMethod(rowFactory, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if (!themeEnabled) return;
+                    try {
+                        View row = findRootViewWithId(param.getResult(), titleId, 1);
+                        if (row == null) return;
+                        TextView title = row.findViewById(titleId);
+                        TextView subtitle = row.findViewById(subtitleId);
+                        if (title != null) title.setTextColor(trackTextColors(TEXT, true));
+                        if (subtitle != null) subtitle.setTextColor(trackTextColors(TEXT_SUBDUED, false));
+                    } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
+                    }
+                }
+            });
+            XposedBridge.log("[SpotifyPlus] Shared track row hook installed: " + rowFactory);
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+        try {
+            int titleColorId = resourceId("color", "encore_row_title");
+            int subtitleColorId = resourceId("color", "encore_row_subtitle");
+            Set<String> hooked = new HashSet<>();
+            // Spotify also reads this selector when building styled row text. Hook the
+            // appcompat resolver so its cached XML selector cannot restore white text.
+            for (MethodData source : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().usingNumbers(titleColorId)))) {
+                for (MethodData invoked : source.getInvokes()) {
+                    if (!ColorStateList.class.getName().equals(invoked.getReturnType().getName())
+                            || !invoked.getParamTypeNames().equals(java.util.Arrays.asList(Context.class.getName(), "int"))
+                            || !hooked.add(invoked.getDescriptor())) continue;
+                    XposedBridge.hookMethod(invoked.getMethodInstance(lpparm.classLoader), new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) {
+                            if (!themeEnabled) return;
+                            int id = (Integer) param.args[1];
+                            if (id == titleColorId) param.setResult(trackTextColors(TEXT, true));
+                            else if (id == subtitleColorId) param.setResult(trackTextColors(TEXT_SUBDUED, false));
+                        }
+                    });
+                }
+            }
+            if (hooked.isEmpty()) throw new IllegalStateException("Could not find the track color-state resolver");
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private static ColorStateList trackTextColors(int normal, boolean accented) {
+        int disabled = (normal & 0x00FFFFFF) | (Math.round(Color.alpha(normal) * 0.5f) << 24);
+        return new ColorStateList(new int[][]{
+                {-android.R.attr.state_enabled}, {android.R.attr.state_activated},
+                {android.R.attr.state_selected}, {}
+        }, new int[]{disabled, accented ? ACCENT : normal, accented ? ACCENT : normal, normal});
     }
 
     private void hookBottomNavigationGradient() {
@@ -940,16 +1240,39 @@ public class ThemeHook extends SpotifyHook {
         Method getViewMethod = creativeWorkGetViewMethod;
         if (getViewMethod == null) return;
         View appBar = (View) getViewMethod.invoke(header);
-        if (appBar == null) return;
-        View artworkBackground = appBar.findViewById(resourceId("id", "artwork_background"));
+        applyAlbumHeader(header, appBar, extractedColor, false);
+    }
 
-        int[] colors = {Color.TRANSPARENT, Color.TRANSPARENT, BACKGROUND};
+    private void applyAlbumHeader(Object header, View appBar, Integer extractedColor, boolean modern) {
+        if (!themeEnabled) return;
+        if (appBar == null) return;
+        View artworkBackground = appBar.findViewById(resourceId("id", modern ? "cwp_header_artwork_background" : "artwork_background"));
+
+        if (extractedColor != null) XposedHelpers.setAdditionalInstanceField(header, "spotifyplus.headerColor", extractedColor);
+        else extractedColor = (Integer) XposedHelpers.getAdditionalInstanceField(header, "spotifyplus.headerColor");
+        // Match playlist headers: preserve the artwork color at the top and
+        // replace only the old opaque #121212 endpoint with the theme background.
+        int start = extractedColor == null ? BACKGROUND : extractedColor | 0xFF000000;
+        int[] colors = {start, BACKGROUND};
         GradientDrawable gradient = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, colors);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) gradient.setColors(colors, new float[]{0.00f, 0.38f, 1.00f});
-        if (extractedColor != null) gradient.setColorFilter(new PorterDuffColorFilter(extractedColor, PorterDuff.Mode.DST_OVER));
         if (artworkBackground != null) artworkBackground.setBackground(gradient);
         appBar.setBackgroundColor(BACKGROUND);
-        themeAlbumHeaderText(appBar);
+        View toolbar = appBar.findViewById(resourceId("id", "toolbar"));
+        if (toolbar != null) toolbar.setBackgroundColor(BACKGROUND);
+        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_title" : "title")), TEXT);
+        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_creatorsRow" : "creator")), TEXT);
+        themeTextTree(appBar.findViewById(resourceId("id", "toolbar_title")), TEXT);
+        View metadata = appBar.findViewById(resourceId("id", modern ? "cwp_header_metadataRow" : "metadata_container"));
+        themeTextTree(metadata, TEXT_SUBDUED);
+        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_preTitle" : "preTitle")), ACCENT);
+    }
+
+    private static void themeTextTree(View view, int color) {
+        if (view instanceof TextView) ((TextView) view).setTextColor(color);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) themeTextTree(group.getChildAt(i), color);
+        }
     }
 
     private static void refreshComposeHosts() {
