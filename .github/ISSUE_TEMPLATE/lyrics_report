@@ -1,0 +1,20 @@
+name: Missing or Incorrect Lyrics
+description: Report an issue with lyrics. Either a missing song or incorrect lyrics
+labels:
+  - lyrics
+body:
+  - type: input
+    id: song_info
+    attributes:
+      label: Song Title AND Artist, or Spotify ID
+      placeholder: Loser - Tame Impala
+    validations:
+      required: true
+  - type: textarea
+    id: lyrics_issue
+    attributes:
+      label: What is wrong with the lyrics?
+      description: Either explain the issue with the lyrics, or say if the song is missing lyrics
+      placeholder: The song is missing lyrics...
+    validations:
+      required: true
