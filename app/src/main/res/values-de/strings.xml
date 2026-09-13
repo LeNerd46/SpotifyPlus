@@ -7,7 +7,7 @@
     <string name="general_general_title">General</string>
     <string name="check_updates">Check For Updates</string>
     <string name="check_updates_desc">Whether to check for updates on start</string>
-    <string name="set_lastfm">Set Last.fm Username</string>
+    <string name="set_lastfm">Last.fm-Benutzernamen festlegen</string>
     <string name="set_lastfm_desc">Sets the username for retrieving your scrobbles</string>
     <string name="lastfm_button">Set Username</string>
     <string name="lastfm_set_to">Currently set to %1$s</string>
