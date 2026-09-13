@@ -8,7 +8,6 @@
         android:fitsSystemWindows="true"
         android:background="@color/spotifyplus_background">
 
-    <!-- App bar with collapsing header -->
     <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/appbar"
             android:layout_width="match_parent"
@@ -27,15 +26,16 @@
                 app:navigationIcon="?attr/homeAsUpIndicator"/>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent"
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent"
+                 android:fillViewport="true" android:paddingEnd="16dp"
                  android:paddingTop="16dp" android:paddingStart="16dp"
                  android:clickable="true" android:focusable="true"
                  app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                       android:orientation="vertical">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:text="Beautiful Lyrics" style="@style/TextAppearance.Material3.TitleLarge"
+                      android:text="@string/lyrics_header" style="@style/TextAppearance.Material3.TitleLarge"
                       android:paddingBottom="12dp"/>
 
             <LinearLayout
@@ -56,7 +56,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Use New Scrolling Animation"
+                            android:text="@string/experiment_new_scroll"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:paddingBottom="4dp"/>
@@ -65,7 +65,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Enables a new scrolling system, very similar to Apple Music"
+                            android:text="@string/experiment_new_scroll_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
 
@@ -75,8 +75,52 @@
                         android:layout_height="wrap_content"
                         android:paddingHorizontal="8dp"
                         android:checked="true"
-                        android:contentDescription="Use new scrolling animation"/>
+                        android:contentDescription="@string/experiment_new_scroll"/>
             </LinearLayout>
+
+            <LinearLayout
+                    android:id="@+id/row_drift_background"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="72dp"
+                    android:paddingVertical="8dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                    <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/experimental_settings_page_new_lyrics_background"
+                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:paddingBottom="4dp"/>
+                    <TextView
+                            style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/experiment_new_background"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_drift_background"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp"
+                        android:checked="false"
+                        android:contentDescription="@string/experimental_settings_page_drift_lyrics_background"/>
+            </LinearLayout>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="@string/experimental_ui_title" style="@style/TextAppearance.Material3.TitleLarge"
+                      android:paddingBottom="12dp"/>
 
             <LinearLayout
                     android:layout_width="match_parent"
@@ -96,7 +140,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Use Animated Album Artwork"
+                            android:text="@string/experiment_animated_artwork"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:paddingBottom="4dp"/>
@@ -105,7 +149,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="The album cover on the now playing screen will be animated instead of a static image"
+                            android:text="@string/experiment_animated_artwork_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
 
@@ -115,8 +159,83 @@
                         android:layout_height="wrap_content"
                         android:paddingHorizontal="8dp"
                         android:checked="true"
-                        android:contentDescription="Use animated album artwork"/>
+                        android:contentDescription="@string/experiment_animated_artwork"/>
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/row_immersive_animated_art"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:minHeight="80dp" android:paddingVertical="8dp"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp" android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="@string/experiment_immersive_artwork" android:textColor="@color/white"
+                            android:textSize="15sp" android:paddingBottom="4dp"/>
+                    <TextView style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="@string/experiment_immersive_artwork"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_immersive_animated_art"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp" android:checked="false"
+                        android:contentDescription="@string/experiment_immersive_artwork"/>
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/row_now_playing_view"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:minHeight="80dp" android:paddingVertical="8dp"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp" android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:orientation="vertical">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="@string/experiment_redesign" android:textColor="@color/white"
+                            android:textSize="15sp" android:paddingBottom="4dp"/>
+
+                    <TextView style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="@string/experiment_redesign_desc"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_now_playing_view"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp" android:checked="false"
+                        android:contentDescription="@string/experiment_redesign"/>
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/row_animated_theme_background"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:minHeight="72dp" android:paddingVertical="8dp"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:clickable="true" android:focusable="true"
+                    android:background="@drawable/row_click_bg">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="@string/experiment_animated_background" android:textColor="@color/white"
+                            android:textSize="15sp" android:paddingBottom="4dp"/>
+                    <TextView style="@style/TextAppearance.Material3.BodySmall"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="@string/experiment_animated_background"
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                </LinearLayout>
+                <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_animated_theme_background"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:paddingHorizontal="8dp" android:checked="false"
+                        android:contentDescription="@string/experiment_animated_background"/>
             </LinearLayout>
         </LinearLayout>
-    </FrameLayout>
+    </ScrollView>
 </com.google.android.material.circularreveal.coordinatorlayout.CircularRevealCoordinatorLayout>

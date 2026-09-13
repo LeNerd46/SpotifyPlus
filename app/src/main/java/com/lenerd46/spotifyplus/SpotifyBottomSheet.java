@@ -52,56 +52,22 @@ public class SpotifyBottomSheet {
     }
 
     public void create(View view) {
-        int theme = SleepTimerHook.getSpotifyStyle(classLoader, "ModalBottomSheetDialog", 0);
-        sheet = XposedHelpers.newInstance(sheetClass, context, theme);
-
-        XposedHelpers.callMethod(sheet, "setContentView", view);
-        XposedHelpers.callMethod(sheet, "show");
-
-        Window window = (Window) XposedHelpers.callMethod(sheet, "getWindow");
-        if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-
-        try {
-            View bottomSheet = (View) XposedHelpers.getObjectField(sheet, "i"); // p08.design_bottom_sheet
-            bottomSheet.setBackgroundColor(Color.TRANSPARENT);
-            bottomSheet.setBackground(null);
-        } catch (Throwable ignored) {
-        }
-
-        try {
-            View outer = (View) XposedHelpers.getObjectField(sheet, "g"); // p08 root container
-            outer.setBackgroundColor(Color.TRANSPARENT);
-        } catch (Throwable ignored) {
-        }
+        create(view, true);
     }
 
     public void create(View view, boolean show) {
         int theme = SleepTimerHook.getSpotifyStyle(classLoader, "ModalBottomSheetDialog", 0);
         sheet = XposedHelpers.newInstance(sheetClass, context, theme);
-
         XposedHelpers.callMethod(sheet, "setContentView", view);
-        if (show) {
-            XposedHelpers.callMethod(sheet, "show");
-        }
-
+        if (show) XposedHelpers.callMethod(sheet, "show");
         Window window = (Window) XposedHelpers.callMethod(sheet, "getWindow");
-        if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-
-        try {
-            View bottomSheet = (View) XposedHelpers.getObjectField(sheet, "i"); // p08.design_bottom_sheet
-            bottomSheet.setBackgroundColor(Color.TRANSPARENT);
-            bottomSheet.setBackground(null);
-        } catch (Throwable ignored) {
-        }
-
-        try {
-            View outer = (View) XposedHelpers.getObjectField(sheet, "g"); // p08 root container
-            outer.setBackgroundColor(Color.TRANSPARENT);
-        } catch (Throwable ignored) {
+        if (window == null) return;
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        // Resource names survive obfuscation; dialog field names do not.
+        for (String name : new String[]{"design_bottom_sheet", "container"}) {
+            int id = context.getResources().getIdentifier(name, "id", context.getPackageName());
+            View surface = id == 0 ? null : window.findViewById(id);
+            if (surface != null) surface.setBackground(null);
         }
     }
 

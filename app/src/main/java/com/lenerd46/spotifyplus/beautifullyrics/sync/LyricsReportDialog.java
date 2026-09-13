@@ -1,5 +1,7 @@
 package com.lenerd46.spotifyplus.beautifullyrics.sync;
 
+import com.lenerd46.spotifyplus.R;
+import com.lenerd46.spotifyplus.References;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
@@ -34,25 +36,33 @@ public final class LyricsReportDialog {
         LinearLayout panel = new LinearLayout(context);
         panel.setOrientation(LinearLayout.VERTICAL);
         reasons = new RadioGroup(context);
-        String[] labels = {"Timings are inaccurate", "Lyrics are wrong", "Lyrics are missing", "Other"};
+        String[] labels = {References.getString(R.string.sync_timings_are_inaccurate), References.getString(R.string.sync_lyrics_are_wrong), References.getString(R.string.sync_lyrics_are_missing), References.getString(R.string.ui_other)};
 
         for (String label : labels) {
             RadioButton reason = new RadioButton(context);
-            reason.setId(View.generateViewId()); reason.setText(label); reason.setTextColor(Color.WHITE); reason.setTextSize(16);
+            reason.setId(View.generateViewId());
+            reason.setText(label);
+            reason.setTextColor(Color.WHITE);
+            reason.setTextSize(16);
             reason.setMinimumHeight(Math.round(48 * context.getResources().getDisplayMetrics().density));
             reasons.addView(reason);
         }
 
         panel.addView(reasons);
+
         details = new EditText(context);
         details.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        details.setHint("Details (required for Other)"); details.setMinLines(2); details.setMaxLines(4);
+        details.setHint(References.getString(R.string.sync_details_required_for_other));
+        details.setMinLines(2);
+        details.setMaxLines(4);
         details.setFilters(new InputFilter[]{new InputFilter.LengthFilter(1000)});
+
         LyricsSyncDialog.styleInput(details);
         panel.addView(details);
 
-        dialog = new LyricsSyncDialog(context, "Report community lyrics", panel, "Send report", "Cancel", false, this::submit);
+        dialog = new LyricsSyncDialog(context, References.getString(R.string.ui_report_community_lyrics), panel, References.getString(R.string.sync_send_report), References.getString(R.string.lastfm_cancel), false, this::submit);
         dialog.setSongBackground(songBackground);
+
         dialog.setOnDismissListener(d -> {
             if (lyricsContent != null) lyricsContent.setVisibility(lyricsVisibility);
             disposed = true;
@@ -62,13 +72,20 @@ public final class LyricsReportDialog {
 
     public void show() {
         dialog.show();
+
         if (lyricsContent != null) {
             lyricsVisibility = lyricsContent.getVisibility();
             lyricsContent.setVisibility(View.INVISIBLE);
         }
     }
-    public boolean isShowing() { return dialog.isShowing(); }
-    public void dispose() { dialog.dismiss(); }
+
+    public boolean isShowing() {
+        return dialog.isShowing();
+    }
+
+    public void dispose() {
+        dialog.dismiss();
+    }
 
     private void submit() {
         if (sending || disposed) return;
@@ -76,25 +93,29 @@ public final class LyricsReportDialog {
         String explanation = details.getText().toString().trim();
 
         if (selected < 0) {
-            dialog.error("Choose a reason for the report.");
+            dialog.error(References.getString(R.string.sync_choose_a_reason_for_the_report));
             return;
         }
         if (reasonValues[selected].equals("other") && explanation.isEmpty()) {
-            dialog.error("Please describe the issue.");
+            dialog.error(References.getString(R.string.sync_please_describe_the_issue));
             return;
         }
 
         JsonObject body = new JsonObject();
-        body.addProperty("reason", reasonValues[selected]); body.addProperty("details", explanation);
+        body.addProperty("reason", reasonValues[selected]);
+        body.addProperty("details", explanation);
+
         sending = true;
-        dialog.setPrimaryState("Sending…", false);
-        setEnabledRecursively(reasons, false); details.setEnabled(false);
-        Request request = new Request.Builder().url("https://spotifyplus-api.devon-shoutz.workers.dev/api/lyrics/" + trackId + "/reports")
-                .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toString())).build();
+        dialog.setPrimaryState(References.getString(R.string.ui_sending), false);
+
+        setEnabledRecursively(reasons, false);
+        details.setEnabled(false);
+        Request request = new Request.Builder().url("https://spotifyplus-api.devon-shoutz.workers.dev/api/lyrics/" + trackId + "/reports").post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toString())).build();
+
         submission = new OkHttpClient().newCall(request);
         submission.enqueue(new Callback() {
             public void onFailure(Call call, IOException e) {
-                handler.post(() -> failed("Could not send the report. Check your connection and retry."));
+                handler.post(() -> failed(References.getString(R.string.report_connection_error)));
             }
 
             public void onResponse(Call call, Response response) {
@@ -102,11 +123,11 @@ public final class LyricsReportDialog {
                     if (r.isSuccessful()) {
                         handler.post(() -> {
                             if (disposed) return;
-                            Toast.makeText(dialog.getContext(), "Report sent. Thank you!", Toast.LENGTH_LONG).show();
+                            Toast.makeText(dialog.getContext(), References.getString(R.string.sync_report_sent_thank_you), Toast.LENGTH_LONG).show();
                             dialog.dismiss();
                         });
                     } else {
-                        String message = "Could not send the report (" + r.code() + "). Please retry.";
+                        String message = References.getString(R.string.report_http_error, r.code());
                         if (r.body() != null) try {
                             JsonObject error = com.google.gson.JsonParser.parseString(r.body().string()).getAsJsonObject();
                             if (error.has("error")) message = error.get("error").getAsString();
@@ -124,8 +145,11 @@ public final class LyricsReportDialog {
     private void failed(String message) {
         if (disposed) return;
         sending = false;
-        dialog.setPrimaryState("Send report", true);
-        setEnabledRecursively(reasons, true); details.setEnabled(true);
+
+        dialog.setPrimaryState(References.getString(R.string.sync_send_report), true);
+        setEnabledRecursively(reasons, true);
+        details.setEnabled(true);
+
         dialog.error(message);
     }
 

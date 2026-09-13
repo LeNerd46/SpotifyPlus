@@ -28,7 +28,6 @@ import com.lenerd46.spotifyplus.R;
 import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SpotifyBottomSheet;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import org.luckypray.dexkit.query.FindClass;
@@ -83,19 +82,12 @@ public class SleepTimerHook extends SpotifyHook {
             String className = constructorCounts.entrySet().stream().filter(entry -> entry.getValue() >= 5).max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElseThrow(() -> new IllegalStateException(fingerprintMessage("duration menu-item class", "a constructor accepting only long must be invoked at least five times by " + sleepTimerListMethodData.getDescriptor(), "constructor invocation counts: " + constructorCounts)));
             Class<?> customTimeClass = XposedHelpers.findClass(className, lpparm.classLoader);
 
-            Class<?> menuItemInterface = Arrays.stream(customTimeClass.getInterfaces()).findFirst().orElseThrow(() -> new IllegalStateException(fingerprintMessage("sleep-timer menu-item interface", customTimeClass.getName() + " must implement the shared menu-item interface", "implemented interfaces: " + Arrays.toString(customTimeClass.getInterfaces()))));
-            Class<?> endOfEpisodeClass = sleepTimerListMethodData.getInvokes().stream().filter(MethodData::isConstructor).filter(method -> !method.getClassName().equals(customTimeClass.getName())).map(MethodData::getClassName).distinct().map(name -> XposedHelpers.findClass(name, lpparm.classLoader)).filter(menuItemInterface::isAssignableFrom).findFirst().orElseThrow(() -> new IllegalStateException(fingerprintMessage("end-of-episode menu-item class", "a different constructor invoked by " + sleepTimerListMethodData.getDescriptor() + " must implement " + menuItemInterface.getName(), "invoked methods: " + describeMethods(sleepTimerListMethodData.getInvokes()))));
-
-            var menuItemClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().addInterface(menuItemInterface.getName())));
-            var thirdMenuItemData = menuItemClasses.stream().filter(classData -> !classData.getName().equals(customTimeClass.getName()))
-                    .filter(classData -> !classData.getName().equals(endOfEpisodeClass.getName()))
-                    .findFirst().orElseThrow(() -> new IllegalStateException(fingerprintMessage("clear-timer menu-item class", "a third implementation of " + menuItemInterface.getName() + " excluding " + customTimeClass.getName() + " and " + endOfEpisodeClass.getName(), "interface implementors: " + describeClasses(menuItemClasses))));
-            Class<?> thirdMenuItemClass = thirdMenuItemData.getInstance(lpparm.classLoader);
-
             var persistentListBuilderClassCandidates = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("capacity must be non-negative.").addInterface("java.util.RandomAccess").addInterface("java.io.Serializable").addFieldForType(Object[].class).addFieldForType(int.class).addFieldForType(boolean.class)));
             ClassData persistentListBuilderClassData = requireSingleClass("persistent-list builder class", persistentListBuilderClassCandidates, "class using \"capacity must be non-negative.\", implementing RandomAccess and Serializable, with Object[], int, and boolean fields");
             var createListMethodCandidates = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.STATIC).returnType(persistentListBuilderClassData.getName()).paramCount(0)));
-            Method createListMethod = requireSingleMethod("persistent-list creation method", createListMethodCandidates, "public static zero-parameter method returning the structurally identified persistent-list builder " + persistentListBuilderClassData.getName()).getMethodInstance(lpparm.classLoader);
+            Set<String> builderCalls = sleepTimerListMethodData.getInvokes().stream().map(MethodData::getDescriptor).collect(java.util.stream.Collectors.toSet());
+            List<MethodData> invokedCreateMethods = createListMethodCandidates.stream().filter(method -> builderCalls.contains(method.getDescriptor())).collect(java.util.stream.Collectors.toList());
+            Method createListMethod = requireSingleMethod("persistent-list creation method", invokedCreateMethods, "public static zero-parameter builder factory directly called by the sleep-timer menu").getMethodInstance(lpparm.classLoader);
             var finalizeListMethodCandidates = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.STATIC).returnType(persistentListBuilderClassData.getName()).paramTypes(List.class)));
             Set<String> sleepTimerBuilderInvokes = sleepTimerListMethodData.getInvokes().stream().map(MethodData::getDescriptor).collect(java.util.stream.Collectors.toSet());
             List<MethodData> invokedFinalizeListMethodCandidates = finalizeListMethodCandidates.stream().filter(method -> sleepTimerBuilderInvokes.contains(method.getDescriptor())).collect(java.util.stream.Collectors.toList());
@@ -133,85 +125,95 @@ public class SleepTimerHook extends SpotifyHook {
             List<MethodData> snackbarMessageConstructorCandidates = new ArrayList<>(overrideRowClickMethodData.getInvokes().stream().filter(MethodData::isConstructor).filter(method -> isSleepTimerSnackbarMessageConstructor(method.getParamTypeNames())).collect(java.util.stream.Collectors.toMap(MethodData::getDescriptor, method -> method, (first, duplicate) -> first, LinkedHashMap::new)).values());
             Constructor<?> snackbarMessageConstructor = requireSingleMethod("sleep-timer snackbar message constructor", snackbarMessageConstructorCandidates, "nine-parameter constructor directly invoked by " + overrideRowClickMethodData.getDescriptor() + " with String, Integer, String, Integer in positions 2-5 and boolean last").getConstructorInstance(lpparm.classLoader);
 
-            List<MethodData> canSetDurationMethodCandidates = new ArrayList<>(overrideRowClickMethodData.getInvokes().stream().filter(method -> method.getClassName().equals(durationControllerClass.getName())).filter(method -> method.getReturnTypeName().equals("boolean")).filter(method -> method.getParamCount() == 0).collect(java.util.stream.Collectors.toMap(MethodData::getDescriptor, method -> method, (first, duplicate) -> first, LinkedHashMap::new)).values());
-            Method canSetDurationMethod = requireSingleMethod("sleep-timer duration restriction method", canSetDurationMethodCandidates, "zero-parameter boolean method on " + durationControllerClass.getName() + " directly invoked by " + overrideRowClickMethodData.getDescriptor()).getMethodInstance(lpparm.classLoader);
+            // Restrictions moved out of the duration controller in 9.1.82.
+            // Follow the named player-model API, then resolve its receiver from the controller.
+            var restrictionMethods = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .returnType(boolean.class).paramCount(0).addInvoke(MethodMatcher.create()
+                            .declaredClass("com.spotify.player.model.Restrictions").name("disallowSleepTimerDurationReasons"))));
+            Method canSetDurationMethod = requireSingleMethod("sleep-timer duration restriction method", restrictionMethods,
+                    "zero-parameter boolean method invoking Restrictions.disallowSleepTimerDurationReasons")
+                    .getMethodInstance(lpparm.classLoader);
 
-            var durationActionMethodCandidates = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().returnType(void.class).paramTypes(Object.class).addUsingField(FieldMatcher.create().declaredClass(durationRequestConstructorData.getClassName()))));
-            Method durationActionMethod = requireSingleMethod("sleep-timer duration action method", durationActionMethodCandidates, "void method accepting Object and reading a field from the structurally identified duration request " + durationRequestConstructorData.getClassName()).getMethodInstance(lpparm.classLoader);
+            Map<String, MethodData> durationActions = new LinkedHashMap<>();
+            for (MethodData method : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .returnType(void.class).paramTypes(Object.class)
+                    .addUsingField(FieldMatcher.create().declaredClass(durationRequestConstructorData.getClassName()))))) {
+                durationActions.put(method.getDescriptor(), method);
+            }
+            // Newer request models expose the duration through a getter instead of a field read.
+            for (MethodData method : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .returnType(void.class).paramTypes(Object.class).addInvoke(MethodMatcher.create()
+                            .declaredClass(durationRequestConstructorData.getClassName()).returnType(long.class).paramCount(0))))) {
+                durationActions.put(method.getDescriptor(), method);
+            }
+            Method durationActionMethod = requireSingleMethod("sleep-timer duration action method", durationActions.values(),
+                    "void(Object) consumer reading the duration request field or getter").getMethodInstance(lpparm.classLoader);
 
-//            XposedBridge.log("[SpotifyPlus] Found " + collection.size() + " classes");
-//
-//            for (var clazz : collection) {
-//                XposedBridge.log("[SpotifyPlus] " + clazz.getName());
-//            }
-
-
-//        Class<?> p3n = XposedHelpers.findClass("p.p3n", lpparm.classLoader);
             Object minutes = Enum.valueOf((Class<Enum>) timeUnit, "MINUTES");
             SharedPreferences prefs = context.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
 
             customDuration = savR.invoke(null, 0, minutes);
 
-            XposedBridge.hookMethod(sleepTimerListMethod, new XC_MethodReplacement() {
+            XposedBridge.hookMethod(sleepTimerListMethod, new XC_MethodHook() {
                 @Override
-                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
-                    Object w7p0 = methodHookParam.args[0];
-                    Object u7p0 = methodHookParam.args[1];
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (param.hasThrowable() || param.getResult() == null) return;
+                    try {
+                        lastActivity = new WeakReference<>(References.currentActivity);
+                        Object state = param.getResult();
+                        List<Field> stateFields = Arrays.stream(state.getClass().getDeclaredFields())
+                                .filter(field -> !Modifier.isStatic(field.getModifiers())).collect(java.util.stream.Collectors.toList());
+                        List<Field> listFields = stateFields.stream().filter(field -> List.class.isAssignableFrom(field.getType())).collect(java.util.stream.Collectors.toList());
+                        if (listFields.size() != 1) throw new IllegalStateException("Expected one sleep-timer state list");
+                        Field listField = listFields.get(0);
+                        listField.setAccessible(true);
+                        List<?> nativeItems = (List<?>) listField.get(state);
+                        Gson gson = new Gson();
+                        Type type = new TypeToken<List<SleepTimerInfo>>() {
+                        }.getType();
 
-                    Object d61 = XposedHelpers.getObjectField(w7p0, "a");
-                    lastActivity = new WeakReference<>((Activity) XposedHelpers.getObjectField(d61, "a"));
+                        presets = gson.fromJson(prefs.getString("custom_sleep_timers", "[{\"value\":5,\"unit\":false},{\"value\":10,\"unit\":false},{\"value\":15,\"unit\":false},{\"value\":30,\"unit\":false},{\"value\":45,\"unit\":false},{\"value\":1,\"unit\":true}]"), type);
 
-                    String title = (String) XposedHelpers.getObjectField(u7p0, "a");
-                    Object selectedTimer = XposedHelpers.getObjectField(u7p0, "b");
-                    Object thirdArg = XposedHelpers.getObjectField(u7p0, "c");
+                        Object list = createListMethod.invoke(null);
+                        Object hours = Enum.valueOf((Class<Enum>) timeUnit, "HOURS");
 
-                    Gson gson = new Gson();
-                    Type type = new TypeToken<List<SleepTimerInfo>>() {
-                    }.getType();
+                        if (prefs.getBoolean("custom_sleep_timers_auto_reorder", true)) {
+                            sortSleepTimerPresets(presets);
+                        }
 
-                    presets = gson.fromJson(prefs.getString("custom_sleep_timers", "[{\"value\":5,\"unit\":false},{\"value\":10,\"unit\":false},{\"value\":15,\"unit\":false},{\"value\":30,\"unit\":false},{\"value\":45,\"unit\":false},{\"value\":1,\"unit\":true}]"), type);
+                        for (var preset : presets) {
+                            addTimer(list, preset.value, preset.unit ? hours : minutes, customTimeClass, savR);
+                        }
 
-                    Object list = createListMethod.invoke(null);
-                    Object hours = Enum.valueOf((Class<Enum>) timeUnit, "HOURS");
+                        Object addCustomTime = XposedHelpers.newInstance(customTimeClass, customDuration);
+                        XposedHelpers.callMethod(list, "add", addCustomTime);
 
-                    if (prefs.getBoolean("custom_sleep_timers_auto_reorder", true)) {
-                        sortSleepTimerPresets(presets);
+                        // Preserve Spotify's end-of-track/episode and cancel rows, including
+                        // their availability decisions, instead of calling obfuscated flags.
+                        for (Object item : nativeItems) if (!customTimeClass.isInstance(item)) XposedHelpers.callMethod(list, "add", item);
+                        Object finalList = finalizeListMethod.invoke(null, list);
+                        List<Constructor<?>> constructors = Arrays.stream(state.getClass().getDeclaredConstructors())
+                                .filter(c -> c.getParameterCount() == stateFields.size()).collect(java.util.stream.Collectors.toList());
+                        if (constructors.size() != 1) throw new IllegalStateException("Ambiguous sleep-timer state constructor");
+                        Constructor<?> constructor = constructors.get(0);
+                        Object[] values = new Object[stateFields.size()];
+                        for (int i = 0; i < values.length; i++) {
+                            Field field = stateFields.get(i);
+                            field.setAccessible(true);
+                            values[i] = field.equals(listField) ? finalList : field.get(state);
+                        }
+                        constructor.setAccessible(true);
+                        param.setResult(constructor.newInstance(values));
+                    } catch (Throwable t) {
+                        XposedBridge.log("[SpotifyPlus][SleepTimer] Keeping native timer menu: " + t);
                     }
-
-                    for (var preset : presets) {
-                        addTimer(list, preset.value, preset.unit ? hours : minutes, customTimeClass, savR);
-                    }
-
-//                addTimer(list, 5, minutes);
-//                addTimer(list, 10, minutes);
-//                addTimer(list, 15, minutes);
-//                addTimer(list, 30, minutes);
-//                addTimer(list, 45, minutes);
-//                addTimer(list, 1, hours);
-
-                    Object addCustomTime = XposedHelpers.newInstance(customTimeClass, customDuration);
-                    XposedHelpers.callMethod(list, "add", addCustomTime);
-
-                    Object o8p0 = XposedHelpers.newInstance(endOfEpisodeClass, selectedTimer);
-                    XposedHelpers.callMethod(list, "add", o8p0);
-
-                    Object f7p0 = XposedHelpers.getObjectField(w7p0, "b");
-                    boolean shouldAddExtra = (boolean) XposedHelpers.callMethod(f7p0, "d");
-
-                    if (shouldAddExtra) {
-                        Object m8p0a = XposedHelpers.getStaticObjectField(thirdMenuItemClass, "a");
-                        XposedHelpers.callMethod(list, "add", m8p0a);
-                    }
-
-                    Object finalList = finalizeListMethod.invoke(null, list);
-                    return XposedHelpers.newInstance(sleepTimerListMethod.getReturnType(), title, selectedTimer, thirdArg, finalList);
                 }
             });
 
             XposedBridge.hookMethod(quantityStringMethod, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    if (param.args.length >= 2 && param.args[0] instanceof Number && ((Number) param.args[0]).intValue() == sleepTimerMinutesPluralId && param.args[1] instanceof Number && ((Number) param.args[1]).intValue() == 0) param.setResult("Enter custom amount");
+                    if (param.args.length >= 2 && param.args[0] instanceof Number && ((Number) param.args[0]).intValue() == sleepTimerMinutesPluralId && param.args[1] instanceof Number && ((Number) param.args[1]).intValue() == 0) param.setResult(References.getString(R.string.ui_enter_custom_amount));
                 }
             });
 
@@ -374,7 +376,10 @@ public class SleepTimerHook extends SpotifyHook {
 
                 boolean minutesSelected = unit.getCheckedButtonId() == modResources.getIdentifier("btn_sleep_timer_minutes", "id", "com.lenerd46.spotifyplus");
                 try {
-                    if (!(boolean) canSetDurationMethod.invoke(durationController)) return;
+                    Object restrictions = canSetDurationMethod.getDeclaringClass().isInstance(durationController)
+                            ? durationController : findFieldValueByType(durationController, canSetDurationMethod.getDeclaringClass());
+                    if (restrictions == null) throw new IllegalStateException("Sleep-timer restrictions receiver missing");
+                    if (!(boolean) canSetDurationMethod.invoke(restrictions)) return;
                     long millis = minutesSelected ? TimeUnit.MINUTES.toMillis(time) : TimeUnit.HOURS.toMillis(time);
                     Object durationRequest = durationRequestConstructor.newInstance(millis);
                     Object durationAction = findFieldValueByType(durationController, durationActionMethod.getDeclaringClass());
@@ -440,7 +445,7 @@ public class SleepTimerHook extends SpotifyHook {
         }
 
         String getTitle() {
-            return value + " " + (value == 1 ? (unit ? "hour" : "minute") : unit ? "hours" : "minutes");
+            return References.getQuantityString(unit ? R.plurals.sleep_timer_hours : R.plurals.sleep_timer_minutes, value, value);
         }
     }
 

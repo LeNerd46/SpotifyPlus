@@ -202,3 +202,4 @@ README.html
 /app/release
 /.codex-remote-attachments
 /app/.cxx
+/tools/compat/__pycache__/

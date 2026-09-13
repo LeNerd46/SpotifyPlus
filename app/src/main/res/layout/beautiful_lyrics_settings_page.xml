@@ -38,7 +38,7 @@
                         android:orientation="vertical">
                         <TextView android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Visuals"
+                                android:text="@string/lyrics_visuals_title"
                                 style="@style/TextAppearance.Material3.TitleLarge"
                                 android:paddingBottom="12dp" />
 
@@ -63,7 +63,7 @@
                                                 <TextView
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="Animation Style"
+                                                        android:text="@string/animation_style"
                                                         android:textColor="@color/white"
                                                         android:textSize="15sp"
                                                         android:paddingBottom="4dp"
@@ -73,7 +73,7 @@
                                                         style="@style/TextAppearance.Material3.BodySmall"
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="Whether lyrics should be animated more like Beautiful Lyrics or Apple Music"
+                                                        android:text="@string/animation_style_desc"
                                                         android:textColor="?attr/colorOnSurfaceVariant" />
                                         </LinearLayout>
 
@@ -88,14 +88,14 @@
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Beautiful Lyrics"
+                                                                android:text="@string/lyrics_header"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Apple Music"
+                                                                android:text="@string/animation_style_apple"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
                                                 </LinearLayout>
@@ -142,7 +142,7 @@
                                                 <TextView
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="Lyrics Font"
+                                                        android:text="@string/lyrics_font"
                                                         android:textColor="@color/white"
                                                         android:textSize="15sp"
                                                         android:paddingBottom="4dp"
@@ -152,7 +152,7 @@
                                                         style="@style/TextAppearance.Material3.BodySmall"
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="What font to use for the lyrics"
+                                                        android:text="@string/lyrics_font_desc"
                                                         android:textColor="?attr/colorOnSurfaceVariant" />
                                         </LinearLayout>
 
@@ -167,21 +167,21 @@
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Spotify"
+                                                                android:text="@string/font_spotify"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Beautiful Lyrics"
+                                                                android:text="@string/lyrics_header"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Apple Music"
+                                                                android:text="@string/animation_style_apple"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
                                                 </LinearLayout>
@@ -233,7 +233,7 @@
                                                 <TextView
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="Interlude Duration"
+                                                        android:text="@string/interlude_duration"
                                                         android:textColor="@color/white"
                                                         android:textSize="15sp"
                                                         android:paddingBottom="4dp"
@@ -243,7 +243,7 @@
                                                         style="@style/TextAppearance.Material3.BodySmall"
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="The minmum amount of time it takes for an interlude to show up"
+                                                        android:text="@string/interlude_duration_desc"
                                                         android:textColor="?attr/colorOnSurfaceVariant" />
                                         </LinearLayout>
 
@@ -258,28 +258,28 @@
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Beautiful Lyrics"
+                                                                android:text="@string/lyrics_header"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Spicy Lyrics"
+                                                                android:text="@string/interlude_spicy"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Spotify Plus"
+                                                                android:text="@string/app_name"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Apple Music"
+                                                                android:text="@string/animation_style_apple"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
                                                 </LinearLayout>
@@ -332,7 +332,7 @@
                                 <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Line Spacing"
+                                        android:text="@string/line_spacing"
                                         android:textColor="@color/white"
                                         android:textSize="15sp"
                                         android:paddingBottom="4dp" />
@@ -341,7 +341,7 @@
                                         style="@style/TextAppearance.Material3.BodySmall"
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
-                                        android:text="The amount of space in between lines. A larger amount will have a larger font size and more space in between lines, resulting in fewer lines being visible."
+                                        android:text="@string/line_spacing_desc"
                                         android:textColor="?attr/colorOnSurfaceVariant"
                                         android:paddingBottom="16dp" />
 
@@ -358,7 +358,7 @@
                                                 android:id="@+id/line_spacing_min"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Compact"
+                                                android:text="@string/line_spacing_small"
                                                 android:textColor="#AFAFAF"
                                                 android:textSize="13sp"
                                                 android:paddingEnd="12dp" />
@@ -377,7 +377,7 @@
                                                         android:layout_height="wrap_content"
                                                         android:layout_gravity="top|start"
                                                         android:background="@drawable/slider_value_bubble"
-                                                        android:text="Default"
+                                                        android:text="@string/line_spacing_0"
                                                         android:textColor="@android:color/white"
                                                         android:textSize="12sp"
                                                         android:paddingStart="8dp"
@@ -410,7 +410,7 @@
                                                 android:id="@+id/line_spacing_max"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Max"
+                                                android:text="@string/line_spacing_large"
                                                 android:textColor="#AFAFAF"
                                                 android:textSize="13sp"
                                                 android:paddingStart="12dp" />
@@ -436,7 +436,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Enable Background"
+                                                android:text="@string/enable_background"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -445,7 +445,7 @@
                                                 style="@style/TextAppearance.Material3.BodySmall"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Whether the background should be an animated background or just a static color"
+                                                android:text="@string/enable_background_desc"
                                                 android:textColor="?attr/colorOnSurfaceVariant" />
                                 </LinearLayout>
 
@@ -455,7 +455,7 @@
                                         android:layout_height="wrap_content"
                                         android:paddingHorizontal="8dp"
                                         android:checked="true"
-                                        android:contentDescription="Enable Background" />
+                                        android:contentDescription="@string/enable_background" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -476,7 +476,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Enable Line Lyrics Gradient"
+                                                android:text="@string/line_gradient"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -485,7 +485,7 @@
                                                 style="@style/TextAppearance.Material3.BodySmall"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Sets whether lines should have a gradient or stay a solid color in line synced lyrics"
+                                                android:text="@string/line_gradient_desc"
                                                 android:textColor="?attr/colorOnSurfaceVariant" />
                                 </LinearLayout>
 
@@ -495,7 +495,7 @@
                                         android:layout_height="wrap_content"
                                         android:paddingHorizontal="8dp"
                                         android:checked="true"
-                                        android:contentDescription="Enable Line Lyrics Gradient" />
+                                        android:contentDescription="@string/line_gradient" />
                         </LinearLayout>
 
                         <RadioGroup
@@ -519,7 +519,7 @@
                                                 <TextView
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="Background Quality"
+                                                        android:text="@string/beautiful_lyrics_settings_page_background_quality"
                                                         android:textColor="@color/white"
                                                         android:textSize="15sp"
                                                         android:paddingBottom="4dp"
@@ -529,7 +529,7 @@
                                                         style="@style/TextAppearance.Material3.BodySmall"
                                                         android:layout_width="wrap_content"
                                                         android:layout_height="wrap_content"
-                                                        android:text="Changes the quality of the background. Lower quality should give better performance at the cost of detail and variance in colors"
+                                                        android:text="@string/background_quality_desc"
                                                         android:textColor="?attr/colorOnSurfaceVariant" />
                                         </LinearLayout>
 
@@ -544,28 +544,28 @@
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Quality"
+                                                                android:text="@string/beautiful_lyrics_settings_page_quality"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Balanced"
+                                                                android:text="@string/beautiful_lyrics_settings_page_balanced"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Performance"
+                                                                android:text="@string/beautiful_lyrics_settings_page_performance"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
 
                                                         <TextView
                                                                 android:layout_width="wrap_content"
                                                                 android:layout_height="48dp"
-                                                                android:text="Ultra Performance"
+                                                                android:text="@string/beautiful_lyrics_settings_page_ultra_performance"
                                                                 style="@style/TextAppearance.Material3.BodyMedium"
                                                                 android:gravity="center_vertical" />
                                                 </LinearLayout>
@@ -620,7 +620,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Swap Translated Lines"
+                                                android:text="@string/swap_translations"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -629,7 +629,7 @@
                                                 style="@style/TextAppearance.Material3.BodySmall"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Makes the translated text the main line, with the original language being smaller underneath"
+                                                android:text="@string/swap_translations_desc"
                                                 android:textColor="?attr/colorOnSurfaceVariant" />
                                 </LinearLayout>
 
@@ -639,7 +639,7 @@
                                         android:layout_height="wrap_content"
                                         android:paddingHorizontal="8dp"
                                         android:checked="true"
-                                        android:contentDescription="Send Access Token" />
+                                        android:contentDescription="@string/swap_translations" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -660,7 +660,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Hide Original Lines"
+                                                android:text="@string/hide_original"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -669,7 +669,7 @@
                                                 style="@style/TextAppearance.Material3.BodySmall"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="When translations are active, hides the original language"
+                                                android:text="@string/hide_original_desc"
                                                 android:textColor="?attr/colorOnSurfaceVariant" />
                                 </LinearLayout>
 
@@ -679,7 +679,7 @@
                                         android:layout_height="wrap_content"
                                         android:paddingHorizontal="8dp"
                                         android:checked="true"
-                                        android:contentDescription="Send Access Token" />
+                                        android:contentDescription="@string/hide_original" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -703,7 +703,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Translated Language"
+                                                android:text="@string/translated_language"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -712,7 +712,7 @@
                                                 style="@style/TextAppearance.Material3.BodySmall"
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="What language to translate lyrics into. Must be a valid ISO language code"
+                                                android:text="@string/translated_language_desc"
                                                 android:textColor="?attr/colorOnSurfaceVariant" />
                                 </LinearLayout>
 
@@ -721,7 +721,7 @@
                                         android:layout_width="112dp"
                                         android:layout_height="wrap_content"
                                         android:layout_marginStart="16dp"
-                                        android:hint="ISO code"
+                                        android:hint="@string/translated_language_hint"
                                         app:boxStrokeColor="#55FFFFFF"
                                         app:hintTextColor="#AAFFFFFF">
 

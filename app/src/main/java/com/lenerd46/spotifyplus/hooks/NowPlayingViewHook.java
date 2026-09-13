@@ -1,23 +1,37 @@
 package com.lenerd46.spotifyplus.hooks;
 
+import com.lenerd46.spotifyplus.R;
 import android.app.Activity;
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.content.res.Configuration;
+import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
+import android.view.Window;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -27,16 +41,594 @@ import com.lenerd46.spotifyplus.References;
 import com.lenerd46.spotifyplus.SpotifyTrack;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+import java.io.InputStream;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.luckypray.dexkit.query.FindClass;
+import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.ClassMatcher;
+import org.luckypray.dexkit.query.matchers.MethodMatcher;
 
-public class NowPlayingControlsHook extends SpotifyHook {
+public final class NowPlayingViewHook extends SpotifyHook {
+    public static final String PREFERENCE = "experiment_now_playing_view";
+
+    private static volatile boolean enabled;
+
+    public NowPlayingViewHook(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+        enabled = preferences.getBoolean(PREFERENCE, false);
+    }
+
+    public static void setEnabled(boolean value) {
+        enabled = value;
+        Activity activity = References.currentActivity;
+        if(activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        activity.getWindow().getDecorView().post(() -> {
+            if(activity.isFinishing() || activity.isDestroyed()) return;
+            RemoveCreateButtonHook.resetSettingsOverlayState();
+            activity.recreate();
+        });
+    }
+
+    static boolean isEnabled() {
+        return enabled;
+    }
+
+    @Override
+    protected void hook() {
+        new NowPlayingLandscapeHook().init(lpparm, bridge);
+        new NowPlayingSwipeHook().init(lpparm, bridge);
+        new NowPlayingCardsHook().init(lpparm, bridge);
+        new NowPlayingControlsHook().init(lpparm, bridge);
+        XposedBridge.log("[SpotifyPlus][NowPlayingView] Dynamic experimental redesign hooks installed");
+    }
+}
+
+final class NowPlayingLandscapeHook extends SpotifyHook {
+    private static final String NOW_PLAYING_ACTIVITY = "com.spotify.nowplaying.musicinstallation.NowPlayingActivity";
+    private static final String PEEK_SCROLL_VIEW = "com.spotify.nowplaying.scroll.view.PeekScrollView";
+    private final WeakHashMap<View, Activity> attachedPlayers = new WeakHashMap<>();
+    private final WeakHashMap<Activity, Boolean> launchedPlayers = new WeakHashMap<>();
+
+    @Override
+    protected void hook() {
+        try {
+            Class<?> nowPlayingActivity = lpparm.classLoader.loadClass(NOW_PLAYING_ACTIVITY);
+            Class<?> peekScrollView = lpparm.classLoader.loadClass(PEEK_SCROLL_VIEW);
+            XposedHelpers.findAndHookMethod(nowPlayingActivity, "onCreate", Bundle.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if(!NowPlayingViewHook.isEnabled()) return;
+                    Activity activity = (Activity)param.thisObject;
+                    makeWindowTransparent(activity);
+                    requestOrientation(activity, ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+                }
+            });
+            XposedHelpers.findAndHookMethod(nowPlayingActivity, "onWindowFocusChanged", boolean.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if(NowPlayingViewHook.isEnabled() && Boolean.TRUE.equals(param.args[0])) makeWindowTransparent((Activity)param.thisObject);
+                }
+            });
+            XposedBridge.hookAllConstructors(peekScrollView, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if(!NowPlayingViewHook.isEnabled() || !(param.thisObject instanceof View)) return;
+                    View player = (View)param.thisObject;
+                    player.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                        @Override
+                        public void onViewAttachedToWindow(View view) {
+                            if(!NowPlayingViewHook.isEnabled()) return;
+                            Activity activity = activity(view.getContext());
+                            if(activity == null) activity = References.currentActivity;
+                            if(activity == null) return;
+                            attachedPlayers.put(view, activity);
+                            Activity hostActivity = activity;
+                            if(!NOW_PLAYING_ACTIVITY.equals(hostActivity.getClass().getName())) view.post(() -> openDedicatedPlayer(hostActivity));
+                        }
+
+                        @Override
+                        public void onViewDetachedFromWindow(View view) {
+                            Activity activity = attachedPlayers.remove(view);
+                            if(activity != null) activity.getWindow().getDecorView().postDelayed(() -> clearLaunchGuard(activity), 300L);
+                        }
+                    });
+                }
+            });
+            XposedBridge.hookAllMethods(Activity.class, "setRequestedOrientation", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    if(NowPlayingViewHook.isEnabled() && param.thisObject != null && NOW_PLAYING_ACTIVITY.equals(param.thisObject.getClass().getName())) param.args[0] = ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
+                }
+            });
+            XposedBridge.log("[SpotifyPlus][NowPlayingLandscape] Now Playing rotation enabled");
+        } catch(Throwable throwable) {
+            XposedBridge.log("[SpotifyPlus][NowPlayingLandscape] Could not enable Now Playing rotation");
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private void requestOrientation(Activity activity, int orientation) {
+        activity.setRequestedOrientation(orientation);
+    }
+
+    private void makeWindowTransparent(Activity activity) {
+        Window window = activity.getWindow();
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) window.setDecorFitsSystemWindows(false);
+        View decor = window.getDecorView();
+        decor.setSystemUiVisibility(decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+    }
+
+    private void openDedicatedPlayer(Activity activity) {
+        if(!NowPlayingViewHook.isEnabled() || activity.isFinishing() || Boolean.TRUE.equals(launchedPlayers.get(activity))) return;
+        launchedPlayers.put(activity, Boolean.TRUE);
+        Intent intent = new Intent();
+        intent.setClassName(activity, NOW_PLAYING_ACTIVITY);
+        activity.onBackPressed();
+        activity.startActivity(intent);
+    }
+
+    private void clearLaunchGuard(Activity activity) {
+        for(Activity attachedActivity : attachedPlayers.values()) if(attachedActivity == activity) return;
+        launchedPlayers.remove(activity);
+    }
+
+    private Activity activity(Context context) {
+        Context current = context;
+        while(current instanceof ContextWrapper) {
+            if(current instanceof Activity) return (Activity)current;
+            Context next = ((ContextWrapper)current).getBaseContext();
+            if(next == current) break;
+            current = next;
+        }
+        return null;
+    }
+}
+
+final class NowPlayingSwipeHook extends SpotifyHook {
+    private static final String NOW_PLAYING_BAR_ID = "com.spotify.music:id/now_playing_bar_layout";
+    private static final String NOW_PLAYING_CONTAINER_ID = "com.spotify.music:id/now_playing_container";
+    private volatile WeakReference<Activity> gestureActivity = new WeakReference<>(null);
+    private volatile WeakReference<View> miniPlayer = new WeakReference<>(null);
+    private volatile WeakReference<View> nowPlayingSheet = new WeakReference<>(null);
+    private volatile boolean tracking;
+    private volatile boolean dragging;
+    private volatile boolean rejected;
+    private volatile boolean openingByGesture;
+    private boolean pageApiAvailable;
+    private volatile boolean pageOpened;
+    private volatile boolean findingSheet;
+    private volatile Boolean pendingCommit;
+    private volatile float downRawX;
+    private volatile float downRawY;
+    private volatile float currentRawY;
+    private volatile int touchSlop;
+    private volatile VelocityTracker velocityTracker;
+
+    @Override
+    protected void hook() {
+        try {
+            var pageConfigs = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("enable_page_api_npv", "android-nowplaying-musicinstallation").addMethod(MethodMatcher.create().returnType(boolean.class).paramCount(0))));
+            if (!pageConfigs.isEmpty()) {
+                Class<?> pageApiConfig = pageConfigs.single().getInstance(lpparm.classLoader);
+                // The configuration gained a second boolean for load reporting. Follow
+                // the flag read by the actual page launcher instead of reflection order.
+                java.util.Map<String, org.luckypray.dexkit.result.MethodData> flagReads = new java.util.LinkedHashMap<>();
+                for (var launcher : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().usingStrings("now_playing_view_container")))) {
+                    for (var call : launcher.getInvokes()) if (call.getClassName().equals(pageApiConfig.getName())
+                            && call.getParamCount() == 0 && "boolean".equals(call.getReturnTypeName())) flagReads.put(call.getDescriptor(), call);
+                }
+                if (flagReads.size() != 1) throw new IllegalStateException("Could not uniquely resolve the Now Playing page flag: " + flagReads);
+                Method pageApiEnabled = flagReads.values().iterator().next().getMethodInstance(lpparm.classLoader);
+                XposedBridge.hookMethod(pageApiEnabled, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        if(NowPlayingViewHook.isEnabled()) param.setResult(true);
+                    }
+                });
+                pageApiAvailable = true;
+            }
+            hookLayoutInflation();
+            hookActivityTouches();
+            XposedBridge.log("[SpotifyPlus][NowPlayingSwipe] Installed " + (pageApiAvailable ? "page" : "legacy activity") + " gesture");
+        } catch (Throwable throwable) {
+            XposedBridge.log("[SpotifyPlus][NowPlayingSwipe] Could not initialize the swipe-up gesture");
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private void hookLayoutInflation() {
+        XposedBridge.hookAllMethods(LayoutInflater.class, "inflate", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if(!NowPlayingViewHook.isEnabled() || param.args.length == 0 || !(param.args[0] instanceof Integer) || !(param.getResult() instanceof View)) return;
+                View view = (View) param.getResult();
+                String layoutName;
+                try {layoutName = view.getResources().getResourceName((Integer) param.args[0]);} catch (Throwable ignored) {return;}
+                if(layoutName.endsWith(":layout/now_playing_bar")) roundMiniPlayer(view);
+                if(!openingByGesture) return;
+                if(!layoutName.endsWith(":layout/now_playing_container_bottom_sheet")) return;
+                attachGestureSheet(view);
+            }
+        });
+    }
+
+    private void roundMiniPlayer(View bar) {
+        applyMiniPlayerWidth(bar);
+        bar.setClipToOutline(true);
+        bar.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), view.getHeight() / 2f);
+            }
+        });
+        bar.post(() -> {
+            applyMiniPlayerWidth(bar);
+            bar.invalidateOutline();
+            ImageView artwork = findMiniArtwork(bar, bar);
+            if(artwork == null) return;
+            artwork.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            artwork.setClipToOutline(true);
+            artwork.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setOval(0, 0, view.getWidth(), view.getHeight());
+                }
+            });
+            artwork.invalidateOutline();
+        });
+    }
+
+    private void applyMiniPlayerWidth(View bar) {
+        if(!(bar.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)) return;
+        ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) bar.getLayoutParams();
+        int horizontalMargin = dp(bar, 20);
+        params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        params.setMarginStart(horizontalMargin);
+        params.setMarginEnd(horizontalMargin);
+        bar.setLayoutParams(params);
+    }
+
+    private ImageView findMiniArtwork(View view, View root) {
+        ImageView best = null;
+        long bestArea = 0;
+        if(view instanceof ImageView && view.getWidth() >= dp(root, 36) && view.getHeight() >= dp(root, 36)) {
+            float ratio = view.getWidth() / (float) view.getHeight();
+            if(ratio > 0.85f && ratio < 1.15f) {
+                best = (ImageView) view;
+                bestArea = (long) view.getWidth() * view.getHeight();
+            }
+        }
+        if(!(view instanceof ViewGroup)) return best;
+        ViewGroup group = (ViewGroup) view;
+        for(int index = 0; index < group.getChildCount(); index++) {
+            ImageView candidate = findMiniArtwork(group.getChildAt(index), root);
+            if(candidate == null) continue;
+            long area = (long) candidate.getWidth() * candidate.getHeight();
+            if(area > bestArea) {
+                best = candidate;
+                bestArea = area;
+            }
+        }
+        return best;
+    }
+
+    private void hookActivityTouches() throws Throwable {
+        Method dispatchTouchEvent = Activity.class.getDeclaredMethod("dispatchTouchEvent", MotionEvent.class);
+        XposedBridge.hookMethod(dispatchTouchEvent, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                if(!NowPlayingViewHook.isEnabled()) {
+                    resetGesture(true);
+                    return;
+                }
+                Activity activity = (Activity) param.thisObject;
+                if(!"com.spotify.music.SpotifyMainActivity".equals(activity.getClass().getName()) || !(param.args[0] instanceof MotionEvent)) return;
+                MotionEvent event = (MotionEvent) param.args[0];
+                if(handleTouch(dispatchTouchEvent, activity, event)) param.setResult(true);
+            }
+        });
+    }
+
+    private boolean handleTouch(Method dispatchTouchEvent, Activity activity, MotionEvent event) throws Throwable {
+        if(!NowPlayingViewHook.isEnabled()) {
+            resetGesture(true);
+            return false;
+        }
+        int action = event.getActionMasked();
+        if(action == MotionEvent.ACTION_DOWN) {
+            resetGesture(false);
+            View bar = findViewByResourceName(activity.getWindow().getDecorView(), NOW_PLAYING_BAR_ID);
+            if(bar == null || !bar.isShown() || !containsRawPoint(bar, event.getRawX(), event.getRawY())) return false;
+            tracking = true;
+            downRawX = event.getRawX();
+            downRawY = event.getRawY();
+            currentRawY = downRawY;
+            touchSlop = ViewConfiguration.get(activity).getScaledTouchSlop();
+            velocityTracker = VelocityTracker.obtain();
+            velocityTracker.addMovement(event);
+            gestureActivity = new WeakReference<>(activity);
+            miniPlayer = new WeakReference<>(bar);
+            return false;
+        }
+        if(!tracking) return false;
+        if(velocityTracker != null) velocityTracker.addMovement(event);
+        if(action == MotionEvent.ACTION_POINTER_DOWN) rejected = true;
+        if(action == MotionEvent.ACTION_MOVE) {
+            currentRawY = event.getRawY();
+            float dx = event.getRawX() - downRawX;
+            float dy = currentRawY - downRawY;
+            if(!dragging && !rejected && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy)) rejected = true;
+            if(!dragging && !rejected && -dy > touchSlop && -dy > Math.abs(dx) * 1.15f) {
+                dragging = true;
+                openingByGesture = pageApiAvailable;
+                MotionEvent cancel = MotionEvent.obtain(event);
+                cancel.setAction(MotionEvent.ACTION_CANCEL);
+                XposedBridge.invokeOriginalMethod(dispatchTouchEvent, activity, new Object[]{cancel});
+                cancel.recycle();
+                View bar = miniPlayer.get();
+                if(pageApiAvailable && bar != null) bar.post(() -> openNowPlaying(bar));
+            }
+            if(dragging) {
+                updateSheetPosition(activity);
+                return true;
+            }
+            return false;
+        }
+        if(action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if(!dragging) {
+                resetGesture(false);
+                return false;
+            }
+            boolean commit = action == MotionEvent.ACTION_UP && shouldCommit(activity);
+            if (!pageApiAvailable) {
+                // 9.1.28 predates the page API. A committed swipe opens its native activity.
+                View bar = miniPlayer.get();
+                resetGesture(false);
+                if (commit && bar != null) findClickTarget(bar).performClick();
+                return true;
+            }
+            finishGesture(activity, commit);
+            return true;
+        }
+        return dragging;
+    }
+
+    private void openNowPlaying(View bar) {
+        if(!NowPlayingViewHook.isEnabled() || !openingByGesture) return;
+        View clickTarget = findClickTarget(bar);
+        if(clickTarget == null || !clickTarget.performClick()) {
+            XposedBridge.log("[SpotifyPlus][NowPlayingSwipe] The mini-player click target was not found");
+            finishGesture(gestureActivity.get(), false);
+            return;
+        }
+        pageOpened = true;
+        Activity activity = gestureActivity.get();
+        if(activity != null) findGestureSheet(activity, 0);
+    }
+
+    private View findClickTarget(View bar) {
+        View current = bar;
+        while(current != null) {
+            if(current.hasOnClickListeners()) return current;
+            if(!(current.getParent() instanceof View)) break;
+            current = (View) current.getParent();
+        }
+        return bar;
+    }
+
+    private void findGestureSheet(Activity activity, int attempt) {
+        if(!NowPlayingViewHook.isEnabled() || !openingByGesture || activity == null) return;
+        if(attempt == 0 && findingSheet) return;
+        if(attempt == 0) findingSheet = true;
+        View sheet = findNowPlayingSheet(activity.getWindow().getDecorView(), miniPlayer.get());
+        if(sheet != null) {
+            findingSheet = false;
+            attachGestureSheet(sheet);
+            return;
+        }
+        if(attempt < 12) activity.getWindow().getDecorView().postDelayed(() -> findGestureSheet(activity, attempt + 1), 16);
+        else {
+            findingSheet = false;
+            openingByGesture = false;
+            if(Boolean.FALSE.equals(pendingCommit) && pageOpened && !activity.isFinishing()) activity.onBackPressed();
+            pendingCommit = null;
+            XposedBridge.log("[SpotifyPlus][NowPlayingSwipe] Timed out waiting for the Now Playing sheet");
+        }
+    }
+
+    private void attachGestureSheet(View sheet) {
+        if(!NowPlayingViewHook.isEnabled() || !openingByGesture) return;
+        findingSheet = false;
+        nowPlayingSheet = new WeakReference<>(sheet);
+        Activity activity = gestureActivity.get();
+        if(activity != null) sheet.setTranslationY(sheetTravel(activity));
+        sheet.post(() -> {
+            Activity currentActivity = gestureActivity.get();
+            if(!openingByGesture || currentActivity == null) return;
+            if(pendingCommit != null) settleSheet(currentActivity, pendingCommit);
+            else updateSheetPosition(currentActivity);
+        });
+    }
+
+    private void updateSheetPosition(Activity activity) {
+        View sheet = nowPlayingSheet.get();
+        if(sheet == null) {
+            findGestureSheet(activity, 0);
+            return;
+        }
+        float distance = Math.max(0f, downRawY - currentRawY);
+        sheet.animate().cancel();
+        sheet.setTranslationY(Math.max(0f, sheetTravel(activity) - distance));
+    }
+
+    private boolean shouldCommit(Activity activity) {
+        float distance = Math.max(0f, downRawY - currentRawY);
+        float velocityY = 0f;
+        if(velocityTracker != null) {
+            velocityTracker.computeCurrentVelocity(1000);
+            velocityY = velocityTracker.getYVelocity();
+        }
+        return distance > sheetTravel(activity) * 0.12f || velocityY < -1200f;
+    }
+
+    private void finishGesture(Activity activity, boolean commit) {
+        View sheet = nowPlayingSheet.get();
+        if(sheet == null) {
+            tracking = false;
+            dragging = false;
+            recycleVelocityTracker();
+            if(!commit && !pageOpened) {
+                resetGesture(true);
+                return;
+            }
+            pendingCommit = commit;
+            if(activity != null) findGestureSheet(activity, 0);
+            return;
+        }
+        settleSheet(activity, commit);
+    }
+
+    private void settleSheet(Activity activity, boolean commit) {
+        openingByGesture = false;
+        pendingCommit = null;
+        View sheet = nowPlayingSheet.get();
+        if(sheet == null) return;
+        float target = commit ? 0f : sheetTravel(activity);
+        sheet.animate().translationY(target).setDuration(commit ? 220 : 180).setInterpolator(new DecelerateInterpolator()).withEndAction(() -> {
+            if(!commit && activity != null && !activity.isFinishing()) activity.onBackPressed();
+            resetGesture(true);
+        }).start();
+        recycleVelocityTracker();
+        tracking = false;
+        dragging = false;
+    }
+
+    private float sheetTravel(Activity activity) {
+        if(activity == null) return 1f;
+        View decor = activity.getWindow().getDecorView();
+        return Math.max(1, decor.getHeight());
+    }
+
+    private View findNowPlayingSheet(View root, View bar) {
+        if(root == null) return null;
+        if(NOW_PLAYING_CONTAINER_ID.equals(resourceName(root)) && root != bar && !isAncestor(root, bar) && root.isShown() && root.getHeight() > root.getResources().getDisplayMetrics().heightPixels * 0.75f) return root;
+        if(root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for(int i = group.getChildCount() - 1; i >= 0; i--) {
+                View found = findNowPlayingSheet(group.getChildAt(i), bar);
+                if(found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private View findViewByResourceName(View root, String name) {
+        if(root == null) return null;
+        if(name.equals(resourceName(root))) return root;
+        if(root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for(int i = group.getChildCount() - 1; i >= 0; i--) {
+                View found = findViewByResourceName(group.getChildAt(i), name);
+                if(found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private String resourceName(View view) {
+        if(view.getId() == View.NO_ID) return "";
+        try {return view.getResources().getResourceName(view.getId());} catch (Throwable ignored) {return "";}
+    }
+
+    private boolean containsRawPoint(View view, float rawX, float rawY) {
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        return rawX >= location[0] && rawX < location[0] + view.getWidth() && rawY >= location[1] && rawY < location[1] + view.getHeight();
+    }
+
+    private boolean isAncestor(View ancestor, View child) {
+        if(ancestor == null || child == null) return false;
+        View current = child;
+        while(current != null) {
+            if(current == ancestor) return true;
+            if(!(current.getParent() instanceof View)) return false;
+            current = (View) current.getParent();
+        }
+        return false;
+    }
+
+    private int dp(View view, int value) {
+        return Math.round(value * view.getResources().getDisplayMetrics().density);
+    }
+
+    private void resetGesture(boolean clearSheet) {
+        tracking = false;
+        dragging = false;
+        rejected = false;
+        openingByGesture = false;
+        pageOpened = false;
+        findingSheet = false;
+        pendingCommit = null;
+        recycleVelocityTracker();
+        if(clearSheet) {
+            nowPlayingSheet = new WeakReference<>(null);
+            miniPlayer = new WeakReference<>(null);
+            gestureActivity = new WeakReference<>(null);
+        }
+    }
+
+    private void recycleVelocityTracker() {
+        if(velocityTracker != null) velocityTracker.recycle();
+        velocityTracker = null;
+    }
+}
+
+final class NowPlayingCardsHook extends SpotifyHook {
+    private static final String PEEK_SCROLL_VIEW = "com.spotify.nowplaying.scroll.view.PeekScrollView";
+
+    @Override
+    protected void hook() {
+        try {
+            Class<?> peekScrollView = lpparm.classLoader.loadClass(PEEK_SCROLL_VIEW);
+            XposedBridge.hookAllConstructors(peekScrollView, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if(!NowPlayingViewHook.isEnabled() || !(param.thisObject instanceof View)) return;
+                    hideSupplementalCards((View) param.thisObject);
+                }
+            });
+            XposedBridge.log("[SpotifyPlus][NowPlayingCards] Supplemental Now Playing cards disabled");
+        } catch (Throwable throwable) {
+            XposedBridge.log("[SpotifyPlus][NowPlayingCards] Could not disable supplemental Now Playing cards");
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private void hideSupplementalCards(View root) {
+        int containerId = root.getResources().getIdentifier("touch_blocking_container", "id", "com.spotify.music");
+        View container = containerId == 0 ? null : root.findViewById(containerId);
+        if(container == null) return;
+        container.setVisibility(View.GONE);
+        container.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+    }
+}
+
+final class NowPlayingControlsHook extends SpotifyHook {
     private static final String PEEK_SCROLL_VIEW = "com.spotify.nowplaying.scroll.view.PeekScrollView";
     private static final int WATCH_TAG = 0x53504C57;
     private static final int TRANSPORT_TAG = 0x53504C54;
@@ -54,7 +646,7 @@ public class NowPlayingControlsHook extends SpotifyHook {
             XposedBridge.hookAllConstructors(peekScrollView, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    if(!(param.thisObject instanceof View)) return;
+                    if(!NowPlayingViewHook.isEnabled() || !(param.thisObject instanceof View)) return;
                     watchNowPlayingLayout((View) param.thisObject);
                 }
             });
@@ -96,6 +688,7 @@ public class NowPlayingControlsHook extends SpotifyHook {
     }
 
     private void applyLayout(View root) {
+        if(!NowPlayingViewHook.isEnabled()) return;
         try {
             arrangeTransportControls(root);
             arrangeBottomActions(root);
@@ -167,7 +760,7 @@ public class NowPlayingControlsHook extends SpotifyHook {
         holder.addView(row, new FrameLayout.LayoutParams(dp(root, 200), dp(root, 60), Gravity.CENTER));
         ImageView lyrics = new ImageView(root.getContext());
         lyrics.setImageDrawable(lyricsIcon(root));
-        lyrics.setContentDescription("Lyrics");
+        lyrics.setContentDescription(References.getString(R.string.lyrics_button));
         lyrics.setPadding(dp(root, 12), dp(root, 12), dp(root, 12), dp(root, 12));
         lyrics.setOnClickListener(view -> toggleLyrics(root));
         state.lyricsButton = lyrics;

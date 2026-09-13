@@ -42,19 +42,19 @@
 
                 <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
                            android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="General Section" android:src="@drawable/wrench"/>
+                           android:contentDescription="@string/settings_page_general_section" android:src="@drawable/wrench"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                               android:orientation="vertical" android:layout_gravity="center_vertical"
                               android:paddingStart="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="General" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/general_header" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Check for updates • Startup page" android:textColor="?attr/colorOnSurfaceVariant"/>
+                              android:text="@string/general_subtitle" android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>
 
@@ -64,19 +64,19 @@
 
                 <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
                            android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="Beautiful Lyrics Section" android:src="@drawable/music_note"/>
+                           android:contentDescription="@string/settings_page_beautiful_lyrics_section" android:src="@drawable/music_note"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                               android:orientation="vertical" android:layout_gravity="center_vertical"
                               android:paddingLeft="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="Beautiful Lyrics" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/lyrics_header" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Lyrics Font • Interlude Duration"
+                              android:text="@string/lyrics_subtitle"
                               android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>
@@ -87,19 +87,19 @@
 
                 <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
                            android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="Theme Section" android:src="@drawable/palette"/>
+                           android:contentDescription="@string/settings_page_theme_section" android:src="@drawable/palette"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                               android:orientation="vertical" android:layout_gravity="center_vertical"
                               android:paddingLeft="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="Theme" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/theme_header" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Create Custom Theme • Auto Theme"
+                              android:text="@string/theme_subtitle"
                               android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>
@@ -110,19 +110,19 @@
 
                 <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
                            android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="Experimental Section" android:src="@drawable/experiment"/>
+                           android:contentDescription="@string/settings_page_experimental_section" android:src="@drawable/experiment"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                               android:orientation="vertical" android:layout_gravity="center_vertical"
                               android:paddingLeft="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="Experimental" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/experimental_header" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="New scrolling system • Animated Album Artwork"
+                              android:text="@string/experimental_subtitle"
                               android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>
@@ -156,19 +156,19 @@
 
                 <ImageView android:layout_width="wrap_content" android:layout_height="wrap_content"
                            android:layout_gravity="center" android:paddingStart="6dp"
-                           android:contentDescription="About Section" android:src="@drawable/info"/>
+                           android:contentDescription="@string/settings_page_about_section" android:src="@drawable/info"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                               android:orientation="vertical" android:layout_gravity="center_vertical"
                               android:paddingLeft="8dp">
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:text="About" style="@style/TextAppearance.Material3.TitleMedium"
+                              android:text="@string/about_header" style="@style/TextAppearance.Material3.TitleMedium"
                               android:paddingBottom="2dp"/>
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                               style="@style/TextAppearance.Material3.BodySmall"
-                              android:text="Version • GitHub"
+                              android:text="@string/about_subtitle"
                               android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </LinearLayout>

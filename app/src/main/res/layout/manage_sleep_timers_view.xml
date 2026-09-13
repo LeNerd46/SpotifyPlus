@@ -57,7 +57,7 @@
                             android:id="@+id/sleep_timer_presets_title"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Custom Sleep Timers"
+                            android:text="@string/sleep_timer_title"
                             android:textColor="@color/white"
                             android:textSize="22sp"
                             android:textStyle="bold"/>
@@ -66,7 +66,7 @@
                             android:id="@+id/sleep_timer_presets_description"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Reorder or delete the presets shown in your sleep timer list."
+                            android:text="@string/sleep_timer_subtitle"
                             android:textColor="@color/spotifyplus_onSurface"
                             android:textSize="14sp"
                             android:layout_marginTop="4dp"/>
@@ -93,7 +93,7 @@
                             android:id="@+id/sleep_timer_auto_reorder_title"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Auto reorder"
+                            android:text="@string/sleep_timer_auto_reorder"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:textStyle="bold"/>
@@ -102,7 +102,7 @@
                             android:id="@+id/sleep_timer_auto_reorder_description"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Automatically sort presets by duration."
+                            android:text="@string/sleep_timer_auto_reorder_desc"
                             android:textColor="@color/spotifyplus_onSurface"
                             android:textSize="13sp"
                             android:layout_marginTop="2dp"/>
@@ -120,7 +120,7 @@
                     android:id="@+id/sleep_timer_presets_hint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Hold and drag a preset to reorder it."
+                    android:text="@string/ui_hold_and_drag_a_preset_to_reorder_it"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="13sp"
                     android:layout_marginTop="10dp"
@@ -139,7 +139,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="160dp"
                     android:gravity="center"
-                    android:text="You don't have any custom presets yet."
+                    android:text="@string/manage_sleep_timers_view_you_don_t_have_any_custom_presets_yet"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="14sp"
                     android:visibility="gone"/>
@@ -164,7 +164,7 @@
                         style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Cancel"
+                        android:text="@string/lastfm_cancel"
                         android:textAllCaps="false"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:layout_marginEnd="8dp"/>
@@ -173,7 +173,7 @@
                         android:id="@+id/btn_save_sleep_timer_presets"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Save"
+                        android:text="@string/sleep_timer_save"
                         android:textAllCaps="false"/>
 
             </LinearLayout>

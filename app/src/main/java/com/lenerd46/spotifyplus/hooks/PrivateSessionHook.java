@@ -41,8 +41,21 @@ public class PrivateSessionHook extends SpotifyHook {
             if (settingKeyClasses.size() != 1) throw new IllegalStateException("[PrivateSessionHook/DexKit] Expected one static settings-key registry but found " + settingKeyClasses);
             Class<?> settingKeysClass = settingKeyClasses.get(0).getInstance(lpparm.classLoader);
 
-            Class<?> settingsClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("spotify.settings.esperanto.proto.Settings", "SetPrivateSession"))).single().getInstance(lpparm.classLoader);
-            Method settingsMethod = bridge.findMethod(FindMethod.create().searchInClass(Collections.singletonList(bridge.getClassData(settingsClass))).matcher(MethodMatcher.create().paramCount(2))).single().getMethodInstance(lpparm.classLoader);
+            privateSessionKey = findSettingKey(settingKeysClass, "private_session");
+            // 9.1.82 moved the RPC strings into a shared ClientBase implementation.
+            // Identify the settings repository by its router and typed mutation API.
+            var setters = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .returnType("io.reactivex.rxjava3.core.Completable")
+                    .paramTypes((String) null, Object.class.getName())
+                    .declaredClass(ClassMatcher.create().addFieldForType("com.spotify.cosmos.rxrouter.RxRouter"))));
+            java.util.List<Method> settingsMethods = new java.util.ArrayList<>();
+            for (var setter : setters) {
+                Method method = setter.getMethodInstance(lpparm.classLoader);
+                if (!Modifier.isStatic(method.getModifiers()) && method.getParameterTypes()[0].isInstance(privateSessionKey)) settingsMethods.add(method);
+            }
+            if (settingsMethods.size() != 1) throw new IllegalStateException("Expected one settings mutation API, found " + settingsMethods);
+            Method settingsMethod = settingsMethods.get(0);
+            Class<?> settingsClass = settingsMethod.getDeclaringClass();
 
             Class<?> settingsStateClass = XposedHelpers.findClass("com.spotify.settings.esperanto.proto.SettingsOuterClass$SettingsState", lpparm.classLoader);
             Method checkPrivateSessionMethod = bridge.findMethod(FindMethod.create().searchInClass(Collections.singletonList(bridge.getClassData(settingsStateClass))).matcher(MethodMatcher.create()
@@ -58,8 +71,6 @@ public class PrivateSessionHook extends SpotifyHook {
                     .paramCount(0)
             )).single().getMethodInstance(lpparm.classLoader);
 
-            privateSessionKey = findSettingKey(settingKeysClass, "private_session");
-
             refreshPrivateSession = () -> {
                 handler.removeCallbacks(refreshPrivateSession);
 
@@ -68,7 +79,7 @@ public class PrivateSessionHook extends SpotifyHook {
                 }
 
                 try {
-                    Object update = XposedHelpers.callMethod(settingsRepository, "c", privateSessionKey, Boolean.TRUE);
+                    Object update = settingsMethod.invoke(settingsRepository, privateSessionKey, Boolean.TRUE);
                     XposedHelpers.callMethod(update, "subscribe");
 
                     handler.removeCallbacks(refreshPrivateSession);

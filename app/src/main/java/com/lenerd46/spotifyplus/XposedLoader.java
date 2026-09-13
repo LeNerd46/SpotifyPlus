@@ -20,6 +20,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lenerd46.spotifyplus.hooks.*;
+import com.lenerd46.spotifyplus.scripting.ScriptManager;
 //import com.yausername.youtubedl_android.YoutubeDL;
 import de.robv.android.xposed.*;
 import de.robv.android.xposed.callbacks.XC_InitPackageResources;
@@ -45,7 +46,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
 
     private DexKitBridge bridge;
     private String modulePath = null;
-    private static final String MODULE_VERSION = "0.7.2";
+    private static final String MODULE_VERSION = "0.7.3";
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
@@ -60,6 +61,9 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 XposedBridge.log(e);
             }
         }
+
+        SpotifyUserHook.init(lpparam.classLoader);
+        new NowPlayingHeartHook().init(lpparam, bridge);
 
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
@@ -151,10 +155,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                 ScriptManager.getInstance().init(context, lpparam.classLoader);
                 new BeautifulLyricsHook().init(lpparam, bridge);
                 new NowPlayingLyricsGradientHook().init(lpparam, bridge);
-//                new NowPlayingLandscapeHook().init(lpparam, bridge);
-//                new NowPlayingSwipeHook().init(lpparam, bridge);
-//                new NowPlayingCardsHook().init(lpparam, bridge);
-//                new NowPlayingControlsHook().init(lpparam, bridge);
+                new NowPlayingViewHook(context).init(lpparam, bridge);
                 new RemoveCreateButtonHook(context).init(lpparam, bridge);
                 new NetworkHook(context).init(lpparam, bridge);
                 new LastFmHook().init(lpparam, bridge);
@@ -274,7 +275,7 @@ public class XposedLoader implements IXposedHookLoadPackage, IXposedHookZygoteIn
                         MaterialButton dismissButton = updateWindow.findViewById(
                                 modResources.getIdentifier("btn_dismiss_update", "id", "com.lenerd46.spotifyplus"));
 
-                        versionText.setText("Current: v" + MODULE_VERSION + "  •  Latest: v" + latest);
+                        versionText.setText(References.getString(R.string.update_modal_compare, MODULE_VERSION, latest));
 
                         background.setOnClickListener(layout -> {
                             root.removeView(updateWindow);

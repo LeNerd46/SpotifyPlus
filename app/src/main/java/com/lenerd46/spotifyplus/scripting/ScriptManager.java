@@ -1,4 +1,6 @@
-package com.lenerd46.spotifyplus.hooks;
+package com.lenerd46.spotifyplus.scripting;
+
+import com.lenerd46.spotifyplus.hooks.SpotifyHook;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -149,10 +151,9 @@ public class ScriptManager extends SpotifyHook {
         }
     }
 
-    // Hot reload scripts?
     public void loadOrReloadScript(String code, String name) {
         EventManager.getInstance().clearAllListeners();
-        runScript(code, name, name); // Update to use manifest name
+        runScript(code, name, name);
     }
 
     private String readStreamAsString(InputStream in) throws IOException {
@@ -167,7 +168,6 @@ public class ScriptManager extends SpotifyHook {
         return sb.toString();
     }
 
-    // Not actually doing any hooking, I just need the LoadPackageParam
     @Override
     protected void hook() { }
 }

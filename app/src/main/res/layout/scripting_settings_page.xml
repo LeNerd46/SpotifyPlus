@@ -35,7 +35,7 @@
         <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
                       android:orientation="vertical">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:text="General" style="@style/TextAppearance.Material3.TitleLarge"
+                      android:text="@string/general_header" style="@style/TextAppearance.Material3.TitleLarge"
                       android:paddingBottom="12dp"/>
 
             <LinearLayout
@@ -56,7 +56,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Enabled"
+                            android:text="@string/theme_enabled"
                             android:textColor="#4d4d4d"
                             android:textSize="15sp"
                             android:paddingBottom="4dp"/>
@@ -65,7 +65,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Sets whether to run scripts or not. This feature is still in development, sorry"
+                            android:text="@string/scripts_enabled_desc"
                             android:textColor="#3c3c3c"/>
                 </LinearLayout>
 
@@ -75,7 +75,7 @@
                         android:layout_height="wrap_content"
                         android:paddingHorizontal="8dp"
                         android:checked="false" android:enabled="false"
-                        android:contentDescription="Enable scripts"/>
+                        android:contentDescription="@string/scripting_settings_page_enable_scripts"/>
             </LinearLayout>
 
             <LinearLayout
@@ -96,7 +96,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Set Scripts Directory"
+                            android:text="@string/scripting_settings_page_set_scripts_directory"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:paddingBottom="4dp"/>
@@ -105,7 +105,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Tells the mod where to look for scripts"
+                            android:text="@string/scripting_settings_page_tells_the_mod_where_to_look_for_scripts"
                             android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
 
@@ -114,10 +114,10 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:paddingHorizontal="8dp"
-                        android:text="Select Directory"
+                        android:text="@string/scripting_settings_page_select_directory"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:textColor="@color/white"
-                        android:contentDescription="Select directory"/>
+                        android:contentDescription="@string/scripting_settings_page_select_directory"/>
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>

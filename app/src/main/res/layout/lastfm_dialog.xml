@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="12dp" app:cardCornerRadius="12dp" app:cardElevation="8dp" app:cardUseCompatPadding="true">
     <LinearLayout android:orientation="vertical" android:paddingVertical="24dp" android:layout_width="match_parent" android:layout_height="wrap_content">
-        <TextView android:text="Enter Your Last.fm Username" android:layout_gravity="center" android:layout_marginTop="8dp" android:textColor="#FFFFFF" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/lastfm_dialog_enter_your_last_fm_username" android:layout_gravity="center" android:layout_marginTop="8dp" android:textColor="#FFFFFF" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
         <EditText android:id="@+id/last_fm_input" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="24dp"/>
 
         <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_gravity="center_horizontal" android:gravity="center_horizontal">
@@ -9,7 +9,7 @@
                     android:id="@+id/btn_lastfm_confirm"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Confirm"
+                    android:text="@string/sync_confirm"
                     android:textColor="#FFFFFF"
                     app:iconPadding="8dp"/>
 
@@ -19,7 +19,7 @@
                     android:id="@+id/btn_lastfm_remove"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Remove"
+                    android:text="@string/lastfm_dialog_remove"
                     android:textColor="#FFFFFF"/>
         </LinearLayout>
     </LinearLayout>

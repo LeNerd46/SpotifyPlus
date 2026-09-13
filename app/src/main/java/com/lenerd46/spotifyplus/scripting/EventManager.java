@@ -1,6 +1,6 @@
 package com.lenerd46.spotifyplus.scripting;
 
-import com.lenerd46.spotifyplus.hooks.ScriptManager;
+import com.lenerd46.spotifyplus.scripting.ScriptManager;
 import de.robv.android.xposed.XposedBridge;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;

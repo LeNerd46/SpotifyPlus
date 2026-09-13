@@ -17,6 +17,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class LyricUtilities {
+    // Lyrics contain enough text for the small models; high-accuracy all-language
+    // models compete with Spotify for the same limited application heap.
+    private static final class DetectorHolder {
+        static final LanguageDetector INSTANCE = LanguageDetectorBuilder.fromAllLanguages()
+                .withLowAccuracyMode().build();
+    }
+
     private static final String[] rightToLeftLanguages = {
             // Persian
             "pes", "urd",
@@ -48,7 +55,7 @@ public class LyricUtilities {
             return "";
         }
         try {
-            final LanguageDetector detector = LanguageDetectorBuilder.fromAllLanguages().build();
+            final LanguageDetector detector = DetectorHolder.INSTANCE;
             final Language detectedLanguage = detector.detectLanguageOf(text);
             return detectedLanguage.getIsoCode639_1().toString();
         } catch (Exception e) {

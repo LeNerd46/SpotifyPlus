@@ -65,18 +65,9 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     private static final int DETAILED_SETTINGS_OVERLAY_ID = 0x53504c54;
     private static final int MARKETPLACE_OVERLAY_ID = 0x53504c55;
     private int idToUse = 8001;
-    private int resourceIdToUse = 2131957895;
+    private int settingsTitleId;
     private SharedPreferences prefs;
     private final Context context;
-    private boolean isNewSideDrawer = false;
-
-    private ClassDataList fwd0Classes;
-    private ClassDataList dwd0Classes;
-    private ClassDataList propertiesClasses;
-    private ClassDataList onClickClasses;
-    private Class<?> whateverThisInterfaceDoes;
-    private Class<?> iconInterface;
-    private Class<?> wwk;
     private final static ConcurrentHashMap<Pair<Integer, String>, List<SettingItem.SettingSection>> scriptSettings = new ConcurrentHashMap<>();
     private final static ConcurrentHashMap<Pair<Integer, String>, Runnable> scriptSideButtons = new ConcurrentHashMap<>();
     private static final java.util.concurrent.atomic.AtomicBoolean overlayShown = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -91,6 +82,8 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             if (prefs == null) {
                 prefs = context.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
             }
+
+            new SwipePlayNextHook(prefs).init(lpparm, bridge);
 
             // var clazz =
             // bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("tracks_section",
@@ -115,39 +108,9 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             // testThing.toArray().length);
             // testThing.forEach(x -> XposedBridge.log("[SpotifyPlus] " + x.getName()));
 
-            var constructorClassList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItemSet(item1=")));
-            var parameterClassList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("NavigationBarItem(icon=").methodCount(4).fieldCount(5, 6)));
-            if (constructorClassList.isEmpty() || parameterClassList.isEmpty()) {
-                XposedBridge.log("[SpotifyPlus] Constructor class not found");
-            } else {
-                var constructorClass = constructorClassList.get(0).getInstance(lpparm.classLoader);
-                var parameterClass = parameterClassList.get(0).getInstance(lpparm.classLoader);
+            new NavigationBarHook(context, prefs).init(lpparm, bridge);
 
-                XposedHelpers.findAndHookConstructor(constructorClass, parameterClass, parameterClass, parameterClass,
-                        parameterClass, parameterClass, new XC_MethodHook() {
-                            @Override
-                            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                                if (prefs.getBoolean("remove_create", false)) {
-                                    for (int i = 0; i < 5; i++) {
-                                        var item = param.args[i];
-
-                                        if (item == null) {
-                                            continue;
-                                        }
-
-                                        String content = item.toString().toLowerCase();
-
-                                        if (content.contains("create") || content.contains("premium")) {
-                                            XposedBridge.log("[SpotifyPlus] Removing navbar item: " + content);
-                                            param.args[i] = null;
-                                        }
-                                    }
-                                }
-                            }
-                        });
-            }
-
-            SpotifyTitleOverride.install();
+            settingsTitleId = SpotifyTitleOverride.registerTitle(References.getString(R.string.settings_header));
 
             // var list =
             // bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("spotify:artist:",
@@ -227,130 +190,12 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             }
             XposedBridge.log("[SpotifyPlus] Side-drawer array mutation candidates: " + invokeSuspendMethods.stream().map(method -> method.getDeclaringClass().getName() + "#" + method.getName()).collect(java.util.stream.Collectors.joining(", ")));
 
-            var whateverInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("quick_add_to_playlist_item")));
-            var iconInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("getState(Lcom/spotify/alignedcuration/firstsave/page/contents/DefaultSaveDestinationElement$Props;)Lkotlinx/coroutines/flow/Flow;")));
-            var wwkList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Encore.Vector.CopyAlt16")));
-            dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("SideDrawerListItem(element=")));
-            if (dwd0Classes.isEmpty())
-                dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("SideDrawerListItem(content=")));
-            if (dwd0Classes.isEmpty()) {
-                // They removed all of the toString() methods in later versions??? This makes it
-                // extremely hard to track down
-                dwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0)
-                        .modifiers(Modifier.PUBLIC | Modifier.FINAL).superClass(ClassMatcher.create())
-                        .methods(MethodsMatcher.create()
-                                .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                                        .returnType(boolean.class).params(ParametersMatcher.create().add(Object.class))
-                                        .name("equals"))
-                                .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0))
-                                .add(MethodMatcher.create().name("<init>").paramCount(1))
-                                .add(MethodMatcher.create().name("<init>").paramCount(1))
-                                .add(MethodMatcher.create().name("<init>").paramCount(7)))
-                        .fieldCount(1)));
-            }
-
-            fwd0Classes = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                    .fields(FieldsMatcher.create().count(2).add(FieldMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).type(int.class))).usingStrings("ListItem(id=")));
-            if (fwd0Classes.isEmpty() && dwd0Classes.size() == 1) {
-                // They removed all of the toString() methods in later versions??? This makes it
-                // extremely hard to track down
-                fwd0Classes = bridge.findClass(FindClass.create()
-                        .matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                                .superClass(ClassMatcher.create()).methods(MethodsMatcher.create().count(3)
-                                        .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                                                .returnType(boolean.class)
-                                                .params(ParametersMatcher.create().add(Object.class)).name("equals"))
-                                        .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0)
-                                                .usingNumbers(31))
-                                        .add(MethodMatcher.create().name("<init>").paramCount(2)))
-                                .fields(FieldsMatcher.create().count(2)
-                                        .add(FieldMatcher.create().type(int.class))
-                                        .add(FieldMatcher.create()
-                                                .type(dwd0Classes.get(0).getInstance(lpparm.classLoader))))));
-            }
-
-            propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Props(icon=", ", title=", ", titleRes=", ", uriToNavigate=", ", isNew=", ", instrumentation=", ", hasNotification=")));
-            if (propertiesClasses.isEmpty())
-                propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Navigation(icon=", "title=null", "uriToNavigate=", "isNew=", "instrumentation=")));
-            if (propertiesClasses.isEmpty()) {
-                // They removed all of the toString() methods in later versions??? This makes it
-                // extremely hard to track down
-                propertiesClasses = bridge
-                        .findClass(FindClass.create().matcher(ClassMatcher
-                                .create().interfaceCount(1).methods(MethodsMatcher.create()
-                                        .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                                                .returnType(boolean.class)
-                                                .params(ParametersMatcher.create().add(Object.class)).name("equals"))
-                                        .add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(
-                                                0).usingNumbers(961, 1231, 1237)))
-                                .fields(FieldsMatcher.create().count(6)
-                                        .add(FieldMatcher.create().type(Integer.class)
-                                                .modifiers(Modifier.PUBLIC | Modifier.FINAL))
-                                        .add(FieldMatcher.create().type(String.class)
-                                                .modifiers(Modifier.PUBLIC | Modifier.FINAL))
-                                        .add(FieldMatcher.create().type(boolean.class)
-                                                .modifiers(Modifier.PUBLIC | Modifier.FINAL)))));
-            }
-            if (propertiesClasses.isEmpty() && dwd0Classes.size() == 1 && dwd0Classes.get(0).getFieldCount() == 1) {
-                ClassData drawerContentInterface = dwd0Classes.get(0).getFields().get(0).getType();
-                propertiesClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().addInterface(drawerContentInterface.getName()).fieldCount(6).addFieldForType(Integer.class).addFieldForType(String.class).addFieldForType(boolean.class).addMethod(MethodMatcher.create().name("<init>").paramCount(6))));
-            }
-
-            onClickClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Instrumentation(node=", ", onClick=", ", onImpression=").fieldCount(3)));
-            if (onClickClasses.isEmpty()) {
-                // They removed all of the toString() methods in later versions??? This makes it
-                // extremely hard to track down
-                var instrumentationNodeClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("tracks_section", "footer_section", "location").fieldCount(3).methodCount(2)));
-                if (instrumentationNodeClasses.size() == 1 && instrumentationNodeClasses.get(0).getInstance(lpparm.classLoader).getInterfaces().length > 0) {
-                    Class<?> interfaceToUse = instrumentationNodeClasses.get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
-                    onClickClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().interfaceCount(0).modifiers(Modifier.PUBLIC | Modifier.FINAL).superClass(ClassMatcher.create()).methods(MethodsMatcher.create().count(3).add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL).returnType(boolean.class).params(ParametersMatcher.create().add(Object.class)).name("equals")).add(MethodMatcher.create().name("hashCode").returnType(int.class).paramCount(0).usingNumbers(31, 0)).add(MethodMatcher.create().name("<init>").paramCount(3))).fields(FieldsMatcher.create().count(3).add(FieldMatcher.create().type(Object.class)).add(FieldMatcher.create().type(interfaceToUse)))));
-                }
-            }
-            if (onClickClasses.isEmpty() && propertiesClasses.size() == 1) {
-                List<ClassData> instrumentationFieldTypes = propertiesClasses.get(0).getFields().stream().map(fieldData -> fieldData.getType()).filter(type -> type.getFieldCount() == 3).filter(type -> type.getMethods().stream().anyMatch(methodData -> methodData.isConstructor() && methodData.getParamCount() == 3)).filter(type -> type.getMethods().stream().anyMatch(methodData -> methodData.getName().equals("equals") && methodData.getParamCount() == 1)).filter(type -> type.getMethods().stream().anyMatch(methodData -> methodData.getName().equals("hashCode") && methodData.getParamCount() == 0)).distinct().collect(java.util.stream.Collectors.toList());
-                if (instrumentationFieldTypes.size() == 1) onClickClasses = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().className(instrumentationFieldTypes.get(0).getName())));
-                else XposedBridge.log("[SpotifyPlus] Could not derive side-drawer instrumentation from props fields; candidates: " + instrumentationFieldTypes.stream().map(ClassData::getName).collect(java.util.stream.Collectors.joining(", ")));
-            }
-
-            var qbpInterfaceList = bridge.findClass(FindClass.create().matcher(ClassMatcher.create()
-                    .modifiers(Modifier.FINAL, MatchType.Equals).interfaceCount(1)
-                    .fields(FieldsMatcher.create().add(FieldMatcher.create().type(int.class)).count(2))
-                    .methods(MethodsMatcher.create()
-                            .count(4)
-                            .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                                    .returnType(Object.class).name("invoke").paramTypes(Object.class, Object.class))
-                            .add(MethodMatcher.create().modifiers(Modifier.PUBLIC | Modifier.FINAL)
-                                    .returnType(Object.class).name("invokeSuspend").paramTypes(Object.class)))));
-
-            var zpj0InterfaceList = bridge
-                    .findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("premium_row")));
-            var cbpInterfaceList = bridge.findClass(FindClass.create()
-                    .matcher(ClassMatcher.create().usingStrings("video_surface_view_seek_frame_tag")));
-
+            // Identify the destination in the live array before cloning. The wrapper,
+            // navigation props and instrumentation have changed independently of it.
             if (invokeSuspendMethods.isEmpty()) {
-                XposedBridge.log("[SpotifyPlus] whatever interface: " + whateverInterfaceList.size());
-                XposedBridge.log("[SpotifyPlus] icon interface: " + iconInterfaceList.size());
-                XposedBridge.log("[SpotifyPlus] wwk: " + wwkList.size());
-                XposedBridge.log("[SpotifyPlus] fwd0: " + fwd0Classes.size());
-                XposedBridge.log("[SpotifyPlus] dwd0: " + dwd0Classes.size());
-                XposedBridge.log("[SpotifyPlus] props: " + propertiesClasses.size());
-                XposedBridge.log("[SpotifyPlus] onClick: " + onClickClasses.size());
-                XposedBridge.log("[SpotifyPlus] qbp interface: " + qbpInterfaceList.size());
-                XposedBridge.log("[SpotifyPlus] zpj0 interface: " + zpj0InterfaceList.size());
-                XposedBridge.log("[SpotifyPlus] cbpInterface interface: " + cbpInterfaceList.size());
-
-                XposedBridge.log("[SpotifyPlus] Could not identify a side-drawer array mutation coroutine.");
+                XposedBridge.log("[SpotifyPlus] No side-drawer array callback matched");
                 return;
-            } else {
-                XposedBridge.log("[SpotifyPlus] Side-drawer runtime cloning enabled; legacy fingerprints: wrapper=" + fwd0Classes.size() + ", content=" + dwd0Classes.size() + ", props=" + propertiesClasses.size() + ", instrumentation=" + onClickClasses.size());
             }
-
-            // Class<?> cbpInterface =
-            // .get(0).getInstance(lpparm.classLoader).getInterfaces()[0];
-
-            // for(var interlace : modifyDataListClass) {
-            // XposedBridge.log("[SpotifyPlus] Found Class: " + interlace);
-            // }
 
             for (Method invokeSuspend : invokeSuspendMethods) XposedBridge.hookMethod(invokeSuspend, new XC_MethodHook() {
                 @Override
@@ -398,7 +243,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
                     Object tempalteLightning = tempalte;
 
-                    Object settingsButton = createSideDrawerButton("Spotify Plus Settings", tempalte, 2131957897, () -> {
+                    Object settingsButton = createSideDrawerButton(References.getString(R.string.settings_header), tempalte, settingsTitleId, () -> {
                         try {
                             XModuleResources modResources = References.modResources;
                             Activity activity = References.currentActivity;
@@ -489,7 +334,14 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                 });
 
                                 MaterialSwitch update = view.findViewById(R.id.switch_check_update);
-                                MaterialSwitch create = view.findViewById(R.id.switch_remove_create);
+                                MaterialSwitch swipePlayNext = view.findViewById(R.id.switch_swipe_play_next);
+                                MaterialSwitch nowPlayingHeart = view.findViewById(R.id.switch_now_playing_heart);
+                                nowPlayingHeart.setChecked(prefs.getBoolean(NowPlayingHeartHook.PREFERENCE, false));
+                                nowPlayingHeart.setOnCheckedChangeListener((check, value) -> prefs.edit().putBoolean(NowPlayingHeartHook.PREFERENCE, value).apply());
+                                ((View) nowPlayingHeart.getParent()).setOnClickListener(row -> nowPlayingHeart.toggle());
+                                swipePlayNext.setChecked(prefs.getBoolean(SwipePlayNextHook.PREFERENCE, false));
+                                swipePlayNext.setOnCheckedChangeListener((check, value) -> prefs.edit().putBoolean(SwipePlayNextHook.PREFERENCE, value).apply());
+                                ((View) swipePlayNext.getParent()).setOnClickListener(row -> swipePlayNext.toggle());
 
                                 update.setOnCheckedChangeListener((check, value) -> {
                                     prefs.edit().putBoolean("general_check_updates", value).apply();
@@ -525,7 +377,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                             prefs.edit().putString("last_fm_username", input.getText().toString()).apply();
 
                                             group.setVisibility(LinearLayout.VISIBLE);
-                                            textView.setText("Currently set to " + input.getText().toString());
+                                            textView.setText(References.getString(R.string.lastfm_set_to, input.getText().toString()));
                                             XposedHelpers.callMethod(sheet, "dismiss");
                                         });
 
@@ -533,7 +385,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                             prefs.edit().putString("last_fm_username", "null").apply();
 
                                             group.setVisibility(LinearLayout.INVISIBLE);
-                                            textView.setText("Currently set to ");
+                                            textView.setText(References.getString(R.string.lastfm_set_to, ""));
                                             sheet.dismiss();
                                         });
 
@@ -554,7 +406,6 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                 privateSession.setOnCheckedChangeListener((check, value) -> prefs.edit().putBoolean("private_session", value).apply());
 
                                 privateSession.setChecked(prefs.getBoolean("private_session", false));
-                                create.setOnCheckedChangeListener((check, value) -> prefs.edit().putBoolean("remove_create", value).apply());
 
                                 MaterialButton manageSleepTimers = view.findViewById(R.id.btn_manage_timers);
 
@@ -584,7 +435,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         }
 
                                         autoReorderSwitch.setChecked(autoReorder[0]);
-                                        hintView.setText(autoReorder[0] ? "Manual reordering is disabled while auto reorder is enabled." : "Hold and drag a preset to reorder it.");
+                                        hintView.setText(autoReorder[0] ? References.getString(R.string.sleep_timer_hint) : References.getString(R.string.ui_hold_and_drag_a_preset_to_reorder_it));
 
                                         SleepTimerPresetAdapter adapter = new SleepTimerPresetAdapter(themedCtxLast, modResources, inflaterLast, presets, () -> {
                                             boolean empty = presets.isEmpty();
@@ -603,7 +454,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                                 adapter.notifyDataSetChanged();
                                             }
 
-                                            hintView.setText(checked ? "Manual reordering is disabled while auto reorder is enabled." : "Hold and drag a preset to reorder it.");
+                                            hintView.setText(checked ? References.getString(R.string.sleep_timer_hint) : References.getString(R.string.ui_hold_and_drag_a_preset_to_reorder_it));
                                         });
 
                                         boolean empty = presets.isEmpty();
@@ -702,8 +553,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
                                 update.setChecked(prefs.getBoolean("general_check_updates", true));
                                 group.setVisibility(prefs.getString("last_fm_username", "null").equals("null") ? LinearLayout.INVISIBLE : LinearLayout.VISIBLE);
-                                textView.setText(prefs.getString("last_fm_username", "null").equals("null") ? "" : "Currently set to " + prefs.getString("last_fm_username", "null"));
-                                create.setChecked(prefs.getBoolean("remove_create", false));
+                                textView.setText(prefs.getString("last_fm_username", "null").equals("null") ? "" : References.getString(R.string.lastfm_set_to, prefs.getString("last_fm_username", "null")));
 
                                 String page = prefs.getString("startup_page", "HOME");
                                 home.setChecked(page.equals("HOME"));
@@ -756,7 +606,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         fontBeautifulLyrics.setChecked(false);
                                         fontApple.setChecked(false);
                                     } catch (Exception e) {
-                                        Toast.makeText(activity, "Failed to change font", Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(activity, References.getString(R.string.ui_failed_to_change_font), Toast.LENGTH_SHORT).show();
                                     }
                                 });
 
@@ -769,7 +619,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         fontBeautifulLyrics.setChecked(true);
                                         fontApple.setChecked(false);
                                     } catch (Exception e) {
-                                        Toast.makeText(activity, "Failed to change font", Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(activity, References.getString(R.string.ui_failed_to_change_font), Toast.LENGTH_SHORT).show();
                                     }
                                 });
 
@@ -782,7 +632,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                         fontBeautifulLyrics.setChecked(false);
                                         fontApple.setChecked(true);
                                     } catch (Exception e) {
-                                        Toast.makeText(activity, "Failed to change font", Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(activity, References.getString(R.string.ui_failed_to_change_font), Toast.LENGTH_SHORT).show();
                                     }
                                 });
 
@@ -841,23 +691,23 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                     String text;
                                     switch (Math.round(value)) {
                                         case 0:
-                                            text = "Compact";
+                                            text = References.getString(R.string.line_spacing_small);
                                             prefs.edit().putString("line_spacing", "compact").apply();
                                             break;
                                         case 1:
-                                            text = "Default";
+                                            text = References.getString(R.string.line_spacing_0);
                                             prefs.edit().putString("line_spacing", "default").apply();
                                             break;
                                         case 2:
-                                            text = "Spacious";
+                                            text = References.getString(R.string.line_spacing_1);
                                             prefs.edit().putString("line_spacing", "spacious").apply();
                                             break;
                                         case 3:
-                                            text = "More Spacious";
+                                            text = References.getString(R.string.line_spacing_2);
                                             prefs.edit().putString("line_spacing", "more").apply();
                                             break;
                                         case 4:
-                                            text = "Max";
+                                            text = References.getString(R.string.line_spacing_large);
                                             prefs.edit().putString("line_spacing", "max").apply();
                                             break;
                                         default:
@@ -1005,7 +855,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                     public void afterTextChanged(android.text.Editable editable) {
                                         String text = editable.toString();
                                         String language = LyricsTranslationService.normalizeTargetLanguage(text);
-                                        translationLanguageLayout.setError(!text.isBlank() && text.length() >= 2 && language.isEmpty() ? "Enter a valid ISO language code" : null);
+                                        translationLanguageLayout.setError(!text.isBlank() && text.length() >= 2 && language.isEmpty() ? References.getString(R.string.ui_enter_a_valid_iso_language_code) : null);
                                         if (!language.isEmpty()) prefs.edit().putString("lyrics_translation_language", language).apply();
                                     }
                                 });
@@ -1029,9 +879,35 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                                 scrollingAnimation.setOnCheckedChangeListener((button, value) -> prefs.edit().putBoolean("experiment_scroll", value).apply());
                                 scrollingAnimation.setChecked(prefs.getBoolean("experiment_scroll", true));
 
+                                MaterialSwitch nowPlayingView = view.findViewById(R.id.switch_now_playing_view);
+                                nowPlayingView.setChecked(prefs.getBoolean(NowPlayingViewHook.PREFERENCE, false));
+                                nowPlayingView.setOnCheckedChangeListener((button, value) -> {
+                                    prefs.edit().putBoolean(NowPlayingViewHook.PREFERENCE, value).apply();
+                                    NowPlayingViewHook.setEnabled(value);
+                                });
+                                view.findViewById(R.id.row_now_playing_view).setOnClickListener(w -> nowPlayingView.toggle());
+
+                                MaterialSwitch animatedTheme = view.findViewById(R.id.switch_animated_theme_background);
+                                animatedTheme.setChecked(prefs.getBoolean(ThemeHook.ANIMATED_BACKGROUND_PREFERENCE, false));
+                                animatedTheme.setOnCheckedChangeListener((button, value) -> {
+                                    prefs.edit().putBoolean(ThemeHook.ANIMATED_BACKGROUND_PREFERENCE, value).apply();
+                                    ThemeHook.setAnimatedBackgroundEnabled(value, lpparm.classLoader);
+                                });
+                                view.findViewById(R.id.row_animated_theme_background).setOnClickListener(w -> animatedTheme.toggle());
+
+                                MaterialSwitch driftBackground = view.findViewById(R.id.switch_drift_background);
+                                driftBackground.setChecked(prefs.getBoolean("experiment_drift_background", false));
+                                driftBackground.setOnCheckedChangeListener((button, value) -> prefs.edit().putBoolean("experiment_drift_background", value).apply());
+                                view.findViewById(R.id.row_drift_background).setOnClickListener(w -> driftBackground.toggle());
+
                                 MaterialSwitch newBackground = view.findViewById(R.id.switch_animated_art);
                                 newBackground.setOnCheckedChangeListener((button, value) -> prefs.edit().putBoolean("experiment_animated_art", value).apply());
                                 newBackground.setChecked(prefs.getBoolean("experiment_animated_art", true));
+                                MaterialSwitch immersiveArtwork = view.findViewById(R.id.switch_immersive_animated_art);
+                                immersiveArtwork.setChecked(prefs.getBoolean(ImmersiveAnimatedArtwork.PREFERENCE, false));
+                                immersiveArtwork.setOnCheckedChangeListener((button, value) -> prefs.edit()
+                                        .putBoolean(ImmersiveAnimatedArtwork.PREFERENCE, value).apply());
+                                view.findViewById(R.id.row_immersive_animated_art).setOnClickListener(w -> immersiveArtwork.toggle());
                             });
 
                             themeSettings.setOnClickListener(v -> {
@@ -1167,8 +1043,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
 
                     for (var item : scriptSideButtons.keySet()) {
                         Runnable run = scriptSideButtons.get(item);
-                        Array.set(newArray, index, createSideDrawerButton(item.second, tempalteLightning, resourceIdToUse, run));
-                        resourceIdToUse--;
+                        Array.set(newArray, index, createSideDrawerButton(item.second, tempalteLightning, SpotifyTitleOverride.registerTitle(item.second), run));
                         index++;
                     }
 
@@ -1257,7 +1132,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                 for (int i = 0; i < propsFields.size(); i++) if (propsFields.get(i).getType() == int.class || propsFields.get(i).getType() == Integer.class) integerFields.add(i);
                 if (integerFields.size() == 1) propsValues[integerFields.get(0)] = resId;
             }
-            SpotifyTitleOverride.overrideSpotifyStringById(resId, title);
+
             Object newProps = instantiateLike(originalProps.getClass(), propsValues);
             Object newContent = cloneReplacingIdentity(originalContent, originalProps, newProps, null);
             Object newButton = cloneReplacingIdentity(template, originalContent, newContent, idToUse++);
@@ -1352,11 +1227,11 @@ public class RemoveCreateButtonHook extends SpotifyHook {
     }
 
     private void runSideDrawerClick(int resId, Runnable onClick) {
-        if (resId == 2131957897 && !overlayShown.compareAndSet(false, true)) return;
+        if (resId == settingsTitleId && !overlayShown.compareAndSet(false, true)) return;
         try {
             onClick.run();
         } catch (Throwable throwable) {
-            if (resId == 2131957897) overlayShown.set(false);
+            if (resId == settingsTitleId) overlayShown.set(false);
             XposedBridge.log(throwable);
         }
     }
@@ -1513,8 +1388,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
         ArrayList<SleepTimerHook.SleepTimerInfo> presets = new ArrayList<>();
 
         try {
-            JSONArray array = new JSONArray(prefs.getString("custom_sleep_timers",
-                    "[{\"value\":5,\"unit\":false},{\"value\":10,\"unit\":false},{\"value\":15,\"unit\":false},{\"value\":30,\"unit\":false},{\"value\":45,\"unit\":false},{\"value\":1,\"unit\":true}]"));
+            JSONArray array = new JSONArray(prefs.getString("custom_sleep_timers", "[{\"value\":5,\"unit\":false},{\"value\":10,\"unit\":false},{\"value\":15,\"unit\":false},{\"value\":30,\"unit\":false},{\"value\":45,\"unit\":false},{\"value\":1,\"unit\":true}]"));
 
             for (int i = 0; i < array.length(); i++) {
                 JSONObject object = array.getJSONObject(i);
@@ -1715,7 +1589,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
                     if (syncing[0]) return;
                     String text = editable.toString();
                     boolean valid = text.matches("#?(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})");
-                    hexLayout.setError(!valid && text.length() >= 7 ? "Enter #RRGGBB or #AARRGGBB" : null);
+                    hexLayout.setError(!valid && text.length() >= 7 ? References.getString(R.string.ui_enter_rrggbb_or_aarrggbb) : null);
                     if (!valid) return;
                     selectedColor[0] = Color.parseColor(text.startsWith("#") ? text : "#" + text);
                     Color.colorToHSV(selectedColor[0], hsv);
@@ -1734,7 +1608,7 @@ public class RemoveCreateButtonHook extends SpotifyHook {
             select.setOnClickListener(v -> {
                 String text = hex.getText() == null ? "" : hex.getText().toString();
                 if (!text.matches("#?(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})")) {
-                    hexLayout.setError("Enter #RRGGBB or #AARRGGBB");
+                    hexLayout.setError(References.getString(R.string.ui_enter_rrggbb_or_aarrggbb));
                     return;
                 }
                 onColorSelected.accept(selectedColor[0]);

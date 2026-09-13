@@ -32,7 +32,7 @@
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:src="@drawable/lastfm"
-                android:contentDescription="Last.fm"/>
+                android:contentDescription="@string/lastfm_username_view_last_fm"/>
 
         <LinearLayout
                 android:layout_width="0dp"
@@ -45,7 +45,7 @@
                     android:id="@+id/lastfm_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Connect Last.fm"
+                    android:text="@string/lastfm_title"
                     android:textColor="@color/white"
                     android:textSize="22sp"
                     android:textStyle="bold"/>
@@ -55,7 +55,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Enter your Last.fm username to show your scrobbles in Spotify Plus."
+                    android:text="@string/lastfm_subtitle"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="14sp"
                     android:lineSpacingExtra="2dp"/>
@@ -69,7 +69,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="18dp"
-            android:hint="Last.fm username"
+            android:hint="@string/lastfm_hint"
             app:boxStrokeColor="#55FFFFFF"
             app:hintTextColor="#AAFFFFFF">
 
@@ -88,7 +88,7 @@
             android:id="@+id/btn_submit_lastfm"
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:text="Connect"
+            android:text="@string/lastfm_confirm"
             android:textAllCaps="false"
             android:textStyle="bold"
             app:cornerRadius="999dp"/>
@@ -105,7 +105,7 @@
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
-                android:text="Clear"
+                android:text="@string/lastfm_clear"
                 android:textAllCaps="false"
                 android:textColor="@color/white"
                 app:cornerRadius="999dp"/>
@@ -120,7 +120,7 @@
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
-                android:text="Cancel"
+                android:text="@string/lastfm_cancel"
                 android:textAllCaps="false"
                 android:textColor="@color/white"
                 app:cornerRadius="999dp"/>

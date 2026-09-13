@@ -10,8 +10,13 @@ public abstract class SpotifyHook {
     public void init(XC_LoadPackage.LoadPackageParam lpparm, DexKitBridge bridge) {
         this.lpparm = lpparm;
         this.bridge = bridge;
-        hook();
+        try {
+            hook();
+        } catch (Throwable error) {
+            // One changed Spotify feature must not prevent subsequent hooks from loading.
+            de.robv.android.xposed.XposedBridge.log("[SpotifyPlus][" + getClass().getSimpleName() + "] Initialization failed: " + error);
+        }
     }
 
-    protected abstract void hook();
+    protected abstract void hook() throws Exception;
 }

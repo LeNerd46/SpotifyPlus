@@ -1,6 +1,7 @@
 <div align="center">
-  
+
 # Spotify Plus
+
 Spotify Plus is the ultimate enhancement mod for Spotify
 
 Word by word lyrics, new features, customizations, and much more, all in one module
@@ -10,17 +11,19 @@ Word by word lyrics, new features, customizations, and much more, all in one mod
 <a href="https://t.me/spotifypluscool" target="_blank">
 ![Telegram Badge](https://telegram-badge.vercel.app/api/telegram-badge?channelId=@spotifypluscool)
 </a>
-![Static Badge](https://img.shields.io/badge/Spotify%20Version-9.1.68.1888-green?logo=spotify)
+![Static Badge](https://img.shields.io/badge/Spotify%20Version-9.1.82.2160-green?logo=spotify)
 ![GitHub Release](https://img.shields.io/github/v/release/LeNerd46/SpotifyPlus?color=lightgreen)
 
 </div>
 
 ## What Is Spotify Plus
 
-Spotify Plus is an Xposed module that enhances Spotify with new functionality, many quality of life improvements, and more customization, while preserving the native Spotify feel and experience.
+Spotify Plus is an Xposed module that enhances Spotify with new functionality, many quality of life improvements, and
+more customization, while preserving the native Spotify feel and experience.
 
 > [!IMPORTANT]
-> The latest recommended version of Spotify to use is v9.1.68.1888. The module is not guaranteed to work past this version
+> The latest recommended version of Spotify to use is v9.1.82.2160. The module is not guaranteed to work past this
+version
 
 ## Features
 
@@ -52,7 +55,10 @@ You can sync any line by line song you would like. Once you create your word by 
 
 <br/>
 
-Do you use [Last.fm](https://www.last.fm/)? Want to know how many times you've listened to a song directly inside of Spotify? Well you can with Spotify Plus! Just set your username in the Spotify Plus settings, and open the context menu on any song (the three dots)! It will tell you your scrobbles right there in the header. There will also be a button that will bring you directly to that song on the last.fm website
+Do you use [Last.fm](https://www.last.fm/)? Want to know how many times you've listened to a song directly inside of
+Spotify? Well you can with Spotify Plus! Just set your username in the Spotify Plus settings, and open the context menu
+on any song (the three dots)! It will tell you your scrobbles right there in the header. There will also be a button
+that will bring you directly to that song on the last.fm website
 
 </details>
 
@@ -100,7 +106,29 @@ Static album artwork images are pretty boring and outdated, right? Well fear no 
 
 <br/>
 
-Unlike Spotify's normal queue which removes songs after they're done playing, Play Next keeps songs in your playback history permanently, allowing you to easily jump back to them with the skip previous button.
+Unlike Spotify's normal queue which removes songs after they're done playing, Play Next keeps songs in your playback
+history permanently, allowing you to easily jump back to them with the skip previous button.
+
+</details>
+
+<details>
+<summary><b>❤️ Bring Back Like Button</b></summary>
+
+If you miss the like button, you can bring it back! I was never a fan of the add button or whatever it does, so now you
+can bring back the old like button
+
+</details>
+
+<details>
+<summary><b>🖥️ UI Changes</b></summary>
+
+There are a few UI changes you can apply depending on what you want. These are sitll experimental, so they may not
+function perfectly.
+
+- You can change have albums with animated album artwork appear more like Apple Music.
+- There's a redesigned now playing view which simplifies the UI and removes unecessary elements.
+- You can have an animated background instead of just a static color. It uses the current song's artwork for the
+  background.
 
 </details>
 
@@ -126,7 +154,8 @@ For Non Rooted Phones:
 
 1. Install the APK from the releases page
 2. Download a Spotify APK (you can get it [here](https://spotify.en.uptodown.com/android/download))
-3. Setup LSPatch (if using Android 15 or Android 16, using [this fork](https://github.com/JingMatrix/LSPatch). Shizuku not working? Try using [this fork](https://github.com/thedjchi/Shizuku))
+3. Setup LSPatch (if using Android 15 or Android 16, using [this fork](https://github.com/JingMatrix/LSPatch). Shizuku
+   not working? Try using [this fork](https://github.com/thedjchi/Shizuku))
 4. Press the plus button -> Select apk from storage -> and find your Spotify APK file
 5. Select Local, start the patch, and install the patched app
 6. Inside of LSPatch, tap on Spotify, select module scope, and select Spotify Plus
@@ -138,35 +167,49 @@ For Non Rooted Phones:
 ## FAQ
 
 **Spotify is telling me I can only use Spotify abroad for 14 days when trying to log in?**
-If Spotify tells you this, you have to sign in without your password. Spotify will send you an email to login. This should fix the issue. Make sure you have Spotify links set to open inside of the Spotify app inside of your Android settings.
+If Spotify tells you this, you have to sign in without your password. Spotify will send you an email to login. This
+should fix the issue. Make sure you have Spotify links set to open inside of the Spotify app inside of your Android
+settings.
 
 **Spotify Plus settings button is not showing up in the menu?**
-Check what the latest supported Spotify version is (see above). This is often one of the things that disappears when you have too new of a version.
+Check what the latest supported Spotify version is (see above). This is often one of the things that disappears when you
+have too new of a version.
 
 **Still have questions?**
 Feel free to join our [Telegram group](https://t.me/spotifypluscool). We'd be happy to help!
 
 ## Community
 
-Join the Spotify Plus community! We have a Telegram channel where you can discuss the module and give feedback and discuss directly. You can join [here](https://t.me/spotifypluscool)
+Join the Spotify Plus community! We have a Telegram channel where you can discuss the module and give feedback and
+discuss directly. You can join [here](https://t.me/spotifypluscool)
 
 ## Credit
 
 - [JingMatrix/Vector](https://github.com/JingMatrix/Vector) - Main Xposed framework
 - [LuckyPray/DexKit](https://github.com/LuckyPray/DexKit) - Dex parsing library, used for wide Spotify compatibility
-- [surfbryce/beautiful-lyrics](https://github.com/surfbryce/beautiful-lyrics) - The project that made me want to develop this module, also helped structure the lyrics
+- [surfbryce/beautiful-lyrics](https://github.com/surfbryce/beautiful-lyrics) - The project that made me want to develop
+  this module, also helped structure the lyrics
 
 ## Contributing
 
-Spotify Plus is an ambitious project, and help is always welcome. Whether you found a bug, have a feature you would love to see, or if you have a pull request, feel free to contribute however you can!
+Spotify Plus is an ambitious project, and help is always welcome. Whether you found a bug, have a feature you would love
+to see, or if you have a pull request, feel free to contribute however you can!
 
-Want to collaborate more closely? Feel comfortable in Java and TypeScript? Reach out to me through my email or on the Telegram and let's talk about it! Spotify Plus has grown into a much larger project than I ever expected. I'm working on a rewrite that will lay the groundwork for future extensions and a marketplace, very similar to spicetify, but for mobile. I would love to collaborate with other developers who are interested in helping out and are familiar with Java and/or TypeScript!
+Want to collaborate more closely? Feel comfortable in Java and TypeScript? Reach out to me through my email or on the
+Telegram and let's talk about it! Spotify Plus has grown into a much larger project than I ever expected. I'm working on
+a rewrite that will lay the groundwork for future extensions and a marketplace, very similar to spicetify, but for
+mobile. I would love to collaborate with other developers who are interested in helping out and are familiar with Java
+and/or TypeScript!
 
 ## Donating
 
-I started developing Spotify Plus because I thought Spotify could be so much more. It all started when I used the beautiful lyrics extension by surfbryce. It changed how I viewed music and how we can experience it, and from then on, I wanted to bring that experience to mobile.
+I started developing Spotify Plus because I thought Spotify could be so much more. It all started when I used the
+beautiful lyrics extension by surfbryce. It changed how I viewed music and how we can experience it, and from then on, I
+wanted to bring that experience to mobile.
 
-Spotify Plus is developed in my free time, and it will always remain free and open source. If you like my mission and what I'm building, and want to help support development, you can sponsor me on GitHub. By no means is it required, but any amount is appreciated ♥
+Spotify Plus is developed in my free time, and it will always remain free and open source. If you like my mission and
+what I'm building, and want to help support development, you can sponsor me on GitHub. By no means is it required, but
+any amount is appreciated ♥
 
 ---
 

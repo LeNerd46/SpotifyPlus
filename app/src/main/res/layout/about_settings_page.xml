@@ -48,7 +48,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Version"
+                                                android:text="@string/about_version"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -56,7 +56,7 @@
 
                                 <TextView android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="0.7.2" android:layout_marginEnd="8dp"
+                                        android:text="0.7.3" android:layout_marginEnd="8dp"
                                         android:layout_gravity="center_vertical" />
                         </LinearLayout>
 
@@ -72,7 +72,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="GitHub"
+                                                android:text="@string/about_github"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -99,7 +99,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Telegram"
+                                                android:text="@string/about_telegram"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -126,7 +126,7 @@
                                         <TextView
                                                 android:layout_width="wrap_content"
                                                 android:layout_height="wrap_content"
-                                                android:text="Made With ♡ By"
+                                                android:text="@string/about_developer"
                                                 android:textColor="@color/white"
                                                 android:textSize="15sp"
                                                 android:paddingBottom="4dp" />
@@ -134,7 +134,7 @@
 
                                 <TextView android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Devon Shoutz" android:layout_marginEnd="8dp"
+                                        android:text="@string/about_settings_page_devon_shoutz" android:layout_marginEnd="8dp"
                                         android:layout_gravity="center_vertical" />
                         </LinearLayout>
 

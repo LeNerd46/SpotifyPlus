@@ -1,19 +1,27 @@
 package com.lenerd46.spotifyplus.beautifullyrics.sync;
 
+import com.lenerd46.spotifyplus.R;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.view.*;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.*;
+import androidx.annotation.NonNull;
 import com.google.android.flexbox.FlexboxLayout;
 import com.google.android.flexbox.FlexWrap;
 import com.google.gson.JsonObject;
@@ -21,6 +29,8 @@ import com.lenerd46.spotifyplus.beautifullyrics.entities.GradientTextView;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.SyllableVocals;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.lyrics.SyllableMetadata;
 import com.lenerd46.spotifyplus.References;
+import com.lenerd46.spotifyplus.SpotifyUser;
+import com.lenerd46.spotifyplus.Utils;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.interludes.InterludeVisual;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.lyrics.Interlude;
 import com.lenerd46.spotifyplus.beautifullyrics.entities.lyrics.TimeMetadata;
@@ -28,7 +38,9 @@ import com.lenerd46.spotifyplus.beautifullyrics.sync.LyricsSyncDraft.*;
 
 import java.util.*;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
+import de.robv.android.xposed.XposedBridge;
 import okhttp3.*;
 
 public final class LyricsSyncEditor extends LinearLayout {
@@ -44,6 +56,10 @@ public final class LyricsSyncEditor extends LinearLayout {
     private final int lyricLineSpacing;
     private final View songBackground;
     private final LyricsSyncDraft draft;
+    private final JsonObject draftSource;
+    private boolean draftCleared;
+    private String lastSnapshot;
+    private long nextAutosave;
     private final LyricsSyncPlayer player;
     private final Host host;
 
@@ -84,8 +100,13 @@ public final class LyricsSyncEditor extends LinearLayout {
     private int pointer = -1;
 
     private double requestedPosition = -1;
+    private double readyPosition;
     private double previewEnd = -1;
     private boolean disposed, seeking, armed, saving, initialPass, draggingSeek;
+    private boolean protectionErrorShown;
+    private boolean backingPass;
+    private int editorReturnScroll = -1;
+    private final List<Part> backingQueue = new ArrayList<>();
     private boolean previewEntireSong;
     private boolean helpShown;
     private boolean correctLineTimings = true;
@@ -102,7 +123,9 @@ public final class LyricsSyncEditor extends LinearLayout {
         this.lyricFontSize = lyricFontSize;
         this.lyricLineSpacing = lyricLineSpacing;
         this.songBackground = songBackground;
-        this.draft = new LyricsSyncDraft(source);
+        LyricsSyncSession restored = LyricsSyncStore.load(context, trackId);
+        this.draftSource = restored == null ? source.deepCopy() : restored.source;
+        this.draft = restored == null ? new LyricsSyncDraft(source) : restored.draft;
         this.trackId = trackId;
         this.player = player;
         this.host = host;
@@ -117,7 +140,7 @@ public final class LyricsSyncEditor extends LinearLayout {
             return insets;
         });
 
-        status = text("Tap a word to split it into syllables. Backing vocals appear below each line.", 14);
+        status = text(References.getString(R.string.sync_prepare_hint), 14);
         addView(status);
 
         interludeRow = new FlexboxLayout(context);
@@ -141,12 +164,12 @@ public final class LyricsSyncEditor extends LinearLayout {
 
         elapsedTime = text("0:00", 13);
         elapsedTime.setSingleLine(true);
-        elapsedTime.setContentDescription("Playback position");
+        elapsedTime.setContentDescription(References.getString(R.string.sync_playback_position));
 
         totalTime = text("—", 13);
         totalTime.setSingleLine(true);
         totalTime.setGravity(Gravity.END);
-        totalTime.setContentDescription("Song duration");
+        totalTime.setContentDescription(References.getString(R.string.sync_song_duration));
         timeline.addView(elapsedTime);
 
         seek = new SeekBar(context);
@@ -174,14 +197,14 @@ public final class LyricsSyncEditor extends LinearLayout {
         LinearLayout transport = new LinearLayout(context);
         transport.setGravity(Gravity.CENTER);
 
-        back = button("−5 s", () -> player.seek(player.position() - 5));
-        play = button("Play", () -> {
+        back = button(References.getString(R.string.sync_seek_backward), () -> player.seek(player.position() - 5));
+        play = button(References.getString(R.string.sync_play), () -> {
             invalidateHold();
             if (player.playing()) player.pause();
             else player.play();
         });
 
-        forward = button("+5 s", () -> player.seek(player.position() + 5));
+        forward = button(References.getString(R.string.sync_seek_forward), () -> player.seek(player.position() + 5));
 
         for (Button b : new Button[]{back, play, forward}) {
             transport.addView(b, new LinearLayout.LayoutParams(0, -2, 1));
@@ -194,12 +217,14 @@ public final class LyricsSyncEditor extends LinearLayout {
         addView(actions);
 
         player.pause();
-        showSplit();
+        if (restored == null) showSplit();
+        else restoreSession(restored.state);
+        cacheProgress();
 
         handler.post(tick);
     }
 
-    private TextView text(String value, float size) {
+    private TextView text(CharSequence value, float size) {
         TextView t = new TextView(getContext());
 
         t.setText(value);
@@ -213,7 +238,10 @@ public final class LyricsSyncEditor extends LinearLayout {
     private Button button(String label, Runnable action) {
         Button b = LyricsSyncDialog.button(getContext(), label, false, false);
         b.setOnClickListener(v -> {
-            if (!disposed && !saving) action.run();
+            if (!disposed && !saving) {
+                action.run();
+                cacheProgress();
+            }
         });
 
         return b;
@@ -243,7 +271,34 @@ public final class LyricsSyncEditor extends LinearLayout {
         if (preferences.getBoolean("lyrics_sync_hide_guide", false)) return;
 
         helpShown = true;
-        dialog = new LyricsSyncDialog(getContext(), "Sync your lyrics", text("1. Prepare: tap a word to split it with the cursor. The highlighted sections in the field show each syllable.\n\n" + "2. Record: tap Confirm, then Start. The song restarts. Press and hold the screen while each syllable is sung. Then release to move on. So when the word starts being sung, press down on the screen. Then when it is finished being sung, you release your finger from the screen.\n\n" + "3. Refine: undo mistakes, redo lines, or tap syllables to adjust their times. Use All −10 ms / All +10 ms to shift the song. Sync backing vocals separately if you want them included.\n\n" + "4. Preview, then Save to share your sync with the community.", 15), "Got it", "Do not show again", false, () -> dialog.dismiss());
+        SpannableString helpText = new SpannableString(
+                References.getString(R.string.sync_desc, References.getString(R.string.sync_github_wiki))
+        );
+
+        String linkText = References.getString(R.string.sync_github_wiki);
+        int start = helpText.toString().indexOf(linkText);
+        int end = start + linkText.length();
+
+        if (start >= 0) helpText.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(@NonNull View widget) {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/LeNerd46/SpotifyPlus/wiki/Syncing-Songs"));
+                getContext().startActivity(intent);
+            }
+        }, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+        TextView helpView = text(helpText, 15);
+        helpView.setMovementMethod(LinkMovementMethod.getInstance());
+
+        dialog = new LyricsSyncDialog(
+                getContext(),
+                References.getString(R.string.sync_title),
+                helpView,
+                References.getString(R.string.sync_intro_confirm),
+                References.getString(R.string.sync_dismiss),
+                false,
+                () -> dialog.dismiss()
+        );
 
         dialog.setSecondaryAction(() -> {
             preferences.edit().putBoolean("lyrics_sync_hide_guide", true).apply();
@@ -321,7 +376,7 @@ public final class LyricsSyncEditor extends LinearLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-
+        player.protect(getContext());
         requestApplyInsets();
         post(this::updateBottomPadding);
     }
@@ -388,10 +443,11 @@ public final class LyricsSyncEditor extends LinearLayout {
     }
 
     private void showSplit() {
-        reset(Stage.SPLIT, "Tap a word to add or remove syllable splits.");
+        reset(Stage.SPLIT, References.getString(R.string.sync_tap_a_word_to_add_or_remove_syllable_splits));
         render(true, true);
-        action("Confirm", () -> ready(null));
-        action("Cancel", host::cancel);
+        action(References.getString(R.string.sync_confirm), () -> ready(null));
+        action(References.getString(R.string.sync_save_leave), this::requestCancel);
+        action(References.getString(R.string.sync_discard), this::requestDiscard);
     }
 
     private void render(boolean background, boolean split) {
@@ -427,8 +483,8 @@ public final class LyricsSyncEditor extends LinearLayout {
             if (stage == Stage.EDIT && !line.lead.words.isEmpty()) {
                 FlexboxLayout buttons = new FlexboxLayout(getContext());
                 buttons.setFlexWrap(FlexWrap.WRAP);
-                buttons.addView(button("Redo line", () -> ready(line.lead)));
-                buttons.addView(button("Preview line", () -> preview(line)));
+                buttons.addView(button(References.getString(R.string.sync_redo), () -> ready(line.lead)));
+                buttons.addView(button(References.getString(R.string.sync_preview_line), () -> preview(line)));
                 row.addView(buttons);
             }
 
@@ -437,9 +493,9 @@ public final class LyricsSyncEditor extends LinearLayout {
                 addVocal(row, vocal, true, split);
 
                 if (stage == Stage.EDIT) {
-                    row.addView(button(vocal.complete() ? "Redo backing vocals" : "Sync backing vocals", () -> ready(vocal)));
+                    row.addView(button(vocal.complete() ? References.getString(R.string.sync_redo_backing_vocals) : References.getString(R.string.sync_sync_backing_vocals), () -> ready(vocal)));
 
-                    if (vocal.hasTimings()) row.addView(button("Clear backing timings", () -> {
+                    if (vocal.hasTimings()) row.addView(button(References.getString(R.string.sync_clear_backing_timings), () -> {
                         vocal.clearTimings();
 
                         int y = scroll.getScrollY();
@@ -464,6 +520,7 @@ public final class LyricsSyncEditor extends LinearLayout {
 
         if (stage == Stage.PREVIEW && !vocal.words.isEmpty() && vocal.complete()) {
             List<SyllableMetadata> syllables = new ArrayList<>();
+
             for (Word word : vocal.words) {
                 for (int i = 0; i < word.parts.size(); i++) {
                     Part part = word.parts.get(i);
@@ -497,7 +554,7 @@ public final class LyricsSyncEditor extends LinearLayout {
                     group.addView(label);
                 }
 
-                group.setContentDescription("Split word " + word.splitText().replace("|", ", "));
+                group.setContentDescription(References.getString(R.string.sync_split_word, word.splitText().replace("|", ", ")));
                 group.setOnClickListener(v -> splitWord(word));
                 words.addView(group);
             } else {
@@ -520,9 +577,9 @@ public final class LyricsSyncEditor extends LinearLayout {
 
                     if (word.parts.size() > 1) styleSplitPart(label);
                     wordVisuals.put(part, new LyricsSyncWordVisual(label, background));
-                    label.setContentDescription(part.text + (stage == Stage.EDIT ? ", adjust timing" : ""));
+                    label.setContentDescription(stage == Stage.EDIT ? References.getString(R.string.sync_adjust_syllable, part.text) : part.text);
 
-                    if (stage == Stage.EDIT) label.setOnClickListener(v -> timing(vocal, part));
+                    if (stage == Stage.EDIT) label.setOnClickListener(v -> timing(vocal, word, part));
                     pieces.addView(label);
                 }
 
@@ -557,6 +614,7 @@ public final class LyricsSyncEditor extends LinearLayout {
     private void showDialog() {
         dialog.setOnDismissListener(d -> {
             if (!disposed) setVisibility(VISIBLE);
+            cacheProgress();
         });
 
         dialog.setSongBackground(songBackground);
@@ -572,15 +630,20 @@ public final class LyricsSyncEditor extends LinearLayout {
     }
 
     private void splitWord(Word word) {
+        splitWord(word, false);
+    }
+
+    private void splitWord(Word word, boolean preserveTiming) {
         LyricsSyncSplits panel = new LyricsSyncSplits(getContext(), word);
 
-        dialog = new LyricsSyncDialog(getContext(), "Split “" + word.text + "”", panel, "Save", "Cancel", false, () -> {
+        dialog = new LyricsSyncDialog(getContext(), References.getString(preserveTiming ? R.string.sync_syllables_title : R.string.sync_split_title, word.text), panel, References.getString(R.string.sleep_timer_save), References.getString(R.string.lastfm_cancel), false, () -> {
             try {
-                word.split(panel.splitText());
+                if (preserveTiming) word.splitWithEvenTimings(panel.splitText());
+                else word.split(panel.splitText());
                 dialog.dismiss();
 
                 int y = scroll.getScrollY();
-                render(true, true);
+                render(true, stage == Stage.SPLIT);
                 scroll.post(() -> scroll.scrollTo(0, y));
             } catch (IllegalArgumentException e) {
                 dialog.error(e.getMessage());
@@ -613,15 +676,22 @@ public final class LyricsSyncEditor extends LinearLayout {
     }
 
     private void ready(Vocal only) {
+        ready(only, null);
+    }
+
+    private void ready(Vocal only, JsonObject restored) {
+        if (stage == Stage.EDIT) editorReturnScroll = scroll.getScrollY();
         player.pause();
         invalidateHold();
         queue.clear();
         recordingIndexes.clear();
 
         index = 0;
-        initialPass = only == null;
+        initialPass = only == null && !backingPass;
 
-        if (only == null) {
+        if (backingPass) {
+            queue.addAll(backingQueue);
+        } else if (only == null) {
             for (Line l : draft.lines) {
                 queue.addAll(l.lead.parts());
             }
@@ -639,33 +709,54 @@ public final class LyricsSyncEditor extends LinearLayout {
         }
 
         pass = new LyricsSyncPass(queue);
-        reset(Stage.READY, "Press Start when ready. Hold anywhere in the lyrics for each word or syllable, then release to advance. Split syllables appear in separate chips.");
-        render(only != null, false);
+        if (restored != null) {
+            pass.restore(restored.getAsJsonObject("pass"));
+            index = pass.index();
+            if (pass.finished()) {
+                commitPass();
+                edit();
+                return;
+            }
+        }
+        reset(Stage.READY, References.getString(R.string.sync_hint));
+        render(only != null || backingPass, false);
 
-        double start = only == null ? 0 : Math.max(0, lineFor(only).lead.start(lineFor(only).originalStart) - (lineFor(only).lead == only ? 3 : 5));
+        Vocal firstVocal = backingPass ? vocalFor(queue.get(0)) : only;
+        double start = restored != null ? Math.max(0, restored.get("position").getAsDouble() - 2) : firstVocal == null ? 0 : Math.max(0, lineFor(firstVocal).lead.start(lineFor(firstVocal).originalStart) - (lineFor(firstVocal).lead == firstVocal ? 3 : 5));
+        readyPosition = restored == null ? start : restored.get("position").getAsDouble();
 
-        action("Start", () -> {
-            reset(Stage.RECORD, "Starting playback…");
-            action("Undo last syllable", this::undo);
-            action("Stop and edit", () -> {
+        action(restored == null ? References.getString(R.string.sync_start) : References.getString(R.string.ui_resume), () -> {
+            reset(Stage.RECORD, References.getString(R.string.sync_starting_playback));
+            action(References.getString(R.string.sync_undo), this::undo);
+            action(References.getString(R.string.sync_stop_edit), () -> {
                 cancelSeek();
                 player.pause();
                 invalidateHold();
 
-                if (initialPass) commitPass();
+                if (initialPass || backingPass) commitPass();
                 edit();
             });
             jumpAndPlay(start, () -> {
                 armed = true;
-                status.setText("Hold for the highlighted syllable, then release.");
+                status.setText(References.getString(R.string.sync_hold_for_the_highlighted_syllable_then_release));
             });
-            focus(queue.get(0));
+            focus(queue.get(index));
         });
 
-        action("Back", () -> {
-            if (only == null) showSplit();
+        action(References.getString(R.string.sync_back), () -> {
+            if (restored != null && (initialPass || backingPass)) commitPass();
+            if (restored != null) {
+                edit();
+                return;
+            }
+            if (only == null && !backingPass) showSplit();
             else edit();
         });
+        if (restored != null) {
+            status.setText(References.getString(R.string.sync_draft_restored));
+            updateRecordingVisuals();
+            focus(queue.get(index));
+        }
     }
 
     private void jumpAndPlay(double seconds, Runnable done) {
@@ -747,11 +838,12 @@ public final class LyricsSyncEditor extends LinearLayout {
             invalidateHold();
         }
 
+        if (!pass.holding()) cacheProgress();
         return true;
     }
 
     private void commitPass() {
-        pass.commit(initialPass);
+        pass.commit(initialPass || backingPass);
     }
 
     private void undo() {
@@ -771,61 +863,98 @@ public final class LyricsSyncEditor extends LinearLayout {
 
         if (row != null && scrolledVocal != vocal) {
             scrolledVocal = vocal;
-            scroll.post(() -> scroll.smoothScrollTo(0, row.getTop()));
+            scroll.post(() -> {
+                if (!disposed && stage == Stage.RECORD && scrolledVocal == vocal)
+                    scroll.smoothScrollTo(0, row.getTop());
+            });
         }
 
-        scroll.setContentDescription("Hold anywhere in the lyrics to sync “" + part.text + "”, syllable " + (index + 1) + " of " + queue.size());
+        scroll.setContentDescription(References.getString(R.string.sync_hold_syllable, part.text, index + 1, queue.size()));
     }
 
     private void edit() {
         cancelSeek();
         invalidateHold();
-        reset(Stage.EDIT, "");
+        backingPass = false;
+        reset(Stage.EDIT, References.getString(R.string.sync_edit_hint));
         render(true, false);
 
-        action("Preview song", () -> preview(null));
-        action("Save", this::confirmSave);
-        action("Discard", this::requestCancel);
-        action("All −10 ms", () -> shiftSong(-10));
+        action(References.getString(R.string.sync_preview), () -> preview(null));
+        action(References.getString(R.string.sleep_timer_save), this::confirmSave);
+        action(References.getString(R.string.sync_discard), this::requestDiscard);
+        action(References.getString(R.string.sync_shift_all_earlier), () -> shiftSong(-10));
 
         ((FlexboxLayout.LayoutParams) actions.getChildAt(3).getLayoutParams()).setWrapBefore(true);
-        action("All +10 ms", () -> shiftSong(10));
+        action(References.getString(R.string.sync_shift_all_later), () -> shiftSong(10));
+        action(References.getString(R.string.sync_save_leave), this::requestCancel);
+        action(References.getString(R.string.sync_remaining_backing), this::readyBacking);
+        if (editorReturnScroll >= 0) {
+            int y = editorReturnScroll;
+            editorReturnScroll = -1;
+            scroll.fling(0);
+            scroll.post(() -> {
+                if (!disposed && stage == Stage.EDIT) scroll.scrollTo(0, y);
+            });
+        }
+    }
+
+    private void readyBacking() {
+        backingQueue.clear();
+        backingQueue.addAll(draft.remainingBackingParts());
+
+        if (backingQueue.isEmpty()) {
+            message(References.getString(R.string.sync_all_backing_vocals_are_already_synced));
+            return;
+        }
+
+        backingPass = true;
+        ready(vocalFor(backingQueue.get(0)));
     }
 
     private void shiftSong(int milliseconds) {
         try {
             draft.shiftTimings(milliseconds, player.hasKnownDuration() ? player.durationMs() / 1000d : Double.POSITIVE_INFINITY);
-            Toast.makeText(getContext(), "All synced vocals moved 10 ms " + (milliseconds < 0 ? "earlier" : "later"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), References.getString(milliseconds < 0 ? R.string.sync_shift_earlier : R.string.sync_shift_later), Toast.LENGTH_SHORT).show();
         } catch (IllegalArgumentException e) {
             message(e.getMessage());
         }
     }
 
-    private void timing(Vocal vocal, Part part) {
+    private void timing(Vocal vocal, Word word, Part part) {
         player.pause();
 
         LinearLayout panel = new LinearLayout(getContext());
         panel.setOrientation(VERTICAL);
-        EditText start = timingInput(panel, "Start (milliseconds)", part.start), end = timingInput(panel, "End (milliseconds)", part.end);
+        EditText start = timingInput(panel, References.getString(R.string.sync_start_milliseconds), part.start), end = timingInput(panel, References.getString(R.string.sync_end_milliseconds), part.end);
+        Button splits = button(References.getString(R.string.sync_split_or_join_syllables), () -> {
+            dialog.dismiss();
+            splitWord(word, true);
+        });
+        LinearLayout.LayoutParams splitParams = new LinearLayout.LayoutParams(-1, -2);
+        splitParams.setMargins(0, dp(12), 0, 0);
+        panel.addView(splits, splitParams);
+        panel.addView(text(References.getString(R.string.sync_split_timing_hint), 13));
 
-        dialog = new LyricsSyncDialog(getContext(), "Timing: " + part.text, panel, "Save", "Cancel", false, () -> {
+        dialog = new LyricsSyncDialog(getContext(), References.getString(R.string.sync_timing_title, part.text), panel, References.getString(R.string.sleep_timer_save), References.getString(R.string.lastfm_cancel), false, () -> {
             try {
                 double a = Long.parseLong(start.getText().toString()) / 1000d, b = Long.parseLong(end.getText().toString()) / 1000d;
                 List<Part> parts = vocal.parts();
                 int at = parts.indexOf(part);
 
                 if (a < 0 || b <= a || (player.hasKnownDuration() && b > player.durationMs() / 1000d))
-                    throw new IllegalArgumentException("Start must be before end, within the song.");
+                    throw new IllegalArgumentException(References.getString(R.string.sync_start_must_be_before_end_within_the_song));
 
-                if ((at > 0 && parts.get(at - 1).end > a) || (at + 1 < parts.size() && parts.get(at + 1).start >= 0 && b > parts.get(at + 1).start))
-                    throw new IllegalArgumentException("This timing overlaps a neighboring syllable.");
+                if (at > 0 && parts.get(at - 1).end > a)
+                    throw new IllegalArgumentException(References.getString(R.string.sync_overlap_previous, parts.get(at - 1).text, Math.round(parts.get(at - 1).end * 1000)));
+                if (at + 1 < parts.size() && parts.get(at + 1).start >= 0 && b > parts.get(at + 1).start)
+                    throw new IllegalArgumentException(References.getString(R.string.sync_overlap_next, parts.get(at + 1).text, Math.round(parts.get(at + 1).start * 1000)));
 
                 part.start = a;
                 part.end = b;
 
                 dialog.dismiss();
             } catch (IllegalArgumentException e) {
-                dialog.error(e instanceof NumberFormatException ? "Enter milliseconds as a whole number." : e.getMessage());
+                dialog.error(e instanceof NumberFormatException ? References.getString(R.string.sync_enter_milliseconds_as_a_whole_number) : e.getMessage());
             }
         });
         showDialog();
@@ -861,11 +990,17 @@ public final class LyricsSyncEditor extends LinearLayout {
 
     private void preview(Line only) {
         if (only == null && !draft.complete()) {
-            message("Finish lead timings, and finish or clear partially synced backing vocals before previewing.");
+            try {
+                draft.toJson(false);
+            } catch (TimingProblem problem) {
+                showTimingProblem(problem);
+            } catch (IllegalArgumentException error) {
+                message(error.getMessage());
+            }
             return;
         }
 
-        reset(Stage.PREVIEW, "Watch the highlighting with your timings.");
+        reset(Stage.PREVIEW, References.getString(R.string.sync_watch_the_highlighting_with_your_timings));
         render(true, false);
         previewGaps = new ArrayList<>();
         List<double[]> intervals = new ArrayList<>();
@@ -898,7 +1033,7 @@ public final class LyricsSyncEditor extends LinearLayout {
             previewEnd += 1;
         }
 
-        action("Back to editor", () -> {
+        action(References.getString(R.string.sync_back_to_editor), () -> {
             cancelSeek();
             player.pause();
             edit();
@@ -910,18 +1045,27 @@ public final class LyricsSyncEditor extends LinearLayout {
 
     public void requestCancel() {
         if (saving) return;
+        cacheProgress();
+        invalidateHold();
+        player.pause();
+        host.cancel();
+    }
+
+    private void requestDiscard() {
+        if (saving) return;
         if (dialog != null && dialog.isShowing()) return;
 
         if (seeking) {
             cancelSeek();
-            if (stage == Stage.RECORD && initialPass) commitPass();
+            if (stage == Stage.RECORD && (initialPass || backingPass)) commitPass();
             edit();
         }
 
         invalidateHold();
         player.pause();
 
-        dialog = new LyricsSyncDialog(getContext(), "Discard this sync?", text("All syllable splits and timings for this song will be lost.", 16), "Discard", "Keep editing", true, () -> {
+        dialog = new LyricsSyncDialog(getContext(), References.getString(R.string.sync_discard_title), text(References.getString(R.string.sync_discard_subtitle), 16), References.getString(R.string.sync_discard), References.getString(R.string.sync_discard_keep), true, () -> {
+            clearDraft();
             dialog.dismiss();
             host.cancel();
         });
@@ -933,17 +1077,15 @@ public final class LyricsSyncEditor extends LinearLayout {
         player.pause();
         long unsynced = draft.unsyncedBackingCount();
         if (unsynced > 0) {
-            boolean partial = draft.lines.stream().flatMap(line -> line.background.stream())
-                    .anyMatch(vocal -> vocal.hasTimings() && !vocal.complete());
-            String warning = "You have not synced all the backing vocals. " + unsynced
-                    + (unsynced == 1 ? " backing vocal is" : " backing vocals are")
-                    + " still incomplete. Untimed backing vocals will be left out of the saved lyrics.";
-            if (partial) warning += " Partially synced backing vocals must be finished or have their timings cleared before saving.";
-            dialog = new LyricsSyncDialog(getContext(), "Unsynced backing vocals", text(warning, 16),
-                    "Continue", "Go back", false, () -> {
-                        dialog.dismiss();
-                        showSaveConfirmation();
-                    });
+            boolean partial = draft.lines.stream().flatMap(line -> line.background.stream()).anyMatch(vocal -> vocal.hasTimings() && !vocal.complete());
+            String warning = References.getQuantityString(R.plurals.sync_incomplete_backing, Math.toIntExact(unsynced), unsynced);
+            if (partial)
+                warning += "\n\n" + References.getString(R.string.sync_partial_backing_warning);
+            dialog = new LyricsSyncDialog(getContext(), References.getString(R.string.sync_missing_backing), text(warning, 16),
+                    References.getString(R.string.sync_missing_backing_confirm), References.getString(R.string.sync_missing_backing_cancel), false, () -> {
+                dialog.dismiss();
+                showSaveConfirmation();
+            });
             showDialog();
             return;
         }
@@ -953,66 +1095,271 @@ public final class LyricsSyncEditor extends LinearLayout {
     private void showSaveConfirmation() {
         LinearLayout panel = new LinearLayout(getContext());
         panel.setOrientation(VERTICAL);
-        panel.addView(text("You are about the submit these lyrics publicly. These lyrics will be available for everyone", 16));
-        panel.addView(text("You can adjust the timings of the lines to match the original line timings if you would like. This will take all of your timings, and line up the beginning with the original line by line timing. This is mainly intended for people using BlueTooth devices. This should compensate for any audio delay.", 16));
+        panel.addView(text(References.getString(R.string.sync_submit_desc_0), 16));
+        panel.addView(text(References.getString(R.string.sync_submit_desc_1), 16));
 
         LinearLayout correctionRow = new LinearLayout(getContext());
         correctionRow.setGravity(Gravity.CENTER_VERTICAL);
         correctionRow.setPadding(0, dp(16), 0, dp(8));
-        TextView correctionLabel = text("Correct using original line timings", 14);
+        TextView correctionLabel = text(References.getString(R.string.sync_submit_correction), 14);
         correctionLabel.setPadding(0, 0, dp(16), 0);
         correctionRow.addView(correctionLabel, new LinearLayout.LayoutParams(0, -2, 1));
         Switch correction = LyricsSyncDialog.toggle(getContext());
-        correction.setContentDescription("Correct using original line timings");
+        correction.setContentDescription(References.getString(R.string.sync_submit_correction));
         correction.setChecked(correctLineTimings);
         correction.setOnCheckedChangeListener((button, checked) -> correctLineTimings = checked);
         correctionRow.setOnClickListener(v -> correction.performClick());
         correctionRow.addView(correction, new LinearLayout.LayoutParams(-2, dp(48)));
         panel.addView(correctionRow);
 
-        dialog = new LyricsSyncDialog(getContext(), "Save community sync?", panel, "Save", "Keep editing", false, this::save);
+        dialog = new LyricsSyncDialog(getContext(), References.getString(R.string.sync_submit_title), panel, References.getString(R.string.sync_missing_backing_confirm), References.getString(R.string.sync_discard_keep), false, this::showMetadataDialog);
         showDialog();
     }
 
-    private void save() {
+    private void showMetadataDialog() {
+        dialog.dismiss();
+
+        LinearLayout panel = new LinearLayout(getContext());
+        panel.setOrientation(VERTICAL);
+        panel.addView(text(References.getString(R.string.sync_credit_desc), 16));
+
+        RadioGroup choices = new RadioGroup(getContext());
+        choices.setOrientation(VERTICAL);
+        choices.setPadding(0, dp(12), 0, 0);
+
+        RadioButton spotifyChoice = metadataChoice(References.getString(R.string.sync_credit_0));
+        RadioButton customChoice = metadataChoice(References.getString(R.string.sync_credit_1));
+        RadioButton anonymousChoice = metadataChoice(References.getString(R.string.sync_credit_2));
+        choices.addView(spotifyChoice);
+        choices.addView(customChoice);
+        choices.addView(anonymousChoice);
+        panel.addView(choices);
+
+        TextView spotifyStatus = text(References.getString(R.string.sync_profile_credit_description), 14);
+        spotifyStatus.setPadding(dp(36), dp(4), 0, dp(8));
+        spotifyStatus.setVisibility(GONE);
+        panel.addView(spotifyStatus);
+
+        LinearLayout customFields = new LinearLayout(getContext());
+        customFields.setOrientation(VERTICAL);
+        customFields.setPadding(dp(36), dp(4), 0, dp(8));
+
+        EditText usernameInput = metadataInput(References.getString(R.string.sync_credit_username_placeholder), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        EditText avatarInput = metadataInput(References.getString(R.string.sync_credit_avatar_placeholder), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        customFields.addView(usernameInput);
+        LinearLayout.LayoutParams avatarInputParams = new LinearLayout.LayoutParams(-1, -2);
+        avatarInputParams.topMargin = dp(8);
+        customFields.addView(avatarInput, avatarInputParams);
+        customFields.setVisibility(GONE);
+        panel.addView(customFields);
+
+        SpotifyUser[] spotifyUser = new SpotifyUser[1];
+        LyricsSyncDialog[] metadataDialog = new LyricsSyncDialog[1];
+
+        choices.setOnCheckedChangeListener((group, checkedId) -> {
+            boolean useSpotify = checkedId == spotifyChoice.getId();
+            customFields.setVisibility(checkedId == customChoice.getId() ? VISIBLE : GONE);
+            spotifyStatus.setVisibility(useSpotify ? VISIBLE : GONE);
+            if (metadataDialog[0] != null) metadataDialog[0].setPrimaryState(References.getString(R.string.sync_credit_confirm), true);
+
+            if (!useSpotify || spotifyUser[0] != null) return;
+
+            spotifyStatus.setText(References.getString(R.string.sync_loading_your_spotify_profile));
+            Utils.getSpotifyUser().whenComplete((user, error) -> handler.post(() -> {
+                if (disposed || dialog != metadataDialog[0] || !metadataDialog[0].isShowing()) return;
+                if (error != null) {
+                    XposedBridge.log(error);
+                    spotifyStatus.setText(References.getString(R.string.sync_profile_load_failed));
+                    return;
+                }
+
+                spotifyUser[0] = user;
+                spotifyStatus.setText(References.getString(user.getProfileImageUrl() == null ? R.string.sync_profile_no_photo : R.string.sync_profile_with_photo, user.getCreditName()));
+            }));
+        });
+
+        metadataDialog[0] = new LyricsSyncDialog(getContext(), References.getString(R.string.sync_credit_title), panel, References.getString(R.string.sync_credit_confirm), References.getString(R.string.sync_back), false, () -> {
+            int selected = choices.getCheckedRadioButtonId();
+            if (selected == -1) {
+                metadataDialog[0].error(References.getString(R.string.sync_choose_an_option_before_submitting));
+                return;
+            }
+
+            if (selected == anonymousChoice.getId()) {
+                save(null);
+                return;
+            }
+
+            if (selected == customChoice.getId()) {
+                String username = usernameInput.getText().toString().trim();
+                String avatar = avatarInput.getText().toString().trim();
+                if (username.isEmpty()) {
+                    metadataDialog[0].error(References.getString(R.string.sync_enter_a_username_or_choose_another_option));
+                    usernameInput.requestFocus();
+                    return;
+                }
+                if (!avatar.isEmpty() && !isHttpUrl(avatar)) {
+                    metadataDialog[0].error(References.getString(R.string.sync_enter_a_valid_http_or_https_avatar_url));
+                    avatarInput.requestFocus();
+                    return;
+                }
+
+                save(submissionUser(username, avatar));
+                return;
+            }
+
+            SpotifyUser loadedUser = spotifyUser[0];
+            if (loadedUser != null) {
+                save(submissionUser(loadedUser.getCreditName(), loadedUser.getProfileImageUrl()));
+                return;
+            }
+
+            metadataDialog[0].setPrimaryState(References.getString(R.string.sync_loading_spotify_profile), false);
+            Utils.getSpotifyUser().whenComplete((user, error) -> handler.post(() -> {
+                if (disposed || dialog != metadataDialog[0] || !metadataDialog[0].isShowing()) return;
+                if (error != null) {
+                    metadataDialog[0].setPrimaryState(References.getString(R.string.sync_credit_confirm), true);
+                    metadataDialog[0].error(References.getString(R.string.sync_profile_connection_error));
+                    return;
+                }
+
+                spotifyUser[0] = user;
+                if (choices.getCheckedRadioButtonId() != spotifyChoice.getId()) {
+                    metadataDialog[0].setPrimaryState(References.getString(R.string.sync_credit_confirm), true);
+                    return;
+                }
+                save(submissionUser(user.getCreditName(), user.getProfileImageUrl()));
+            }));
+        });
+        metadataDialog[0].setSecondaryAction(() -> {
+            metadataDialog[0].dismiss();
+            showSaveConfirmation();
+        });
+        dialog = metadataDialog[0];
+        showDialog();
+    }
+
+    private RadioButton metadataChoice(String label) {
+        RadioButton choice = new RadioButton(getContext());
+        choice.setId(View.generateViewId());
+        choice.setText(label);
+        choice.setTextColor(Color.WHITE);
+        choice.setTextSize(16);
+        choice.setGravity(Gravity.CENTER_VERTICAL);
+        choice.setMinHeight(dp(48));
+        choice.setPadding(dp(4), 0, 0, 0);
+        return choice;
+    }
+
+    private EditText metadataInput(String hint, int inputType) {
+        EditText input = new EditText(getContext());
+        input.setHint(hint);
+        input.setInputType(inputType);
+        input.setSingleLine(true);
+        LyricsSyncDialog.styleInput(input);
+        return input;
+    }
+
+    private boolean isHttpUrl(String value) {
+        HttpUrl url = HttpUrl.parse(value);
+        return url != null && (url.scheme().equals("http") || url.scheme().equals("https"));
+    }
+
+    private JsonObject submissionUser(String username, String avatar) {
+        JsonObject user = new JsonObject();
+        user.addProperty("username", username.trim());
+        if (avatar != null && !avatar.isBlank()) user.addProperty("avatar", avatar.trim());
+        return user;
+    }
+
+    private void showTimingProblem(TimingProblem problem) {
+        edit();
+        View first = null;
+        List<View> issueRows = new ArrayList<>();
+        for (Part part : problem.parts) {
+            GradientTextView label = labels.get(part);
+            if (label == null) continue;
+            label.setBackgroundColor(0xB3A52232);
+            label.setContentDescription(References.getString(R.string.sync_timing_attention, part.text));
+            View row = rows.get(vocalFor(part));
+            if (row != null && !issueRows.contains(row)) {
+                issueRows.add(row);
+                TextView marker = text(References.getString(R.string.sync_timing_issue, draft.lines.indexOf(lineFor(vocalFor(part))) + 1), 13);
+                marker.setTextColor(0xFFFFB4BF);
+                ((LinearLayout) row).addView(marker, 0);
+            }
+            if (first == null) first = row;
+        }
+        if (issueRows.size() > 1) {
+            int[] nextIssue = {0};
+            action(References.getString(R.string.sync_next_issue), () -> {
+                nextIssue[0] = (nextIssue[0] + 1) % issueRows.size();
+                scroll.smoothScrollTo(0, issueRows.get(nextIssue[0]).getTop());
+            });
+        }
+        status.setVisibility(VISIBLE);
+        status.setText(References.getString(R.string.sync_fix_timing, problem.getMessage()));
+        View target = first;
+        if (target != null) scroll.post(() -> {
+            if (!disposed && stage == Stage.EDIT) scroll.scrollTo(0, target.getTop());
+        });
+    }
+
+    private void save(JsonObject user) {
         JsonObject result;
 
         try {
             result = draft.toJson(correctLineTimings);
             if (player.hasKnownDuration() && result.get("EndTime").getAsDouble() > player.durationMs() / 1000d) {
-                throw new IllegalArgumentException("Timings extend past the song. Adjust them or turn off line timing correction.");
+                throw new IllegalArgumentException(References.getString(R.string.sync_timings_past_end));
             }
         } catch (IllegalArgumentException e) {
-            dialog.error(e.getMessage());
+            if (e instanceof TimingProblem) {
+                dialog.dismiss();
+                showTimingProblem((TimingProblem) e);
+            } else dialog.error(e.getMessage());
             return;
         }
 
         dialog.dismiss();
         player.pause();
         saving = true;
-        status.setText("Saving community sync…");
+        status.setText(References.getString(R.string.sync_saving_community_sync));
         status.setVisibility(VISIBLE);
 
         setEnabledRecursively(this, false);
-        Request request = new Request.Builder().url("https://spotifyplus-api.devon-shoutz.workers.dev/api/lyrics/" + trackId).post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), result.toString())).build();
+        JsonObject requestBody = new JsonObject();
+        requestBody.add("lyrics", result);
+        if (user != null) requestBody.add("user", user);
+        JsonObject fallbackSavedLyrics = result.deepCopy();
+        if (user != null) fallbackSavedLyrics.add("SubmittedBy", user.deepCopy());
+        Request request = new Request.Builder().url("https://spotifyplus-api.devon-shoutz.workers.dev/api/lyrics/" + trackId).post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), requestBody.toString())).build();
         submission = new OkHttpClient().newCall(request);
 
         submission.enqueue(new Callback() {
             public void onFailure(Call call, IOException e) {
-                handler.post(() -> saveFailed("Could not save. Your draft is still here; check your connection and retry."));
+                handler.post(() -> saveFailed(References.getString(R.string.sync_save_connection_error)));
             }
 
             public void onResponse(Call call, Response response) {
                 try (Response r = response) {
                     if (r.isSuccessful()) {
+                        JsonObject savedLyrics = fallbackSavedLyrics;
+                        if (r.body() != null) try {
+                            savedLyrics = com.google.gson.JsonParser.parseString(r.body().string()).getAsJsonObject();
+                        } catch (Exception ignored) {
+                        }
+
+                        JsonObject finalSavedLyrics = savedLyrics;
                         handler.post(() -> {
                             if (!disposed) {
                                 saving = false;
-                                host.saved(result);
+                                clearDraft();
+                                host.saved(finalSavedLyrics);
                             }
                         });
                     } else {
-                        String detail = "Server rejected the sync (" + r.code() + "). Your draft is still here.";
+                        String detail = References.getString(R.string.sync_server_rejected, r.code());
 
                         if (r.body() != null) try {
                             JsonObject error = com.google.gson.JsonParser.parseString(r.body().string()).getAsJsonObject();
@@ -1116,8 +1463,41 @@ public final class LyricsSyncEditor extends LinearLayout {
     private final Runnable tick = new Runnable() {
         public void run() {
             if (disposed) return;
+            if (SystemClock.elapsedRealtime() >= nextAutosave) {
+                cacheProgress();
+                nextAutosave = SystemClock.elapsedRealtime() + 2000;
+            }
 
+            if (!player.ready()) {
+                player.pause();
+                play.setEnabled(false);
+                status.setVisibility(VISIBLE);
+                status.setText(player.protectionError() == null ? References.getString(R.string.sync_temporarily_disabling_crossfade) : player.protectionError());
+
+                if (!protectionErrorShown && player.protectionError() != null) {
+                    protectionErrorShown = true;
+                    message(player.protectionError());
+                }
+
+                handler.postDelayed(this, 33);
+                return;
+            }
+
+            if (!saving) play.setEnabled(stage != Stage.READY && stage != Stage.FINISHING);
             double now = player.position();
+
+            if (player.guardEnd()) {
+                cancelSeek();
+
+                if (stage == Stage.RECORD) {
+                    if (pass.holding()) pass.release(now, true);
+                    pass.commit(true);
+                    edit();
+                }
+
+                status.setVisibility(VISIBLE);
+                status.setText(References.getString(R.string.sync_paused_before_end));
+            }
             double[] activeGap = null;
 
             if (seeking) {
@@ -1133,10 +1513,10 @@ public final class LyricsSyncEditor extends LinearLayout {
                     cancelSeek();
                     player.pause();
 
-                    if (stage == Stage.RECORD && initialPass) commitPass();
+                    if (stage == Stage.RECORD && (initialPass || backingPass)) commitPass();
 
                     edit();
-                    message("Spotify did not confirm the seek. Try the line again.");
+                    message(References.getString(R.string.sync_spotify_did_not_confirm_the_seek_try_the_line));
                 }
             }
 
@@ -1150,16 +1530,16 @@ public final class LyricsSyncEditor extends LinearLayout {
                 totalTime.setText(knownDuration ? format(durationMs / 1000d) : "—");
             }
 
-            play.setText(player.playing() ? "Pause" : "Play");
+            play.setText(player.playing() ? References.getString(R.string.sync_pause) : References.getString(R.string.sync_play));
             if (stage == Stage.RECORD) {
                 if (!player.playing()) invalidateHold();
                 if (!seeking && knownDuration && now >= durationMs / 1000d - .02 && index < queue.size()) {
-                    if (initialPass) commitPass();
+                    if (initialPass || backingPass) commitPass();
 
                     edit();
-                    message("Playback ended. Use Redo line to finish any missing timings.");
+                    message(References.getString(R.string.sync_playback_ended));
                 } else if (!seeking) {
-                    String hint = player.playing() ? "Hold for the highlighted syllable, then release." : "Playback paused. Press Play to continue.";
+                    String hint = player.playing() ? References.getString(R.string.sync_hold_for_the_highlighted_syllable_then_release) : References.getString(R.string.sync_playback_paused_press_play_to_continue);
 
                     if (!pass.holding() && (index == 0 || vocalFor(queue.get(index)) != vocalFor(queue.get(index - 1))))
                         for (double[] gap : draft.interludes) {
@@ -1233,7 +1613,9 @@ public final class LyricsSyncEditor extends LinearLayout {
     };
 
     public void dispose() {
+        cacheProgress();
         disposed = true;
+        player.close();
         cancelSeek();
         invalidateHold();
         handler.removeCallbacksAndMessages(null);
@@ -1249,17 +1631,95 @@ public final class LyricsSyncEditor extends LinearLayout {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus) cacheProgress();
 
         if (!hasFocus && stage == Stage.RECORD && !disposed) {
             invalidateHold();
             player.pause();
 
             if (seeking) {
+                JsonObject resume = new JsonObject();
+                resume.add("pass", pass.snapshot());
+                resume.addProperty("position", requestedPosition);
+                Vocal only = initialPass ? null : vocalFor(queue.get(0));
                 cancelSeek();
-                if (initialPass) commitPass();
-
-                edit();
+                ready(only, resume);
             }
         }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        cacheProgress();
+        super.onDetachedFromWindow();
+    }
+
+    private void clearDraft() {
+        draftCleared = true;
+        LyricsSyncStore.remove(getContext(), trackId);
+    }
+
+    private void cacheProgress() {
+        if (disposed || draftCleared) return;
+
+        JsonObject saved = LyricsSyncSession.snapshot(draftSource, draft);
+        saved.addProperty("stage", stage.name());
+        double position = stage == Stage.READY ? readyPosition : seeking ? requestedPosition : player.position();
+
+        if (stage == Stage.RECORD && pass != null) position = pass.checkpointPosition(position);
+
+        saved.addProperty("position", Math.max(0, position));
+        saved.addProperty("scroll", scroll.getScrollY());
+        saved.addProperty("correctLineTimings", correctLineTimings);
+
+        if (stage == Stage.READY || stage == Stage.RECORD) {
+            saved.addProperty("initialPass", initialPass);
+            saved.addProperty("backingPass", backingPass);
+            saved.addProperty("editorReturnScroll", editorReturnScroll);
+
+            if (backingPass) {
+                List<Part> all = draft.vocals().stream().flatMap(v -> v.parts().stream()).collect(Collectors.toList());
+                com.google.gson.JsonArray batch = new com.google.gson.JsonArray();
+                for (Part part : backingQueue) batch.add(all.indexOf(part));
+                saved.add("backingQueue", batch);
+            }
+
+            saved.addProperty("vocal", initialPass ? -1 : draft.vocals().indexOf(vocalFor(queue.get(0))));
+            saved.add("pass", pass.snapshot());
+        }
+
+        String json = saved.toString();
+        if (!json.equals(lastSnapshot)) {
+            LyricsSyncStore.save(getContext(), trackId, json);
+            lastSnapshot = json;
+        }
+    }
+
+    private void restoreSession(JsonObject saved) {
+        helpShown = true;
+        correctLineTimings = saved.get("correctLineTimings").getAsBoolean();
+        Stage previous = Stage.valueOf(saved.get("stage").getAsString());
+
+        if (previous == Stage.SPLIT) {
+            showSplit();
+        } else if (previous == Stage.RECORD || previous == Stage.READY) {
+            backingPass = saved.has("backingPass") && saved.get("backingPass").getAsBoolean();
+            editorReturnScroll = saved.has("editorReturnScroll") ? saved.get("editorReturnScroll").getAsInt() : -1;
+            backingQueue.clear();
+
+            if (backingPass) backingQueue.addAll(LyricsSyncSession.backingQueue(draft, saved));
+
+            Vocal only = saved.get("initialPass").getAsBoolean() ? null : draft.vocals().get(saved.get("vocal").getAsInt());
+            ready(only, saved);
+        } else {
+            edit();
+        }
+
+        if (stage != Stage.READY) {
+            int y = saved.get("scroll").getAsInt();
+            scroll.post(() -> scroll.scrollTo(0, y));
+        }
+
+        player.seek(saved.get("position").getAsDouble());
     }
 }

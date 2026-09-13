@@ -1,5 +1,6 @@
 package com.lenerd46.spotifyplus.hooks;
 
+import com.lenerd46.spotifyplus.R;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -166,7 +167,7 @@ public class LastFmHook extends SpotifyHook {
 
                                         Handler handler = new Handler(Looper.getMainLooper());
                                         handler.post(() -> {
-                                            Toast.makeText(activity, "Failed to fetch scrobbles", Toast.LENGTH_SHORT).show();
+                                            Toast.makeText(activity, References.getString(R.string.ui_failed_to_fetch_scrobbles), Toast.LENGTH_SHORT).show();
                                         });
                                     }
                                 } else {
@@ -174,7 +175,7 @@ public class LastFmHook extends SpotifyHook {
 
                                     Handler handler = new Handler(Looper.getMainLooper());
                                     handler.post(() -> {
-                                        Toast.makeText(activity, "Failed to fetch scrobbles", Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(activity, References.getString(R.string.ui_failed_to_fetch_scrobbles), Toast.LENGTH_SHORT).show();
                                     });
                                 }
                             }
@@ -185,7 +186,7 @@ public class LastFmHook extends SpotifyHook {
 
                                 Handler handler = new Handler(Looper.getMainLooper());
                                 handler.post(() -> {
-                                    Toast.makeText(activity, "Failed to fetch scrobbles", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(activity, References.getString(R.string.ui_failed_to_fetch_scrobbles), Toast.LENGTH_SHORT).show();
                                 });
                             }
                         });

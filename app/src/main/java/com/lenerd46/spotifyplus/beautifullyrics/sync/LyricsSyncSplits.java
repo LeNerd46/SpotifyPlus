@@ -1,5 +1,6 @@
 package com.lenerd46.spotifyplus.beautifullyrics.sync;
 
+import com.lenerd46.spotifyplus.R;
 import android.content.Context;
 import android.graphics.Color;
 import com.lenerd46.spotifyplus.References;
@@ -28,7 +29,7 @@ final class LyricsSyncSplits extends LinearLayout {
         }
 
         TextView hint = new TextView(context);
-        hint.setText("Place the cursor where a syllable ends, then tap Split here. Use the arrows for precise placement.");
+        hint.setText(References.getString(R.string.sync_split_cursor_hint));
         hint.setTextColor(Color.WHITE);
         hint.setTextSize(16);
         addView(hint);
@@ -47,19 +48,19 @@ final class LyricsSyncSplits extends LinearLayout {
         cursor.setTextSize(30);
         if (References.beautifulFont != null && References.beautifulFont.get() != null)
             cursor.setTypeface(References.beautifulFont.get());
-        cursor.setContentDescription("Position the syllable split cursor in " + word);
+        cursor.setContentDescription(References.getString(R.string.sync_cursor_word, word));
 
         LinearLayout controls = new LinearLayout(context);
 
         Button left = LyricsSyncDialog.button(context, "‹", false, false);
-        left.setContentDescription("Move cursor left");
+        left.setContentDescription(References.getString(R.string.sync_move_cursor_left));
         left.setOnClickListener(v -> moveCursor(false));
 
         Button right = LyricsSyncDialog.button(context, "›", false, false);
-        right.setContentDescription("Move cursor right");
+        right.setContentDescription(References.getString(R.string.sync_move_cursor_right));
         right.setOnClickListener(v -> moveCursor(true));
 
-        toggle = LyricsSyncDialog.button(context, "Split here", false, false);
+        toggle = LyricsSyncDialog.button(context, References.getString(R.string.sync_split_here), false, false);
         toggle.setOnClickListener(v -> {
             int at = cursor.wordSelectionStart();
             if (at <= 0 || at >= word.length() || !positions.contains(at)) return;
@@ -78,7 +79,7 @@ final class LyricsSyncSplits extends LinearLayout {
         fieldParams.setMargins(0, dp(16), 0, dp(12));
         addView(field, fieldParams);
 
-        clear = LyricsSyncDialog.button(context, "Join all syllables", false, false);
+        clear = LyricsSyncDialog.button(context, References.getString(R.string.sync_join_all_syllables), false, false);
         clear.setOnClickListener(v -> {
             cuts.clear();
             refresh();
@@ -110,7 +111,7 @@ final class LyricsSyncSplits extends LinearLayout {
         updateCursorAction();
         clear.setEnabled(!cuts.isEmpty());
         cursor.setSyllables(word, cuts);
-        cursor.setContentDescription("Position the syllable split cursor. Syllables: " + splitText().replace("|", ", "));
+        cursor.setContentDescription(References.getString(R.string.sync_cursor_syllables, splitText().replace("|", ", ")));
     }
 
     private void moveCursor(boolean right) {
@@ -127,7 +128,7 @@ final class LyricsSyncSplits extends LinearLayout {
 
         int at = cursor.wordSelectionStart();
         toggle.setEnabled(at > 0 && at < word.length() && positions.contains(at) && at == cursor.wordSelectionEnd());
-        toggle.setText(cuts.contains(at) ? "Join here" : "Split here");
+        toggle.setText(cuts.contains(at) ? References.getString(R.string.sync_join_here) : References.getString(R.string.sync_split_here));
     }
 
     private int dp(int value) {

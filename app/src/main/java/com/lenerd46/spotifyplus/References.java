@@ -39,6 +39,9 @@ public class References {
     public static WeakReference<Object> playerState = new WeakReference<>(null);
     public static WeakReference<Object> playerStateWrapper = new WeakReference<>(null);
     public static String accessToken = "";
+    public static String clientToken = "";
+    public static String spotifyUsername = "";
+    public static ClassLoader spotifyClassLoader;
     public static WeakReference<Typeface> beautifulFont = new WeakReference<>(null);
     public static WeakReference<Pair<String, String>> contextMenuTrack = new WeakReference<>(null);
     public static XModuleResources modResources = null;
@@ -169,6 +172,39 @@ public class References {
         if(activity == null) return null;
 
         return activity.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
+    }
+
+    public static String getString(int resId) {
+        if(modResources == null) return null;
+
+        try {
+            return modResources.getString(resId);
+        } catch(Exception e) {
+            XposedBridge.log(e);
+            return null;
+        }
+    }
+
+    public static String getString(int resId, Object... formatArgs) {
+        if(modResources == null) return null;
+
+        try {
+            return modResources.getString(resId, formatArgs);
+        } catch(Exception e) {
+            XposedBridge.log(e);
+            return null;
+        }
+    }
+
+    public static String getQuantityString(int resId, int quantity, Object... formatArgs) {
+        if (modResources == null) return null;
+
+        try {
+            return modResources.getQuantityString(resId, quantity, formatArgs);
+        } catch (Exception e) {
+            XposedBridge.log(e);
+            return null;
+        }
     }
 
     public static SharedPreferences getScriptPreferences(String name, Context activity) {

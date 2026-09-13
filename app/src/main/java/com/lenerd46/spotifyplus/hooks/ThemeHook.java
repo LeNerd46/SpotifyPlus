@@ -1,5 +1,13 @@
 package com.lenerd46.spotifyplus.hooks;
 
+import com.lenerd46.spotifyplus.theme.AlbumArtworkGradient;
+import com.lenerd46.spotifyplus.theme.AlbumGradientColors;
+import com.lenerd46.spotifyplus.theme.AnimatedThemeBackground;
+import com.lenerd46.spotifyplus.theme.AnimatedThemePalette;
+import com.lenerd46.spotifyplus.theme.NativePaletteRefresh;
+import com.lenerd46.spotifyplus.theme.PaletteColors;
+import com.lenerd46.spotifyplus.theme.StatusIconColors;
+
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
@@ -61,13 +69,58 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ThemeHook extends SpotifyHook {
 
+    public static final String ANIMATED_BACKGROUND_PREFERENCE = "experiment_animated_theme_background";
+    private static volatile boolean animatedBackgroundEnabled;
+    private static final AnimatedThemeBackground animatedBackground = new AnimatedThemeBackground();
+
+    private static int baseBackground() {
+        return themeEnabled && animatedBackgroundEnabled ? Color.TRANSPARENT : BACKGROUND;
+    }
+
+    static boolean usesAnimatedBackground() { return themeEnabled && animatedBackgroundEnabled; }
+    private static int textColor() { return usesAnimatedBackground() ? AnimatedThemePalette.TEXT : TEXT; }
+    private static int subduedColor() { return usesAnimatedBackground() ? AnimatedThemePalette.SUBDUED : TEXT_SUBDUED; }
+    private static int surfaceColor() { return usesAnimatedBackground() ? AnimatedThemePalette.SURFACE : SURFACE; }
+    private static int surfaceHighlight() { return usesAnimatedBackground() ? AnimatedThemePalette.HIGHLIGHT : SURFACE_HIGHLIGHT; }
+    private static int surfacePress() { return usesAnimatedBackground() ? AnimatedThemePalette.PRESS : SURFACE_PRESS; }
+    private static int tintedColor() { return usesAnimatedBackground() ? AnimatedThemePalette.TINTED : TINTED; }
+    private static int tintedHighlight() { return usesAnimatedBackground() ? AnimatedThemePalette.HIGHLIGHT : TINTED_HIGHLIGHT; }
+    private static int tintedPress() { return usesAnimatedBackground() ? AnimatedThemePalette.PRESS : TINTED_PRESS; }
+    private static int backgroundHighlight() { return usesAnimatedBackground() ? AnimatedThemePalette.HIGHLIGHT : BACKGROUND_HIGHLIGHT; }
+    private static int backgroundPress() { return usesAnimatedBackground() ? AnimatedThemePalette.PRESS : BACKGROUND_PRESS; }
+    private static int accentColor() {
+        return usesAnimatedBackground() ? ensureContrast(ACCENT, 0xFF666666, Color.WHITE, 3.0) : ACCENT;
+    }
+    private static int onAccentColor() { return usesAnimatedBackground() ? bestTextColor(accentColor()) : ON_ACCENT; }
+    private static int navigationFade() { return usesAnimatedBackground() ? AnimatedThemePalette.NAVIGATION : baseBackground(); }
+
+    public static void setAnimatedBackgroundEnabled(boolean enabled, ClassLoader classLoader) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            themeHandler.post(() -> setAnimatedBackgroundEnabled(enabled, classLoader));
+            return;
+        }
+        animatedBackgroundEnabled = enabled;
+        refreshAnimatedBackground();
+        onPaletteChanged(classLoader);
+        recreateVisibleActivity();
+    }
+
+    private static void refreshAnimatedBackground() {
+        Activity activity = visibleActivity.get();
+        if (themeEnabled && animatedBackgroundEnabled && activity != null
+                && !activity.isFinishing() && !activity.isDestroyed()) animatedBackground.show(activity);
+        else animatedBackground.hide();
+    }
+
     private final SharedPreferences prefs;
     private final Context context;
     private static volatile boolean themeEnabled = true;
     private static volatile Long originalHomeFilterChipColor;
     private static volatile Field homeFilterChipColorField;
-    private static volatile Method composeDisposeMethod;
-    private static volatile Method composeCreateMethod;
+    private static volatile Object paletteState;
+    private static volatile Method paletteStateRead;
+    private static volatile Method paletteStateWrite;
+    private static final Handler themeHandler = new Handler(Looper.getMainLooper());
     private volatile Method creativeWorkGetViewMethod;
     private volatile Method encorePaletteAccessor;
     private volatile Method encorePaletteProvider;
@@ -107,15 +160,21 @@ public class ThemeHook extends SpotifyHook {
 
     private static final Map<Object, Object> encoreCache = new IdentityHashMap<>();
     private static final Map<Object, Object> material3Cache = new IdentityHashMap<>();
-    private static final Map<Object, Boolean> composeHosts = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Object, Object> originalEncorePalettes = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Object, Object> originalMaterialPalettes = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<View, PaletteColors> nativeViews = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<View, Boolean> homeHeaders = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Object, NativeAccentBinding> nativeAccentIcons = Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Activity, Integer> activityPaletteGenerations = Collections.synchronizedMap(new WeakHashMap<>());
     private static volatile int paletteGeneration;
+    private static int recreationGeneration;
 
     private final ExecutorService artworkExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger artworkRequestGeneration = new AtomicInteger();
     private final LruCache<String, Integer> artworkColorCache = new LruCache<>(64);
 
     private volatile String lastArtworkUrl;
+    private volatile boolean lastArtworkRequestedForAnimation;
     private final Handler paletteHandler = new Handler(Looper.getMainLooper());
 
     private static WeakReference<Activity> visibleActivity = new WeakReference<>(null);
@@ -125,12 +184,19 @@ public class ThemeHook extends SpotifyHook {
         prefs = context.getSharedPreferences("SpotifyPlus", Context.MODE_PRIVATE);
         if (prefs.getBoolean("theme_palette_saved", false)) loadCustomTheme(prefs);
         themeEnabled = prefs.getBoolean("theme_enabled", false);
+        animatedBackgroundEnabled = prefs.getBoolean(ANIMATED_BACKGROUND_PREFERENCE, false);
         ThemeResourcesHook.setEnabled(themeEnabled);
-        ThemeResourcesHook.applyPalette(BACKGROUND, SURFACE, TINTED, TEXT, TEXT_SUBDUED, ACCENT, ON_ACCENT);
+        ThemeResourcesHook.applyPalette(baseBackground(), surfaceColor(), tintedColor(), textColor(), subduedColor(), accentColor(), onAccentColor());
     }
 
     public static void setThemeEnabled(boolean enabled, ClassLoader classLoader) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            themeHandler.post(() -> setThemeEnabled(enabled, classLoader));
+            return;
+        }
         themeEnabled = enabled;
+        refreshAnimatedBackground();
+        ThemeResourcesHook.applyPalette(baseBackground(), surfaceColor(), tintedColor(), textColor(), subduedColor(), accentColor(), onAccentColor());
         synchronized (encoreCache) {encoreCache.clear();}
         synchronized (material3Cache) {material3Cache.clear();}
         ThemeResourcesHook.setEnabled(enabled);
@@ -141,6 +207,10 @@ public class ThemeHook extends SpotifyHook {
     }
 
     public static void applyCustomTheme(SharedPreferences prefs, ClassLoader classLoader) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            themeHandler.post(() -> applyCustomTheme(prefs, classLoader));
+            return;
+        }
         prefs.edit().putBoolean("theme_palette_saved", true).apply();
         loadCustomTheme(prefs);
         onPaletteChanged(classLoader);
@@ -175,11 +245,14 @@ public class ThemeHook extends SpotifyHook {
     @Override
     protected void hook() {
         hookComposeHosts();
+        hookNativeViews();
+        hookNativeAccentIcons();
         hookEncorePalette();
         hookMaterial3Palette();
 
         hookSideDrawerBackground();
         hookHomeShortcutCards();
+        hookHomeHeader();
         patchHomeFilterChipColor();
         hookArtworkGradients();
 
@@ -302,6 +375,8 @@ public class ThemeHook extends SpotifyHook {
     }
 
     private Object recolorEncorePalette(Object original) {
+        observePalette();
+        original = originalEncorePalettes.getOrDefault(original, original);
         if (!themeEnabled) return original;
         synchronized (encoreCache) {
             Object cached = encoreCache.get(original);
@@ -316,15 +391,15 @@ public class ThemeHook extends SpotifyHook {
 
             switch (originalBase) {
                 case 0xFF121212:
-                    replacement = createLightEncorePalette(original, BACKGROUND, BACKGROUND_HIGHLIGHT, BACKGROUND_PRESS);
+                    replacement = createLightEncorePalette(original, baseBackground(), backgroundHighlight(), backgroundPress());
                     break;
 
                 case 0xFF1F1F1F:
-                    replacement = createLightEncorePalette(original, SURFACE, SURFACE_HIGHLIGHT, SURFACE_PRESS);
+                    replacement = createLightEncorePalette(original, surfaceColor(), surfaceHighlight(), surfacePress());
                     break;
 
                 case 0x1AFFFFFF:
-                    replacement = createLightEncorePalette(original, TINTED, TINTED_HIGHLIGHT, TINTED_PRESS);
+                    replacement = createLightEncorePalette(original, tintedColor(), tintedHighlight(), tintedPress());
                     break;
 
                 case 0xFF1ED760:
@@ -337,6 +412,7 @@ public class ThemeHook extends SpotifyHook {
             }
 
             encoreCache.put(original, replacement);
+            if (replacement != original) originalEncorePalettes.put(replacement, original);
             return replacement;
         }
     }
@@ -348,15 +424,15 @@ public class ThemeHook extends SpotifyHook {
         Object oldEssential = getConstructorField(original, 2, 4);
         Object oldDecorative = getConstructorField(original, 3, 4);
 
-        Object elevated = XposedHelpers.newInstance(oldElevated.getClass(), packColor(SURFACE), packColor(SURFACE_HIGHLIGHT), packColor(SURFACE_PRESS));
+        Object elevated = XposedHelpers.newInstance(oldElevated.getClass(), packColor(surfaceColor()), packColor(surfaceHighlight()), packColor(surfacePress()));
 
-        Object tinted = XposedHelpers.newInstance(oldElevated.getClass(), packColor(TINTED), packColor(TINTED_HIGHLIGHT), packColor(TINTED_PRESS));
+        Object tinted = XposedHelpers.newInstance(oldElevated.getClass(), packColor(tintedColor()), packColor(tintedHighlight()), packColor(tintedPress()));
 
         Object backgrounds = XposedHelpers.newInstance(oldBackgrounds.getClass(), elevated, tinted, packColor(mainBackground), packColor(mainHighlight), packColor(mainPress));
 
-        Object text = XposedHelpers.newInstance(oldText.getClass(), packColor(TEXT), packColor(TEXT_SUBDUED), packColor(ACCENT), packColor(NEGATIVE), packColor(WARNING), packColor(POSITIVE), packColor(ANNOUNCEMENT));
+        Object text = XposedHelpers.newInstance(oldText.getClass(), packColor(textColor()), packColor(subduedColor()), packColor(accentColor()), packColor(NEGATIVE), packColor(WARNING), packColor(POSITIVE), packColor(ANNOUNCEMENT));
 
-        Object essential = XposedHelpers.newInstance(oldEssential.getClass(), packColor(TEXT), packColor(0xFF5E7A91), packColor(ACCENT), packColor(0xFFC0364B), packColor(0xFFB67800), packColor(0xFF0A8F69), packColor(ANNOUNCEMENT));
+        Object essential = XposedHelpers.newInstance(oldEssential.getClass(), packColor(textColor()), packColor(usesAnimatedBackground() ? subduedColor() : 0xFF5E7A91), packColor(accentColor()), packColor(0xFFC0364B), packColor(0xFFB67800), packColor(0xFF0A8F69), packColor(ANNOUNCEMENT));
 
         Object decorative = XposedHelpers.newInstance(oldDecorative.getClass(), packColor(DECORATIVE), packColor(DECORATIVE_SUBDUED));
 
@@ -370,12 +446,17 @@ public class ThemeHook extends SpotifyHook {
         Object oldEssential = getConstructorField(original, 2, 4);
         Object oldDecorative = getConstructorField(original, 3, 4);
 
-        Object elevated = XposedHelpers.newInstance(oldElevated.getClass(), packColor(ACCENT), packColor(ACCENT_HIGHLIGHT), packColor(ACCENT_PRESS));
-        Object tinted = XposedHelpers.newInstance(oldElevated.getClass(), packColor(ACCENT), packColor(ACCENT_HIGHLIGHT), packColor(ACCENT_PRESS));
-        Object backgrounds = XposedHelpers.newInstance(oldBackgrounds.getClass(), elevated, tinted, packColor(ACCENT), packColor(ACCENT_HIGHLIGHT), packColor(ACCENT_PRESS));
-        Object text = XposedHelpers.newInstance(oldText.getClass(), packColor(ON_ACCENT), packColor(0xFFD8F1FF), packColor(ON_ACCENT), packColor(0xFFFFE1E6), packColor(0xFFFFF0C2), packColor(0xFFD5FFED), packColor(0xFFDCEEFF));
-        Object essential = XposedHelpers.newInstance(oldEssential.getClass(), packColor(ON_ACCENT), packColor(0xFFD8F1FF), packColor(ON_ACCENT), packColor(0xFFFFE1E6), packColor(0xFFFFF0C2), packColor(0xFFD5FFED), packColor(0xFFDCEEFF));
-        Object decorative = XposedHelpers.newInstance(oldDecorative.getClass(), packColor(ON_ACCENT), packColor(0xFFB9E5FA));
+        // Compose draws its own fill above the native glass background. Leave a
+        // little transmission while preserving the accent and interaction states.
+        int fill = usesAnimatedBackground() ? (accentColor() & 0x00FFFFFF) | 0xD9000000 : accentColor();
+        int highlight = usesAnimatedBackground() ? (ACCENT_HIGHLIGHT & 0x00FFFFFF) | 0xE6000000 : ACCENT_HIGHLIGHT;
+        int press = usesAnimatedBackground() ? (ACCENT_PRESS & 0x00FFFFFF) | 0xF2000000 : ACCENT_PRESS;
+        Object elevated = XposedHelpers.newInstance(oldElevated.getClass(), packColor(fill), packColor(highlight), packColor(press));
+        Object tinted = XposedHelpers.newInstance(oldElevated.getClass(), packColor(fill), packColor(highlight), packColor(press));
+        Object backgrounds = XposedHelpers.newInstance(oldBackgrounds.getClass(), elevated, tinted, packColor(fill), packColor(highlight), packColor(press));
+        Object text = XposedHelpers.newInstance(oldText.getClass(), packColor(onAccentColor()), packColor(0xFFD8F1FF), packColor(onAccentColor()), packColor(0xFFFFE1E6), packColor(0xFFFFF0C2), packColor(0xFFD5FFED), packColor(0xFFDCEEFF));
+        Object essential = XposedHelpers.newInstance(oldEssential.getClass(), packColor(onAccentColor()), packColor(0xFFD8F1FF), packColor(onAccentColor()), packColor(0xFFFFE1E6), packColor(0xFFFFF0C2), packColor(0xFFD5FFED), packColor(0xFFDCEEFF));
+        Object decorative = XposedHelpers.newInstance(oldDecorative.getClass(), packColor(onAccentColor()), packColor(0xFFB9E5FA));
 
         return XposedHelpers.newInstance(original.getClass(), backgrounds, text, essential, decorative);
     }
@@ -424,6 +505,8 @@ public class ThemeHook extends SpotifyHook {
     }
 
     private Object recolorMaterial3Palette(Object original) {
+        observePalette();
+        original = originalMaterialPalettes.getOrDefault(original, original);
         if (!themeEnabled) return original;
         synchronized (material3Cache) {
             Object cached = material3Cache.get(original);
@@ -444,17 +527,29 @@ public class ThemeHook extends SpotifyHook {
             }
             Object[] colors;
             if (colorCount == 36) {
-                colors = new Object[]{packColor(ACCENT), packColor(ON_ACCENT), packColor(0xFFCBEAFF), packColor(0xFF082F49), packColor(0xFF7DD3FC), packColor(0xFF476F85), packColor(ON_ACCENT), packColor(0xFFD6EFFC), packColor(0xFF163746), packColor(0xFF5E5A92), packColor(ON_ACCENT), packColor(0xFFE5DFFF), packColor(0xFF2B2857), packColor(BACKGROUND), packColor(TEXT), packColor(SURFACE), packColor(TEXT), packColor(0xFFDCECF5), packColor(0xFF3C5668), packColor(ACCENT), packColor(0xFF233A4A), packColor(0xFFE9F5FB), packColor(0xFFBA1A1A), packColor(ON_ACCENT), packColor(0xFFFFDAD6), packColor(0xFF410002), packColor(0xFF6F8795), packColor(0xFFBFCCD4), packColor(SCRIM), packColor(ON_ACCENT), packColor(0xFFCFDDE5), packColor(0xFFEDF7FC), packColor(0xFFE4F1F7), packColor(0xFFD9EAF2), packColor(0xFFF4FAFD), packColor(ON_ACCENT)};
+                colors = new Object[]{packColor(accentColor()), packColor(onAccentColor()), packColor(0xFFCBEAFF), packColor(0xFF082F49), packColor(0xFF7DD3FC), packColor(0xFF476F85), packColor(onAccentColor()), packColor(0xFFD6EFFC), packColor(0xFF163746), packColor(0xFF5E5A92), packColor(onAccentColor()), packColor(0xFFE5DFFF), packColor(0xFF2B2857), packColor(baseBackground()), packColor(textColor()), packColor(surfaceColor()), packColor(textColor()), packColor(0xFFDCECF5), packColor(0xFF3C5668), packColor(accentColor()), packColor(0xFF233A4A), packColor(0xFFE9F5FB), packColor(0xFFBA1A1A), packColor(onAccentColor()), packColor(0xFFFFDAD6), packColor(0xFF410002), packColor(0xFF6F8795), packColor(0xFFBFCCD4), packColor(SCRIM), packColor(onAccentColor()), packColor(0xFFCFDDE5), packColor(0xFFEDF7FC), packColor(0xFFE4F1F7), packColor(0xFFD9EAF2), packColor(0xFFF4FAFD), packColor(onAccentColor())};
             } else if (colorCount == 48) {
-                colors = new Object[]{packColor(ACCENT), packColor(ON_ACCENT), packColor(0xFFCBEAFF), packColor(0xFF082F49), packColor(0xFF7DD3FC), packColor(0xFF476F85), packColor(ON_ACCENT), packColor(0xFFD6EFFC), packColor(0xFF163746), packColor(0xFF5E5A92), packColor(ON_ACCENT), packColor(0xFFE5DFFF), packColor(0xFF2B2857), packColor(BACKGROUND), packColor(TEXT), packColor(SURFACE), packColor(TEXT), packColor(0xFFDCECF5), packColor(0xFF3C5668), packColor(ACCENT), packColor(0xFF233A4A), packColor(0xFFE9F5FB), packColor(0xFFBA1A1A), packColor(ON_ACCENT), packColor(0xFFFFDAD6), packColor(0xFF410002), packColor(0xFF6F8795), packColor(0xFFBFCCD4), packColor(SCRIM), packColor(ON_ACCENT), packColor(0xFFCFDDE5), packColor(0xFFEDF7FC), packColor(0xFFE4F1F7), packColor(0xFFD9EAF2), packColor(0xFFF4FAFD), packColor(ON_ACCENT), packColor(ACCENT_HIGHLIGHT), packColor(ACCENT), packColor(ON_ACCENT), packColor(ON_ACCENT), packColor(0xFFD6EFFC), packColor(0xFF476F85), packColor(ON_ACCENT), packColor(0xFF163746), packColor(0xFFE5DFFF), packColor(0xFF5E5A92), packColor(ON_ACCENT), packColor(0xFF2B2857)};
+                colors = new Object[]{packColor(accentColor()), packColor(onAccentColor()), packColor(0xFFCBEAFF), packColor(0xFF082F49), packColor(0xFF7DD3FC), packColor(0xFF476F85), packColor(onAccentColor()), packColor(0xFFD6EFFC), packColor(0xFF163746), packColor(0xFF5E5A92), packColor(onAccentColor()), packColor(0xFFE5DFFF), packColor(0xFF2B2857), packColor(baseBackground()), packColor(textColor()), packColor(surfaceColor()), packColor(textColor()), packColor(0xFFDCECF5), packColor(0xFF3C5668), packColor(accentColor()), packColor(0xFF233A4A), packColor(0xFFE9F5FB), packColor(0xFFBA1A1A), packColor(onAccentColor()), packColor(0xFFFFDAD6), packColor(0xFF410002), packColor(0xFF6F8795), packColor(0xFFBFCCD4), packColor(SCRIM), packColor(onAccentColor()), packColor(0xFFCFDDE5), packColor(0xFFEDF7FC), packColor(0xFFE4F1F7), packColor(0xFFD9EAF2), packColor(0xFFF4FAFD), packColor(onAccentColor()), packColor(ACCENT_HIGHLIGHT), packColor(accentColor()), packColor(onAccentColor()), packColor(onAccentColor()), packColor(0xFFD6EFFC), packColor(0xFF476F85), packColor(onAccentColor()), packColor(0xFF163746), packColor(0xFFE5DFFF), packColor(0xFF5E5A92), packColor(onAccentColor()), packColor(0xFF2B2857)};
             } else {
                 XposedBridge.log("[SpotifyPlus] Unsupported Material ColorScheme size: " + colorCount);
                 material3Cache.put(original, original);
                 return original;
             }
+            if (usesAnimatedBackground()) {
+                // ColorScheme's surface variant and container roles must match the glass
+                // palette too; leaving its light defaults would wash out our light text.
+                colors[17] = packColor(tintedColor());
+                colors[18] = packColor(subduedColor());
+                colors[20] = packColor(surfaceColor());
+                colors[21] = packColor(textColor());
+                colors[26] = packColor(0x80EBEDF2);
+                colors[27] = packColor(0x33EBEDF2);
+                for (int i = 29; i <= 35; i++) colors[i] = packColor(surfaceColor());
+            }
             Object replacement = XposedHelpers.newInstance(original.getClass(), colors);
 
             material3Cache.put(original, replacement);
+            originalMaterialPalettes.put(replacement, original);
             return replacement;
         }
     }
@@ -470,7 +565,7 @@ public class ThemeHook extends SpotifyHook {
                         ViewGroup drawerLayout = (ViewGroup) param.thisObject;
                         View outer = drawerLayout.getChildCount() > 0 ? drawerLayout.getChildAt(0) : null;
                         View drawer = outer instanceof ViewGroup && ((ViewGroup) outer).getChildCount() > 0 ? ((ViewGroup) outer).getChildAt(0) : null;
-                        if (drawer != null) drawer.setBackgroundColor(SURFACE);
+                        if (drawer != null) drawer.setBackgroundColor(surfaceColor());
                     } catch (Throwable throwable) {
                         XposedBridge.log(throwable);
                     }
@@ -496,9 +591,9 @@ public class ThemeHook extends SpotifyHook {
                         try {
                             View card = findRootViewWithId(param.thisObject, titleId, 2);
                             if (card == null) return;
-                            card.setBackgroundTintList(ColorStateList.valueOf(TINTED));
+                            card.setBackgroundTintList(ColorStateList.valueOf(tintedColor()));
                             TextView title = card.findViewById(titleId);
-                            if (title != null) title.setTextColor(TEXT);
+                            if (title != null) title.setTextColor(textColor());
                         } catch (Throwable throwable) {
                             XposedBridge.log(throwable);
                         }
@@ -509,6 +604,52 @@ public class ThemeHook extends SpotifyHook {
         } catch (Throwable throwable) {
             XposedBridge.log(throwable);
         }
+    }
+
+    private void hookHomeHeader() {
+        try {
+            int layoutId = resourceId("layout", "funkis_home");
+            int appBarId = resourceId("id", "app_bar");
+            Constructor<?> constructor = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .name("<init>").usingNumbers(layoutId))).single().getConstructorInstance(lpparm.classLoader);
+            XposedBridge.hookMethod(constructor, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    try {
+                        View root = findRootViewWithId(param.thisObject, appBarId, 1);
+                        if (root == null) return;
+                        View appBar = root.findViewById(appBarId);
+                        homeHeaders.put(appBar, Boolean.TRUE);
+                        applyHomeHeaderPalette(appBar);
+                        XposedBridge.log("[SpotifyPlus] Live Home header registered: " + appBar.getClass().getName());
+                    } catch (Throwable throwable) {
+                        XposedBridge.log(throwable);
+                    }
+                }
+            });
+            XposedBridge.log("[SpotifyPlus] Home header palette hook installed: " + constructor.getDeclaringClass().getName());
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private static void applyHomeHeaderPalette(View appBar) {
+        if (!themeEnabled) return;
+        // The app bar owns elevation/scroll drawables whose cached colors need
+        // not equal the palette recorded when the view was constructed. Bind
+        // this known background role directly, preserving the existing shape.
+        appBar.setBackgroundTintList(ColorStateList.valueOf(baseBackground()));
+        Object statusBarForeground = XposedHelpers.callMethod(appBar, "getStatusBarForeground");
+        if (statusBarForeground != null) XposedHelpers.callMethod(appBar, "setStatusBarForegroundColor", baseBackground());
+        int gradientId = appBar.getResources().getIdentifier("gradient", "id", "com.spotify.music");
+        View fade = gradientId == 0 ? null : appBar.findViewById(gradientId);
+        if (fade != null && fade.getBackground() instanceof GradientDrawable) {
+            // filter_row_start_gradient fades FROM the theme to transparent,
+            // unlike artwork headers. Preserve its XML orientation for RTL.
+            GradientDrawable gradient = (GradientDrawable) fade.getBackground().mutate();
+            gradient.setColors(new int[]{baseBackground(), Color.TRANSPARENT});
+        }
+        appBar.invalidate();
     }
 
     private void patchHomeFilterChipColor() {
@@ -614,7 +755,7 @@ public class ThemeHook extends SpotifyHook {
             Field colorField = homeFilterChipColorField;
             if (colorField == null) return;
             if (originalHomeFilterChipColor == null) originalHomeFilterChipColor = colorField.getLong(null);
-            XposedHelpers.setStaticLongField(colorField.getDeclaringClass(), colorField.getName(), themeEnabled ? packColor(TINTED) : originalHomeFilterChipColor);
+            XposedHelpers.setStaticLongField(colorField.getDeclaringClass(), colorField.getName(), themeEnabled ? packColor(tintedColor()) : originalHomeFilterChipColor);
         } catch (Throwable throwable) {
             XposedBridge.log(throwable);
         }
@@ -637,12 +778,12 @@ public class ThemeHook extends SpotifyHook {
                     try {
                         GradientDrawable gradient = (GradientDrawable) getInstanceFieldValue(param.thisObject, GradientDrawable.class);
                         if (gradient == null) return;
-                        int[] colors = {Color.TRANSPARENT, Color.TRANSPARENT, BACKGROUND};
+                        int[] colors = {Color.TRANSPARENT, Color.TRANSPARENT, baseBackground()};
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             gradient.setColors(colors, new float[]{0.00f, 0.88f, 1.00f});
                         } else {
-                            gradient.setColors(new int[]{Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT, BACKGROUND});
+                            gradient.setColors(new int[]{Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT, baseBackground()});
                         }
                     } catch (Throwable throwable) {
                     }
@@ -653,8 +794,31 @@ public class ThemeHook extends SpotifyHook {
     }
 
     private void hookAlbumHeaderGradient() {
+        hookNativeAlbumGradientLayouts();
         hookLegacyAlbumHeaderGradient();
         hookComposeAlbumHeaderGradient();
+    }
+
+    private void hookNativeAlbumGradientLayouts() {
+        try {
+            int legacyLayout = resourceId("layout", "creative_work_header_layout");
+            int expandedLayout = resourceId("layout", "expanded_header");
+            int condensedLayout = resourceId("layout", "condensed_header");
+            int legacyBackground = resourceId("id", "artwork_background");
+            int modernBackground = resourceId("id", "cwp_header_artwork_background");
+            XposedBridge.hookAllMethods(LayoutInflater.class, "inflate", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    if (!usesAnimatedBackground() || param.args.length == 0 || !(param.args[0] instanceof Integer)
+                            || !(param.getResult() instanceof View)) return;
+                    int layout = (Integer) param.args[0];
+                    if (layout != legacyLayout && layout != expandedLayout && layout != condensedLayout) return;
+                    View background = ((View) param.getResult()).findViewById(layout == legacyLayout ? legacyBackground : modernBackground);
+                    if (background == null || background.getBackground() instanceof AlbumArtworkGradient) return;
+                    background.setBackgroundTintList(null);
+                    background.setBackground(new AlbumArtworkGradient(Color.TRANSPARENT, Color.TRANSPARENT, true));
+                }
+            });
+        } catch (Throwable error) { XposedBridge.log(error); }
     }
 
     private void hookLegacyAlbumHeaderGradient() {
@@ -696,7 +860,7 @@ public class ThemeHook extends SpotifyHook {
                         Object start = original.get(0);
                         Object darkEnd = original.get(1);
                         if (start == null || darkEnd == null || start.getClass() == darkEnd.getClass()) return;
-                        Object themedEnd = XposedHelpers.newInstance(darkEnd.getClass(), BACKGROUND);
+                        Object themedEnd = XposedHelpers.newInstance(darkEnd.getClass(), baseBackground());
 
                         ArrayList<Object> flowingGradient = new ArrayList<>(2);
 
@@ -737,7 +901,7 @@ public class ThemeHook extends SpotifyHook {
                             return;
                         }
 
-                        Object themedEnd = XposedHelpers.newInstance(finalColor.getClass(), BACKGROUND);
+                        Object themedEnd = XposedHelpers.newInstance(finalColor.getClass(), baseBackground());
 
                         ArrayList<Object> themedStops = new ArrayList<>(3);
                         themedStops.add(firstStop);
@@ -777,9 +941,10 @@ public class ThemeHook extends SpotifyHook {
                                 Object startValue = getInstanceFieldValue(start, long.class);
                                 Object endValue = getInstanceFieldValue(end, long.class);
                                 if (!(startValue instanceof Long) || !(endValue instanceof Long)) return;
-                                if (unpackColor((Long) startValue) != context.getColor(gradientStartId) || unpackColor((Long) endValue) != context.getColor(gradientEndId)) return;
+                                if (!AlbumGradientColors.matchesBaseFade(unpackColor((Long) startValue), unpackColor((Long) endValue),
+                                        context.getColor(gradientStartId), context.getColor(gradientEndId))) return;
                                 ArrayList<Object> themed = new ArrayList<>(original);
-                                themed.set(themed.size() - 1, XposedHelpers.newInstance(end.getClass(), packColor(BACKGROUND)));
+                                themed.set(themed.size() - 1, XposedHelpers.newInstance(end.getClass(), packColor(baseBackground())));
                                 param.args[0] = themed;
                             } catch (Throwable throwable) {
                                 XposedBridge.log(throwable);
@@ -790,6 +955,71 @@ public class ThemeHook extends SpotifyHook {
             }
         } catch (Throwable throwable) {
             XposedBridge.log(throwable);
+        }
+    }
+
+    private void hookNativeAccentIcons() {
+        try {
+            Set<Method> setters = new HashSet<>();
+            setters.add(ImageView.class.getDeclaredMethod("setImageTintList", ColorStateList.class));
+            setters.add(android.graphics.drawable.VectorDrawable.class.getDeclaredMethod("setTintList", ColorStateList.class));
+            // The font-backed Spoticon drawable renders Connect, saved, and
+            // download status icons. Discover its setters from the public view.
+            for (MethodData method : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .declaredClass("com.spotify.legacyglue.icons.SpotifyIconView")))) {
+                if (!method.getName().equals("setColor") && !method.getName().equals("setColorStateList")) continue;
+                for (MethodData invoked : method.getInvokes()) {
+                    if (!invoked.getReturnType().getName().equals("void") || invoked.getParamCount() != 1) continue;
+                    String type = invoked.getParamTypeNames().get(0);
+                    if (type.equals("int") || type.equals(ColorStateList.class.getName())) setters.add(invoked.getMethodInstance(lpparm.classLoader));
+                }
+            }
+            for (Method setter : setters) {
+                XposedBridge.hookMethod(setter, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        if (!themeEnabled || param.args[0] == null) return;
+                        Object original = param.args[0];
+                        Object themed = themeStatusIconColor(original);
+                        if (themed != original) {
+                            nativeAccentIcons.put(param.thisObject, new NativeAccentBinding(setter, original));
+                            param.args[0] = themed;
+                        } else {
+                            // An icon may become inactive or enter an error state.
+                            nativeAccentIcons.remove(param.thisObject);
+                        }
+                    }
+                });
+            }
+            XposedBridge.log("[SpotifyPlus] Native status icon accent hooks installed: " + setters.size());
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private static Object themeStatusIconColor(Object original) {
+        if (original instanceof Integer) {
+            int color = (Integer) original;
+            return StatusIconColors.isSpotifyAccent(color) ? Integer.valueOf(StatusIconColors.themed(color, accentColor())) : original;
+        }
+        ColorStateList list = (ColorStateList) original;
+        int[] colors = ((int[]) XposedHelpers.getObjectField(list, "mColors")).clone();
+        boolean changed = false;
+        for (int i = 0; i < colors.length; i++) {
+            if (!StatusIconColors.isSpotifyAccent(colors[i])) continue;
+            colors[i] = StatusIconColors.themed(colors[i], accentColor());
+            changed = true;
+        }
+        return changed ? new ColorStateList((int[][]) XposedHelpers.getObjectField(list, "mStateSpecs"), colors) : original;
+    }
+
+    private static final class NativeAccentBinding {
+        final Method setter;
+        final Object sourceColor;
+
+        NativeAccentBinding(Method setter, Object sourceColor) {
+            this.setter = setter;
+            this.sourceColor = sourceColor;
         }
     }
 
@@ -808,8 +1038,8 @@ public class ThemeHook extends SpotifyHook {
                         View label = (View) param.thisObject;
                         TextView deviceName = label.findViewById(deviceNameId);
                         ImageView deviceIcon = label.findViewById(deviceIconId);
-                        if (deviceName != null) deviceName.setTextColor(ACCENT);
-                        if (deviceIcon != null) deviceIcon.setColorFilter(ACCENT, PorterDuff.Mode.SRC_IN);
+                        if (deviceName != null) deviceName.setTextColor(accentColor());
+                        if (deviceIcon != null) deviceIcon.setColorFilter(accentColor(), PorterDuff.Mode.SRC_IN);
                     } catch (Throwable throwable) {
                     }
                 }
@@ -947,15 +1177,15 @@ public class ThemeHook extends SpotifyHook {
                         View root = (View) getView.invoke(param.thisObject);
                         // R8 shares the holder with another component. Only touch the image header.
                         if (root == null || root.findViewById(backId) == null) return;
-                        root.setBackgroundColor(BACKGROUND);
+                        root.setBackgroundColor(baseBackground());
                         View toolbar = root.findViewById(toolbarId);
-                        if (toolbar != null) toolbar.setBackgroundColor(BACKGROUND);
-                        themeTextTree(root.findViewById(titleId), TEXT);
+                        if (toolbar != null) toolbar.setBackgroundColor(baseBackground());
+                        themeTextTree(root.findViewById(titleId), textColor());
                         View back = root.findViewById(backId);
-                        if (back instanceof ImageView) ((ImageView) back).setColorFilter(TEXT, PorterDuff.Mode.SRC_IN);
+                        if (back instanceof ImageView) ((ImageView) back).setColorFilter(textColor(), PorterDuff.Mode.SRC_IN);
                         View backBackground = root.findViewById(backBackgroundId);
                         if (backBackground != null && backBackground.getBackground() != null) {
-                            backBackground.getBackground().mutate().setTint(BACKGROUND);
+                            backBackground.getBackground().mutate().setTint(baseBackground());
                         }
                     } catch (Throwable throwable) {
                         XposedBridge.log(throwable);
@@ -992,6 +1222,20 @@ public class ThemeHook extends SpotifyHook {
                     scrimData = invoked;
                 }
             }
+            if (scrimData == null) {
+                // 9.1.28 has no verified_row marker. The same float-range composable
+                // directly constructs a gradient with two long coordinates and a color list.
+                for (MethodData candidate : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                        .modifiers(Modifier.PUBLIC | Modifier.STATIC).returnType(void.class)
+                        .paramTypes(null, "float", "float", null, null, "int", "int")))) {
+                    boolean gradient = candidate.getInvokes().stream().anyMatch(call -> call.isConstructor()
+                            && call.getParamTypeNames().contains(List.class.getName())
+                            && Collections.frequency(call.getParamTypeNames(), "long") == 2);
+                    if (!gradient) continue;
+                    if (scrimData != null) throw new IllegalStateException("Multiple structural image-header scrims found");
+                    scrimData = candidate;
+                }
+            }
             if (scrimData == null) throw new IllegalStateException("Could not find the image-header scrim composable");
             MethodData gradientData = null;
             for (MethodData invoked : scrimData.getInvokes()) {
@@ -1019,7 +1263,8 @@ public class ThemeHook extends SpotifyHook {
                         for (Object color : original) {
                             long packed = (Long) getInstanceFieldValue(color, long.class);
                             int alpha = Color.alpha(unpackColor(packed));
-                            int themed = (BACKGROUND & 0x00FFFFFF) | (alpha << 24);
+                            int themed = themeEnabled && animatedBackgroundEnabled ? Color.TRANSPARENT
+                                    : (BACKGROUND & 0x00FFFFFF) | (alpha << 24);
                             colors.add(XposedHelpers.newInstance(color.getClass(), packColor(themed)));
                         }
                         param.args[colorsIndex] = colors;
@@ -1074,7 +1319,7 @@ public class ThemeHook extends SpotifyHook {
             try {
                 if (!themeEnabled) return method.invoke(content, args);
                 Object palette = encorePaletteAccessor.invoke(null, args[0]);
-                Object themed = createLightEncorePalette(palette, BACKGROUND, BACKGROUND_HIGHLIGHT, BACKGROUND_PRESS);
+                Object themed = createLightEncorePalette(palette, baseBackground(), backgroundHighlight(), backgroundPress());
                 // Provide a real composition local so independently recomposing buttons
                 // and metadata retain their theme after this invocation returns.
                 encorePaletteProvider.invoke(null, themed, content, args[0], 0);
@@ -1087,9 +1332,22 @@ public class ThemeHook extends SpotifyHook {
 
     private void hookTrackRowColors() {
         try {
-            Class<?> entityTitleClass = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
-                    .name("<init>").usingNumbers(resourceId("layout", "entity_title_view"), resourceId("id", "title_text"))))
-                    .single().getConstructorInstance(lpparm.classLoader).getDeclaringClass();
+            var titleConstructors = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .name("<init>").usingNumbers(resourceId("layout", "entity_title_view"), resourceId("id", "title_text"))));
+            Class<?> resolvedTitleClass;
+            if (!titleConstructors.isEmpty()) resolvedTitleClass = titleConstructors.single().getConstructorInstance(lpparm.classLoader).getDeclaringClass();
+            else {
+                // 9.1.82 moved inflation into a ViewBinding factory. Its second
+                // argument is the same entity-title view previously constructed inline.
+                Method binding = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                        .modifiers(Modifier.PUBLIC | Modifier.STATIC)
+                        .paramTypes(LayoutInflater.class.getName(), null)
+                        .usingNumbers(resourceId("layout", "entity_title_view"), resourceId("id", "title_text"))))
+                        .single().getMethodInstance(lpparm.classLoader);
+                resolvedTitleClass = binding.getParameterTypes()[1];
+                if (!View.class.isAssignableFrom(resolvedTitleClass)) throw new IllegalStateException("Entity title binding is not backed by a View");
+            }
+            final Class<?> entityTitleClass = resolvedTitleClass;
             int textBase = resourceId("attr", "textBase");
             int textSubdued = resourceId("attr", "textSubdued");
             int textAccent = resourceId("attr", "textBrightAccent");
@@ -1099,17 +1357,19 @@ public class ThemeHook extends SpotifyHook {
             for (MethodData renderer : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
                     .usingNumbers(textBase, textSubdued, textAccent)))) {
                 for (MethodData invoked : renderer.getInvokes()) {
-                    if (!"int".equals(invoked.getReturnType().getName())
-                            || !invoked.getParamTypeNames().equals(java.util.Arrays.asList("int", View.class.getName()))
-                            || !resolvers.add(invoked.getDescriptor())) continue;
+                    List<String> types = invoked.getParamTypeNames();
+                    int viewIndex = types.indexOf(View.class.getName());
+                    int attrIndex = types.indexOf("int");
+                    if (!"int".equals(invoked.getReturnTypeName()) || types.size() != 2
+                            || viewIndex < 0 || attrIndex < 0 || !resolvers.add(invoked.getDescriptor())) continue;
                     XposedBridge.hookMethod(invoked.getMethodInstance(lpparm.classLoader), new XC_MethodHook() {
                         @Override
                         protected void beforeHookedMethod(MethodHookParam param) {
-                            if (!themeEnabled || !entityTitleClass.isInstance(param.args[1])) return;
-                            int attr = (Integer) param.args[0];
-                            if (attr == textBase) param.setResult(TEXT);
-                            else if (attr == textSubdued) param.setResult(TEXT_SUBDUED);
-                            else if (attr == textAccent) param.setResult(ACCENT);
+                            if (!themeEnabled || !entityTitleClass.isInstance(param.args[viewIndex])) return;
+                            int attr = (Integer) param.args[attrIndex];
+                            if (attr == textBase) param.setResult(textColor());
+                            else if (attr == textSubdued) param.setResult(subduedColor());
+                            else if (attr == textAccent) param.setResult(accentColor());
                         }
                     });
                 }
@@ -1133,10 +1393,11 @@ public class ThemeHook extends SpotifyHook {
                     try {
                         View row = findRootViewWithId(param.getResult(), titleId, 1);
                         if (row == null) return;
+                        animatedBackground.registerTrackRow(row);
                         TextView title = row.findViewById(titleId);
                         TextView subtitle = row.findViewById(subtitleId);
-                        if (title != null) title.setTextColor(trackTextColors(TEXT, true));
-                        if (subtitle != null) subtitle.setTextColor(trackTextColors(TEXT_SUBDUED, false));
+                        if (title != null) title.setTextColor(trackTextColors(textColor(), true));
+                        if (subtitle != null) subtitle.setTextColor(trackTextColors(subduedColor(), false));
                     } catch (Throwable throwable) {
                         XposedBridge.log(throwable);
                     }
@@ -1149,6 +1410,8 @@ public class ThemeHook extends SpotifyHook {
         try {
             int titleColorId = resourceId("color", "encore_row_title");
             int subtitleColorId = resourceId("color", "encore_row_subtitle");
+            int placeholderBackgroundId = resourceId("color", "encore_placeholder_background");
+            int placeholderIconId = resourceId("color", "encore_placeholder_icon");
             Set<String> hooked = new HashSet<>();
             // Spotify also reads this selector when building styled row text. Hook the
             // appcompat resolver so its cached XML selector cannot restore white text.
@@ -1162,8 +1425,13 @@ public class ThemeHook extends SpotifyHook {
                         protected void beforeHookedMethod(MethodHookParam param) {
                             if (!themeEnabled) return;
                             int id = (Integer) param.args[1];
-                            if (id == titleColorId) param.setResult(trackTextColors(TEXT, true));
-                            else if (id == subtitleColorId) param.setResult(trackTextColors(TEXT_SUBDUED, false));
+                            if (id == titleColorId) param.setResult(trackTextColors(textColor(), true));
+                            else if (id == subtitleColorId) param.setResult(trackTextColors(subduedColor(), false));
+                            // AppCompat caches selectors by theme/configuration.
+                            // Resource replacements alone do not invalidate those
+                            // entries for placeholders created after a song change.
+                            else if (id == placeholderBackgroundId) param.setResult(trackTextColors(surfaceColor(), false));
+                            else if (id == placeholderIconId) param.setResult(trackTextColors(subduedColor(), false));
                         }
                     });
                 }
@@ -1179,19 +1447,25 @@ public class ThemeHook extends SpotifyHook {
         return new ColorStateList(new int[][]{
                 {-android.R.attr.state_enabled}, {android.R.attr.state_activated},
                 {android.R.attr.state_selected}, {}
-        }, new int[]{disabled, accented ? ACCENT : normal, accented ? ACCENT : normal, normal});
+        }, new int[]{disabled, accented ? accentColor() : normal, accented ? accentColor() : normal, normal});
     }
 
     private void hookBottomNavigationGradient() {
         try {
             Class<?> gradientViewClass = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("topColor", "getTopColor()Ljava/lang/Integer;", "bottomColor", "getBottomColor()Ljava/lang/Integer;", "easing"))).single().getInstance(lpparm.classLoader);
+            // Spotify rebuilds this gradient during scrolling, after construction.
+            XposedHelpers.findAndHookMethod(gradientViewClass, "setBottomColor", Integer.class, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (usesAnimatedBackground()) param.args[0] = navigationFade();
+                }
+            });
             Constructor<?> gradientConstructor = gradientViewClass.getDeclaredConstructor(Context.class, AttributeSet.class);
             XposedBridge.hookMethod(gradientConstructor, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
                     if (!themeEnabled) return;
                     try {
-                        ((View) param.thisObject).setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{Color.TRANSPARENT, BACKGROUND}));
+                        ((View) param.thisObject).setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{Color.TRANSPARENT, navigationFade()}));
                     } catch (Throwable throwable) {
                     }
                 }
@@ -1209,27 +1483,42 @@ public class ThemeHook extends SpotifyHook {
             material3Cache.clear();
         }
 
-        ThemeResourcesHook.applyPalette(BACKGROUND, SURFACE, TINTED, TEXT, TEXT_SUBDUED, ACCENT, ON_ACCENT);
+        ThemeResourcesHook.applyPalette(baseBackground(), surfaceColor(), tintedColor(), textColor(), subduedColor(), accentColor(), onAccentColor());
 
         updateHomeFilterChipColor(classLoader);
 
         paletteGeneration++;
+        refreshNativeViews();
         refreshComposeHosts();
     }
 
     private void hookComposeHosts() {
         try {
-            ClassData composeHostData = bridge.findClass(FindClass.create().matcher(ClassMatcher.create().usingStrings("Cannot add views to ", "; only Compose content is supported"))).single();
-            Class<?> composeHostClass = composeHostData.getInstance(lpparm.classLoader);
-            composeCreateMethod = bridge.findMethod(FindMethod.create().searchInClass(Collections.singletonList(composeHostData)).matcher(MethodMatcher.create().returnType(void.class).paramCount(0).addUsingString("createComposition requires", StringMatchType.Contains))).single().getMethodInstance(lpparm.classLoader);
-            composeDisposeMethod = bridge.findMethod(FindMethod.create().searchInClass(Collections.singletonList(composeHostData)).matcher(MethodMatcher.create().returnType(void.class).paramCount(0).addInvoke(MethodMatcher.create().name("requestLayout").returnType(void.class).paramCount(0)))).single().getMethodInstance(lpparm.classLoader);
-            XposedBridge.hookAllConstructors(composeHostClass, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    composeHosts.put(param.thisObject, Boolean.TRUE);
+            // Use Spotify's own Compose runtime. Reading this state while resolving
+            // a palette subscribes that composition, including covered activities.
+            Set<String> factories = new HashSet<>();
+            for (MethodData constructor : bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .name("<init>").declaredClass("androidx.compose.ui.platform.ComposeView")))) {
+                for (MethodData invoked : constructor.getInvokes()) {
+                    if (!invoked.getParamTypeNames().equals(Collections.singletonList(Object.class.getName()))
+                            || invoked.isConstructor()) continue;
+                    Method factory = invoked.getMethodInstance(lpparm.classLoader);
+                    if (!Modifier.isStatic(factory.getModifiers())) continue;
+                    Class<?> stateClass = factory.getReturnType();
+                    try {
+                        Method read = stateClass.getMethod("getValue");
+                        Method write = stateClass.getMethod("setValue", Object.class);
+                        if (!factories.add(invoked.getDescriptor())) continue;
+                        if (factories.size() != 1) throw new IllegalStateException("Ambiguous Compose state factory");
+                        paletteState = factory.invoke(null, paletteGeneration);
+                        paletteStateRead = read;
+                        paletteStateWrite = write;
+                    } catch (NoSuchMethodException ignored) {
+                    }
                 }
-            });
-
+            }
+            if (paletteState == null) throw new IllegalStateException("Could not locate Compose palette state");
+            XposedBridge.log("[SpotifyPlus] Live Compose palette state initialized");
         } catch (Throwable throwable) {
             XposedBridge.log(throwable);
         }
@@ -1250,21 +1539,27 @@ public class ThemeHook extends SpotifyHook {
 
         if (extractedColor != null) XposedHelpers.setAdditionalInstanceField(header, "spotifyplus.headerColor", extractedColor);
         else extractedColor = (Integer) XposedHelpers.getAdditionalInstanceField(header, "spotifyplus.headerColor");
-        // Match playlist headers: preserve the artwork color at the top and
-        // replace only the old opaque #121212 endpoint with the theme background.
-        int start = extractedColor == null ? BACKGROUND : extractedColor | 0xFF000000;
-        int[] colors = {start, BACKGROUND};
-        GradientDrawable gradient = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, colors);
-        if (artworkBackground != null) artworkBackground.setBackground(gradient);
-        appBar.setBackgroundColor(BACKGROUND);
+        if (extractedColor == null && artworkBackground != null
+                && artworkBackground.getBackground() instanceof AlbumArtworkGradient) {
+            int[] previous = ((AlbumArtworkGradient) artworkBackground.getBackground()).getColors();
+            if (previous != null && previous.length > 0 && Color.alpha(previous[0]) != 0) extractedColor = previous[0];
+        }
+        // Preserve expanded artwork colors; only the pinned toolbar uses the animated backdrop.
+        int start = extractedColor == null ? baseBackground() : extractedColor | 0xFF000000;
+        GradientDrawable gradient = new AlbumArtworkGradient(start, baseBackground(), usesAnimatedBackground());
+        if (artworkBackground != null) {
+            artworkBackground.setBackgroundTintList(null);
+            artworkBackground.setBackground(gradient);
+        }
+        appBar.setBackgroundColor(baseBackground());
         View toolbar = appBar.findViewById(resourceId("id", "toolbar"));
-        if (toolbar != null) toolbar.setBackgroundColor(BACKGROUND);
-        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_title" : "title")), TEXT);
-        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_creatorsRow" : "creator")), TEXT);
-        themeTextTree(appBar.findViewById(resourceId("id", "toolbar_title")), TEXT);
+        if (toolbar != null) toolbar.setBackgroundColor(baseBackground());
+        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_title" : "title")), textColor());
+        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_creatorsRow" : "creator")), textColor());
+        themeTextTree(appBar.findViewById(resourceId("id", "toolbar_title")), textColor());
         View metadata = appBar.findViewById(resourceId("id", modern ? "cwp_header_metadataRow" : "metadata_container"));
-        themeTextTree(metadata, TEXT_SUBDUED);
-        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_preTitle" : "preTitle")), ACCENT);
+        themeTextTree(metadata, subduedColor());
+        themeTextTree(appBar.findViewById(resourceId("id", modern ? "cwp_header_preTitle" : "preTitle")), accentColor());
     }
 
     private static void themeTextTree(View view, int color) {
@@ -1276,33 +1571,89 @@ public class ThemeHook extends SpotifyHook {
     }
 
     private static void refreshComposeHosts() {
-        List<Object> hosts;
-
-        synchronized (composeHosts) {
-            hosts = new ArrayList<>(composeHosts.keySet());
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            themeHandler.post(ThemeHook::refreshComposeHosts);
+            return;
         }
+        try {
+            if (paletteStateWrite != null) paletteStateWrite.invoke(paletteState, paletteGeneration);
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
 
-        int refreshed = 0;
+    private static void observePalette() {
+        try {
+            if (paletteStateRead != null) paletteStateRead.invoke(paletteState);
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
 
-        for (Object host : hosts) {
-            if (host == null) {
-                continue;
-            }
+    private static PaletteColors currentNativePalette() {
+        return new PaletteColors(new int[]{baseBackground(), surfaceColor(), tintedColor(), backgroundHighlight(),
+                backgroundPress(), surfaceHighlight(), surfacePress(), tintedHighlight(),
+                tintedPress(), accentColor(), ACCENT_HIGHLIGHT, ACCENT_PRESS, DECORATIVE_SUBDUED},
+                new int[]{textColor(), subduedColor(), accentColor(), onAccentColor(), DECORATIVE, ANNOUNCEMENT,
+                        NEGATIVE, WARNING, POSITIVE});
+    }
 
+    private void hookNativeViews() {
+        try {
+            XposedBridge.hookMethod(View.class.getDeclaredConstructor(Context.class, AttributeSet.class, int.class, int.class), new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    nativeViews.put((View) param.thisObject, currentNativePalette());
+                }
+            });
+        } catch (Throwable throwable) {
+            XposedBridge.log(throwable);
+        }
+    }
+
+    private static void refreshNativeViews() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            themeHandler.post(ThemeHook::refreshNativeViews);
+            return;
+        }
+        if (!themeEnabled) return;
+        PaletteColors next = currentNativePalette();
+        Map<View, PaletteColors> views;
+        synchronized (nativeViews) { views = new IdentityHashMap<>(nativeViews); }
+        NativePaletteRefresh refresh = new NativePaletteRefresh();
+        int updated = 0;
+        for (Map.Entry<View, PaletteColors> entry : views.entrySet()) {
             try {
-                boolean attached = host instanceof View && ((View) host).isAttachedToWindow();
-                Method disposeMethod = composeDisposeMethod;
-                Method createMethod = composeCreateMethod;
-                if (disposeMethod == null || createMethod == null) continue;
-                disposeMethod.invoke(host);
-                if (attached) createMethod.invoke(host);
-
-                refreshed++;
+                refresh.refresh(entry.getKey(), entry.getValue(), next);
+                nativeViews.put(entry.getKey(), next);
+                updated++;
             } catch (Throwable throwable) {
+                XposedBridge.log("[SpotifyPlus] Native palette refresh failed for " + entry.getKey().getClass().getName());
                 XposedBridge.log(throwable);
             }
         }
-
+        List<View> headers;
+        synchronized (homeHeaders) { headers = new ArrayList<>(homeHeaders.keySet()); }
+        for (View header : headers) {
+            try { applyHomeHeaderPalette(header); }
+            catch (Throwable throwable) { XposedBridge.log(throwable); }
+        }
+        Map<Object, NativeAccentBinding> icons;
+        synchronized (nativeAccentIcons) { icons = new IdentityHashMap<>(nativeAccentIcons); }
+        for (Map.Entry<Object, NativeAccentBinding> entry : icons.entrySet()) {
+            try {
+                NativeAccentBinding binding = entry.getValue();
+                binding.setter.invoke(entry.getKey(), binding.sourceColor);
+            } catch (Throwable throwable) { XposedBridge.log(throwable); }
+        }
+        List<Activity> activities;
+        synchronized (activityPaletteGenerations) { activities = new ArrayList<>(activityPaletteGenerations.keySet()); }
+        for (Activity activity : activities) {
+            if (activity.isDestroyed()) continue;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) activity.getTheme().rebase();
+            activity.getWindow().getDecorView().invalidate();
+        }
+        XposedBridge.log("[SpotifyPlus] Live palette " + paletteGeneration + ": refreshed " + updated + " native views across " + activities.size() + " activities");
     }
 
     private void hookTrackArtworkColor() {
@@ -1349,7 +1700,7 @@ public class ThemeHook extends SpotifyHook {
     }
 
     private void requestArtworkTheme(String spotifyImageUrl, Integer fallbackColor) {
-        if (!themeEnabled || !prefs.getBoolean("auto_theme", false)) {
+        if (!themeEnabled || (!prefs.getBoolean("auto_theme", false) && !animatedBackgroundEnabled)) {
             lastArtworkUrl = null;
             artworkRequestGeneration.incrementAndGet();
             return;
@@ -1364,17 +1715,19 @@ public class ThemeHook extends SpotifyHook {
             return;
         }
 
-        if (downloadUrl.equals(lastArtworkUrl)) {
+        if (downloadUrl.equals(lastArtworkUrl)
+                && (!animatedBackgroundEnabled || lastArtworkRequestedForAnimation)) {
             return;
         }
 
+        lastArtworkRequestedForAnimation = animatedBackgroundEnabled;
         lastArtworkUrl = downloadUrl;
 
         int generation = artworkRequestGeneration.incrementAndGet();
 
         Integer cachedColor = artworkColorCache.get(downloadUrl);
 
-        if (cachedColor != null) {
+        if (cachedColor != null && !animatedBackgroundEnabled) {
             paletteHandler.post(() -> {
                 if (generation == artworkRequestGeneration.get()) {
                     applyArtworkTheme(cachedColor);
@@ -1393,6 +1746,15 @@ public class ThemeHook extends SpotifyHook {
                 if (artwork != null) {
                     selectedColor = selectArtworkColor(artwork);
 
+                    if (animatedBackgroundEnabled) {
+                        Bitmap thumbnail = Bitmap.createScaledBitmap(artwork, 100, 100, true);
+                        if (thumbnail == artwork) thumbnail = artwork.copy(Bitmap.Config.ARGB_8888, false);
+                        final Bitmap image = thumbnail;
+                        paletteHandler.post(() -> {
+                            if (generation == artworkRequestGeneration.get()) animatedBackground.updateImage(image);
+                            image.recycle();
+                        });
+                    }
                     artwork.recycle();
                 }
             } catch (Throwable throwable) {
@@ -1637,31 +1999,34 @@ public class ThemeHook extends SpotifyHook {
                 public void onActivityResumed(Activity activity) {
                     if (!context.getPackageName().equals(activity.getPackageName())) return;
                     visibleActivity = new WeakReference<>(activity);
+                    if (themeEnabled && animatedBackgroundEnabled) animatedBackground.show(activity);
                     boolean stale;
                     synchronized (activityPaletteGenerations) {
                         Integer appliedGeneration = activityPaletteGenerations.get(activity);
                         if (appliedGeneration == null) {
-                            activityPaletteGenerations.put(activity, paletteGeneration);
+                            activityPaletteGenerations.put(activity, recreationGeneration);
                             stale = false;
                         } else {
-                            stale = appliedGeneration != paletteGeneration;
-                            if (stale) activityPaletteGenerations.put(activity, paletteGeneration);
+                            stale = appliedGeneration != recreationGeneration;
+                            if (stale) activityPaletteGenerations.put(activity, recreationGeneration);
                         }
                     }
                     if (stale) paletteHandler.post(() -> recreateActivity(activity));
                 }
                 @Override
-                public void onActivityCreated(Activity activity, Bundle savedInstanceState) {}
+                public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+                    activityPaletteGenerations.put(activity, recreationGeneration);
+                }
                 @Override
                 public void onActivityStarted(Activity activity) {}
                 @Override
-                public void onActivityPaused(Activity activity) {}
+                public void onActivityPaused(Activity activity) { animatedBackground.hide(activity); }
                 @Override
                 public void onActivityStopped(Activity activity) {}
                 @Override
                 public void onActivitySaveInstanceState(Activity activity, Bundle outState) {}
                 @Override
-                public void onActivityDestroyed(Activity activity) {}
+                public void onActivityDestroyed(Activity activity) { animatedBackground.hide(activity); activityPaletteGenerations.remove(activity); }
             });
         } catch (Throwable throwable) {
             XposedBridge.log(throwable);
@@ -1669,6 +2034,7 @@ public class ThemeHook extends SpotifyHook {
     }
 
     private static void recreateVisibleActivity() {
+        recreationGeneration++;
         Activity activity = visibleActivity.get();
 
         if (activity == null) {
@@ -1680,7 +2046,7 @@ public class ThemeHook extends SpotifyHook {
         }
 
         synchronized (activityPaletteGenerations) {
-            activityPaletteGenerations.put(activity, paletteGeneration);
+            activityPaletteGenerations.put(activity, recreationGeneration);
         }
 
         recreateActivity(activity);
@@ -1939,6 +2305,10 @@ public class ThemeHook extends SpotifyHook {
     }
 
     public static void generateTheme(int baseColor, String mode, ClassLoader classLoader) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            themeHandler.post(() -> generateTheme(baseColor, mode, classLoader));
+            return;
+        }
         int background = adjustBaseColor(baseColor | 0xFF000000, mode);
         int text = bestTextColor(background);
         int textSubdued = ensureContrast(blendColors(text, background, 0.32f), background, text, 4.5);
@@ -1980,7 +2350,6 @@ public class ThemeHook extends SpotifyHook {
         DECORATIVE_SUBDUED = blendColors(background, accent, 0.42f);
 
         onPaletteChanged(classLoader);
-        recreateVisibleActivity();
     }
 
     private static int adjustBaseColor(int color, String mode) {

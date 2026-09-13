@@ -48,7 +48,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingBottom="12dp"
-                    android:text="General"/>
+                    android:text="@string/general_header"/>
 
             <LinearLayout
                     android:layout_width="match_parent"
@@ -68,7 +68,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Enabled"
+                            android:text="@string/theme_enabled"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:paddingBottom="4dp"
@@ -78,7 +78,7 @@
                             style="@style/TextAppearance.Material3.BodySmall"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Apply the custom Spotify theme"
+                            android:text="@string/theme_enabled_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"/>
 
                     <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" >
@@ -90,7 +90,7 @@
                                 style="@style/TextAppearance.Material3.BodySmall"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="This feature is still in beta and is not guaranteed to work!"
+                                android:text="@string/theme_enabled_warning"
                                 android:textAlignment="viewStart"
                                 android:textColor="#FFFFFFFF" android:layout_marginHorizontal="8dp"/>
                     </LinearLayout>
@@ -102,7 +102,7 @@
                         android:layout_height="wrap_content"
                         android:paddingEnd="8dp"
                         android:checked="true"
-                        android:contentDescription="Enable custom theme"/>
+                        android:contentDescription="@string/theme_settings_page_enable_custom_theme"/>
             </LinearLayout>
 
             <View
@@ -118,13 +118,13 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingBottom="4dp"
-                    android:text="Generate Theme"/>
+                    android:text="@string/theme_generate_title"/>
 
             <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
-                    android:text="Choose one color and generate a complete matching palette."
+                    android:text="@string/theme_generate_subtitle"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="13sp"/>
 
@@ -147,7 +147,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Base Color"
+                            android:text="@string/theme_base_color"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -155,7 +155,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Used to build the generated palette"
+                            android:text="@string/theme_base_color_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -194,7 +194,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:paddingBottom="4dp"
-                        android:text="Theme Style"
+                        android:text="@string/theme_style"
                         android:textColor="@color/white"
                         android:textSize="15sp"/>
 
@@ -203,7 +203,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="4dp"
-                        android:text="Choose how the generated palette should handle brightness and contrast."
+                        android:text="@string/theme_style_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
 
                 <LinearLayout
@@ -222,7 +222,7 @@
                                 style="@style/TextAppearance.Material3.BodyMedium"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Light"
+                                android:text="@string/theme_light"
                                 android:textColor="@color/white"/>
 
                         <TextView
@@ -230,7 +230,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Takes the song color and makes it a little lighter."
+                                android:text="@string/theme_light_desc"
                                 android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
@@ -256,7 +256,7 @@
                                 style="@style/TextAppearance.Material3.BodyMedium"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Neutral"
+                                android:text="@string/theme_neutral"
                                 android:textColor="@color/white"/>
 
                         <TextView
@@ -264,7 +264,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Uses the color of the song, not making it any lighter or darker."
+                                android:text="@string/theme_neutral_desc"
                                 android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
@@ -290,7 +290,7 @@
                                 style="@style/TextAppearance.Material3.BodyMedium"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Dark"
+                                android:text="@string/theme_dark"
                                 android:textColor="@color/white"/>
 
                         <TextView
@@ -298,7 +298,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Takes the song color and makes it a little darker."
+                                android:text="@string/theme_dark_desc"
                                 android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
@@ -316,7 +316,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:layout_marginTop="12dp"
-                    android:text="Generate Theme"/>
+                    android:text="@string/theme_generate_title"/>
 
             <View
                     android:layout_width="match_parent"
@@ -331,7 +331,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingBottom="4dp"
-                    android:text="Auto Theme"/>
+                    android:text="@string/auto_theme"/>
 
             <LinearLayout
                     android:layout_width="match_parent"
@@ -349,7 +349,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Match Current Song"
+                            android:text="@string/theme_match_song"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -357,7 +357,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Generate a theme from the current artwork"
+                            android:text="@string/theme_match_song_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -366,7 +366,7 @@
                         android:id="@+id/switch_auto_theme"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:contentDescription="Enable automatic song themes"/>
+                        android:contentDescription="@string/theme_settings_page_enable_automatic_song_themes"/>
             </LinearLayout>
 
             <RadioGroup
@@ -383,7 +383,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:paddingBottom="4dp"
-                        android:text="Auto Theme Style"
+                        android:text="@string/auto_theme_style"
                         android:textColor="@color/white"
                         android:textSize="15sp"/>
 
@@ -392,7 +392,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="4dp"
-                        android:text="Choose what style themes generated from album artwork should use."
+                        android:text="@string/auto_theme_style_desc"
                         android:textColor="?attr/colorOnSurfaceVariant"/>
 
                 <LinearLayout
@@ -411,7 +411,7 @@
                                 style="@style/TextAppearance.Material3.BodyMedium"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Light"
+                                android:text="@string/theme_light"
                                 android:textColor="@color/white"/>
 
                         <TextView
@@ -419,7 +419,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Takes the color from the song and makes it a little ."
+                                android:text="@string/theme_light_desc"
                                 android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
@@ -445,7 +445,7 @@
                                 style="@style/TextAppearance.Material3.BodyMedium"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Neutral"
+                                android:text="@string/theme_neutral"
                                 android:textColor="@color/white"/>
 
                         <TextView
@@ -453,7 +453,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Uses the default color from the song, no chnages lighter or darker."
+                                android:text="@string/theme_neutral_desc"
                                 android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
@@ -479,7 +479,7 @@
                                 style="@style/TextAppearance.Material3.BodyMedium"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Dark"
+                                android:text="@string/theme_dark"
                                 android:textColor="@color/white"/>
 
                         <TextView
@@ -487,7 +487,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Takes the color from the song and makes it a little darker"
+                                android:text="@string/theme_dark_desc"
                                 android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
@@ -512,13 +512,13 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingBottom="4dp"
-                    android:text="Complete Control"/>
+                    android:text="@string/theme_control"/>
 
             <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="8dp"
-                    android:text="Tap any color to override that part of Spotify individually."
+                    android:text="@string/theme_control_desc"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="13sp"/>
 
@@ -543,7 +543,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Background"
+                            android:text="@string/theme_background"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -551,7 +551,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Main app background"
+                            android:text="@string/theme_background_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -597,7 +597,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Background Highlight"
+                            android:text="@string/theme_background_highlight"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -605,7 +605,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Highlighted background elements"
+                            android:text="@string/theme_background_highlight_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -651,7 +651,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Background Press"
+                            android:text="@string/theme_background_press"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -659,7 +659,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Pressed background state"
+                            android:text="@string/theme_background_press_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -705,7 +705,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Surface"
+                            android:text="@string/theme_surface"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -713,7 +713,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Cards, sheets, and elevated surfaces"
+                            android:text="@string/theme_surface_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -759,7 +759,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Surface Highlight"
+                            android:text="@string/theme_surface_highlight"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -767,7 +767,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Highlighted surface state"
+                            android:text="@string/theme_surface_highlight_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -813,7 +813,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Surface Press"
+                            android:text="@string/theme_surface_press"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -821,7 +821,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Pressed surface state"
+                            android:text="@string/theme_surface_press_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -867,7 +867,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Tinted"
+                            android:text="@string/theme_tinted"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -875,7 +875,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Tinted containers and controls"
+                            android:text="@string/theme_tinted_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -921,7 +921,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Tinted Highlight"
+                            android:text="@string/theme_tinted_highlight"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -929,7 +929,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Highlighted tinted state"
+                            android:text="@string/theme_tinted_highlight_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -975,7 +975,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Tinted Press"
+                            android:text="@string/theme_tinted_press"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -983,7 +983,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Pressed tinted state"
+                            android:text="@string/theme_tinted_press_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1029,7 +1029,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Text"
+                            android:text="@string/theme_text"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1037,7 +1037,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Primary text and icons"
+                            android:text="@string/theme_text_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1083,7 +1083,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Text Subdued"
+                            android:text="@string/theme_text_secondary"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1091,7 +1091,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Secondary text and icons"
+                            android:text="@string/theme_text_secondary_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1137,7 +1137,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Accent"
+                            android:text="@string/theme_accent"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1145,7 +1145,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Primary accent color"
+                            android:text="@string/theme_accent_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1191,7 +1191,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Accent Highlight"
+                            android:text="@string/theme_accent_highlight"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1199,7 +1199,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Highlighted accent state"
+                            android:text="@string/theme_accent_highlight_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1245,7 +1245,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Accent Press"
+                            android:text="@string/theme_accent_press"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1253,7 +1253,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Pressed accent state"
+                            android:text="@string/theme_accent_press_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1299,7 +1299,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Announcement"
+                            android:text="@string/theme_announcement"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1307,7 +1307,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Announcements and informational emphasis"
+                            android:text="@string/theme_announcement_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1353,7 +1353,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Decorative"
+                            android:text="@string/theme_decorative"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1361,7 +1361,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Decorative elements and visual accents"
+                            android:text="@string/theme_decorative_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1407,7 +1407,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Decorative Subdued"
+                            android:text="@string/theme_decorative_subdued"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1415,7 +1415,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Subtle decorative elements"
+                            android:text="@string/theme_decorative_subdued_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1461,7 +1461,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Negative"
+                            android:text="@string/theme_negative"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1469,7 +1469,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Errors and destructive actions"
+                            android:text="@string/theme_negative_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1515,7 +1515,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Warning"
+                            android:text="@string/theme_warning"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1523,7 +1523,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Warnings and caution states"
+                            android:text="@string/theme_warning_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1569,7 +1569,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Positive"
+                            android:text="@string/theme_positive"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1577,7 +1577,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Success and positive states"
+                            android:text="@string/theme_positive_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1623,7 +1623,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Scrim"
+                            android:text="@string/theme_scrim"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1631,7 +1631,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Overlay behind dialogs and sheets"
+                            android:text="@string/theme_scrim_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1677,7 +1677,7 @@
                     <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="On Accent"
+                            android:text="@string/theme_onaccent"
                             android:textColor="@color/white"
                             android:textSize="15sp"/>
 
@@ -1685,7 +1685,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Content displayed over accent colors"
+                            android:text="@string/theme_onaccent_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp"/>
                 </LinearLayout>
@@ -1716,7 +1716,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:layout_marginTop="18dp"
-                    android:text="Apply Custom Theme"
+                    android:text="@string/theme_apply"
                     android:textAllCaps="false"
                     android:textStyle="bold"
                     app:cornerRadius="999dp"/>

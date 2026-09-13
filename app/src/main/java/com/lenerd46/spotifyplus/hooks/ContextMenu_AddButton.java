@@ -129,7 +129,7 @@ public class ContextMenu_AddButton extends SpotifyHook {
                     if (item != null) {
                         ensureRow(item, true);
 
-                        item.setContentDescription("Lyrics");
+                        item.setContentDescription(References.getString(R.string.lyrics_button));
                         item.setOnClickListener(v -> {
                             Activity activity = References.currentActivity;
                             if (activity == null) return;
@@ -143,7 +143,7 @@ public class ContextMenu_AddButton extends SpotifyHook {
                     if (item != null) {
                         ensureRow(item, false);
 
-                        item.setContentDescription("Open in Last.fm");
+                        item.setContentDescription(References.getString(R.string.open_song_lastfm));
                         item.setOnClickListener(v -> {
                             Pair<String, String> track = References.contextMenuTrack.get();
                             Activity activity = References.currentActivity;
@@ -227,7 +227,7 @@ public class ContextMenu_AddButton extends SpotifyHook {
         iconView.setColorFilter(null);
 
         // Spotify is very inconsistent with how they name their buttons in this list, so I'm not really sure what to capitalize?
-        textView.setText(lyrics ? "Lyrics" : "Open in Last.fm");
+        textView.setText(lyrics ? References.getString(R.string.lyrics_button) : References.getString(R.string.open_song_lastfm));
     }
 
 

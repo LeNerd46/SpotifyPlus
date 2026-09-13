@@ -15,6 +15,8 @@ import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -39,12 +41,14 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
 
     private static final Object PLAYER_LOCK = new Object();
     private static volatile ExoPlayer activePlayer;
+    private static final OkHttpClient ARTWORK_CLIENT = new OkHttpClient();
     private volatile FrameLayout activeOverlay;
     private volatile TextureView activeTextureView;
     private static final java.util.concurrent.atomic.AtomicInteger GEN = new java.util.concurrent.atomic.AtomicInteger();
 
     @Override
     protected void hook() {
+        new ImmersiveAnimatedArtwork().init(lpparm, bridge);
         XposedBridge.hookAllMethods(LayoutInflater.class, "inflate", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -81,7 +85,8 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
                         }
 
                         SharedPreferences prefs = References.getPreferences();
-                        if (!prefs.getBoolean("experiment_animated_art", true))
+                        if (!prefs.getBoolean("experiment_animated_art", true)
+                                || prefs.getBoolean(ImmersiveAnimatedArtwork.PREFERENCE, false))
                             return;
 
                         attachOverlay((ViewGroup) image.getParent(), image);
@@ -224,7 +229,17 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
     private ExoPlayer getOrCreatePlayer(Context context, TextureView textureView, FrameLayout overlay) {
         synchronized (PLAYER_LOCK) {
             if (activePlayer == null) {
-                activePlayer = new ExoPlayer.Builder(context).build();
+                Context application = context.getApplicationContext();
+                DefaultTrackSelector selector = new DefaultTrackSelector(application);
+                selector.setParameters(selector.buildUponParameters()
+                        .setMaxVideoSize(1280, 1280).setMaxVideoBitrate(2_500_000));
+                activePlayer = new ExoPlayer.Builder(application)
+                        .setTrackSelector(selector)
+                        .setLoadControl(new DefaultLoadControl.Builder()
+                                .setBufferDurationsMs(2000, 6000, 500, 1000)
+                                .setTargetBufferBytes(8 * 1024 * 1024)
+                                .setPrioritizeTimeOverSizeThresholds(false).build())
+                        .build();
                 activePlayer.setRepeatMode(Player.REPEAT_MODE_ONE);
                 activePlayer.setVolume(0f);
                 activePlayer.setPlayWhenReady(true);
@@ -258,9 +273,15 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
                 }
             }
 
+            if (activeOverlay != null && activeOverlay != overlay) {
+                // A returning carousel page must reload its own track, not the last owner's video.
+                activeOverlay.setTag(TAG_LAST_URI, null);
+            }
             activeOverlay = overlay;
-            activeTextureView = textureView;
-            activePlayer.setVideoTextureView(textureView);
+            if (activeTextureView != textureView) {
+                activeTextureView = textureView;
+                activePlayer.setVideoTextureView(textureView);
+            }
 
             return activePlayer;
         }
@@ -290,8 +311,12 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
     }
 
     private void maybeActivate(View image, FrameLayout overlay, TextureView tv) {
-        if (!isCenteredAndMostlyVisible(image))
+        if (!isCenteredAndMostlyVisible(image) || image.getWindowVisibility() != View.VISIBLE
+                || !References.getPreferences().getBoolean("experiment_animated_art", true)
+                || References.getPreferences().getBoolean(ImmersiveAnimatedArtwork.PREFERENCE, false)) {
+            releasePlayer(overlay);
             return;
+        }
 
         SpotifyTrack track = References.getTrackTitle(lpparm, bridge);
         if (track == null)
@@ -311,6 +336,7 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
         overlay.bringToFront();
 
         int gen = GEN.incrementAndGet();
+        ARTWORK_CLIENT.dispatcher().cancelAll();
 
         try {
             p.stop();
@@ -322,7 +348,7 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
     }
 
     private void fetchAndPlayForActive(int gen, FrameLayout overlay, SpotifyTrack track) {
-        OkHttpClient client = new OkHttpClient.Builder().build();
+        OkHttpClient client = ARTWORK_CLIENT;
 
         final String term = track.title + " " + track.artist;
         String enc = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
@@ -341,6 +367,7 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
                 JsonObject root = JsonParser.parseString(json).getAsJsonObject();
                 String url = root.get("results").getAsJsonArray().get(0).getAsJsonObject()
                         .get("collectionViewUrl").getAsString();
+                if (GEN.get() != gen) return;
 
                 Request appleMusicRequest = new Request.Builder().url(url).get().build();
                 try (Response appleResponse = client.newCall(appleMusicRequest).execute()) {
@@ -374,15 +401,42 @@ public class AnimatedAlbumArtwork extends SpotifyHook {
     }
 
     private void startHeartbeat(View image, FrameLayout overlay, TextureView tv) {
-        overlay.postOnAnimationDelayed(new Runnable() {
+        Runnable heartbeat = new Runnable() {
             @Override
             public void run() {
-                if (!overlay.isAttachedToWindow())
+                if (!overlay.isAttachedToWindow()) {
+                    releasePlayer(overlay);
                     return;
+                }
                 maybeActivate(image, overlay, tv);
                 overlay.postOnAnimationDelayed(this, 500);
             }
-        }, 500);
+        };
+        overlay.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) {
+                overlay.removeCallbacks(heartbeat);
+                overlay.postOnAnimationDelayed(heartbeat, 500);
+            }
+            @Override public void onViewDetachedFromWindow(View v) {
+                overlay.removeCallbacks(heartbeat);
+                releasePlayer(overlay);
+            }
+        });
+        overlay.postOnAnimationDelayed(heartbeat, 500);
+    }
+
+    private void releasePlayer(FrameLayout owner) {
+        synchronized (PLAYER_LOCK) {
+            if (activeOverlay != owner) return;
+            GEN.incrementAndGet();
+            ARTWORK_CLIENT.dispatcher().cancelAll();
+            owner.setTag(TAG_LAST_URI, null);
+            ExoPlayer player = activePlayer;
+            activePlayer = null;
+            activeOverlay = null;
+            activeTextureView = null;
+            if (player != null) player.release();
+        }
     }
 
 }

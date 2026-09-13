@@ -43,7 +43,7 @@
                     android:id="@+id/sleep_timer_custom_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Custom Sleep Timer"
+                    android:text="@string/sleep_timer_sheet_custom_sleep_timer"
                     android:textColor="@color/white"
                     android:textSize="22sp"
                     android:textStyle="bold"
@@ -53,7 +53,7 @@
                     android:id="@+id/sleep_timer_custom_description"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Choose a custom amount of time before playback stops."
+                    android:text="@string/sleep_timer_sheet_choose_a_custom_amount_of_time_before_playback_stops"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="14sp"
                     android:layout_marginBottom="18dp"/>
@@ -63,7 +63,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="14dp"
-                    android:hint="Amount"
+                    android:hint="@string/sleep_timer_sheet_amount"
                     app:boxStrokeColor="#55FFFFFF"
                     app:hintTextColor="#AAFFFFFF">
 
@@ -81,7 +81,7 @@
                     android:id="@+id/sleep_timer_unit_label"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Time unit"
+                    android:text="@string/sleep_timer_sheet_time_unit"
                     android:textColor="@color/white"
                     android:textSize="14sp"
                     android:textStyle="bold"
@@ -102,7 +102,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Minutes"
+                        android:text="@string/sleep_timer_sheet_minutes"
                         android:backgroundTint="@color/sleep_timer_toggle_background"
                         android:textAllCaps="false"
                         android:textColor="@color/white"/>
@@ -113,7 +113,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Hours"
+                        android:text="@string/sleep_timer_sheet_hours"
                         android:backgroundTint="@color/sleep_timer_toggle_background"
                         android:textAllCaps="false"
                         android:textColor="@color/white"/>
@@ -140,7 +140,7 @@
                             android:id="@+id/sleep_timer_save_title"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Save for later"
+                            android:text="@string/sleep_timer_sheet_save_for_later"
                             android:textColor="@color/white"
                             android:textSize="15sp"
                             android:textStyle="bold"/>
@@ -149,7 +149,7 @@
                             android:id="@+id/sleep_timer_save_description"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Show this custom amount in the list next time. You can manage custom timers in settings."
+                            android:text="@string/sleep_timer_save_preset_desc"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="13sp"/>
 
@@ -166,7 +166,7 @@
                     android:id="@+id/btn_confirm_sleep_timer_custom"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Start Timer"
+                    android:text="@string/sleep_timer_sheet_start_timer"
                     android:textAllCaps="false"
                     android:layout_marginBottom="10dp"/>
 
@@ -175,7 +175,7 @@
                     style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Cancel"
+                    android:text="@string/lastfm_cancel"
                     android:textAllCaps="false"
                     android:textColor="?attr/colorOnSurfaceVariant"/>
 

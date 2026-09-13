@@ -13,6 +13,20 @@ import java.util.concurrent.Callable;
 public class SpotifyTitleOverride {
     private static final ThreadLocal<Override> tl = new ThreadLocal<>();
     private static volatile boolean installed = false;
+    private static final java.util.Map<Integer, String> moduleTitles = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, Integer> titleIds = new java.util.HashMap<>();
+    private static int nextTitleId = 0x53510000;
+
+    public static synchronized int registerTitle(String title) {
+        install();
+        Integer id = titleIds.get(title);
+        if (id == null) {
+            id = nextTitleId++;
+            titleIds.put(title, id);
+            moduleTitles.put(id, title);
+        }
+        return id;
+    }
 
     public static void overrideSpotifyStringById(int resId, String newValue) {
         try {
@@ -49,6 +63,9 @@ public class SpotifyTitleOverride {
                 if (param.args.length < 1 || !(param.args[0] instanceof Integer))
                     return;
 
+                String moduleTitle = moduleTitles.get((Integer) param.args[0]);
+                if (moduleTitle != null) { param.setResult(moduleTitle); return; }
+
                 Override ov = tl.get();
                 if (ov == null)
                     return;
@@ -69,6 +86,9 @@ public class SpotifyTitleOverride {
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 if (param.args.length < 1 || !(param.args[0] instanceof Integer))
                     return;
+
+                String moduleTitle = moduleTitles.get((Integer) param.args[0]);
+                if (moduleTitle != null) { param.setResult(moduleTitle); return; }
 
                 Override ov = tl.get();
                 if (ov == null)
