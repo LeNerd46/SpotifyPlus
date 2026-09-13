@@ -235,7 +235,7 @@
     <string name="ui_could_not_open_lyrics_sync">Could not open lyrics sync</string>
     <string name="ui_no_lyrics_found_for_this_song">No lyrics found for this song</string>
     <string name="ui_hide_lyric_translations">Hide lyric translations</string>
-    <string name="ui_show_lyric_translations">Show lyric translations</string>
+    <string name="ui_show_lyric_translations">Lyrics Übersetzungen anzeigen</string>
     <string name="ui_failed_to_load_lyrics">Failed to load lyrics</string>
     <string name="ui_community_synced">Community synced</string>
     <string name="ui_failed_to_get_track_analysis">Failed to get track analysis</string>
