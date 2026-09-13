@@ -13,6 +13,7 @@ Word by word lyrics, new features, customizations, and much more, all in one mod
 </a>
 ![Static Badge](https://img.shields.io/badge/Spotify%20Version-9.1.82.2160-green?logo=spotify)
 ![GitHub Release](https://img.shields.io/github/v/release/LeNerd46/SpotifyPlus?color=lightgreen)
+[![Crowdin](https://badges.crowdin.net/spotify-plus/localized.svg)](https://crowdin.com/project/spotify-plus)
 
 </div>
 
@@ -182,6 +183,10 @@ Feel free to join our [Telegram group](https://t.me/spotifypluscool). We'd be ha
 
 Join the Spotify Plus community! We have a Telegram channel where you can discuss the module and give feedback and
 discuss directly. You can join [here](https://t.me/spotifypluscool)
+
+## Translating
+
+Spotify Plus is translated by the community! If you know any other languages, we would love your help! Feel free to help out on [Crowdin](https://crowdin.com/project/spotify-plus/invite?h=362149a52265916a782171af4c6d07432876751)
 
 ## Credit
 
