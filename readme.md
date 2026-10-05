@@ -154,7 +154,7 @@ For Rooted Phones:
 For Non Rooted Phones:
 
 1. Install the APK from the releases page
-2. Download a Spotify APK (you can get it [here](https://spotify.en.uptodown.com/android/download))
+2. Download a Spotify APK (you can get it [here](https://www.apkmirror.com/apk/spotify-ab/spotify-music-podcasts/). Make sure to check the latest supported version of Spotify!! It's at the top of the readme)
 3. Setup LSPatch (if using Android 15 or Android 16, using [this fork](https://github.com/JingMatrix/LSPatch). Shizuku
    not working? Try using [this fork](https://github.com/thedjchi/Shizuku))
 4. Press the plus button -> Select apk from storage -> and find your Spotify APK file
