@@ -1,31 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SpotifyPlus } from 'spotifyplus';
 import { Image, Pressable, ScrollView, Text, View } from 'spotifyplus/react';
 import Colors from './colors';
-import { formatReleaseDate, parseMarketplaceChangelog, } from './changelog';
+import ChangelogCard from './changelog-card';
 import { installMarketplaceExtension, InstallProgress, listInstalledExtensions, uninstallMarketplaceExtension, } from './install-extension';
-import { InstalledExtensionInfo, MarketplaceAuthor, MarketplaceChangelog, MarketplaceChangelogChange, MarketplaceChangelogRelease, MarketplaceExtension, UNKNOWN_AUTHOR, } from './types/extension';
+import { InstalledExtensionInfo, MarketplaceAuthor, MarketplaceExtension, UNKNOWN_AUTHOR, } from './types/extension';
 import { placeholderImage } from './app';
-
-interface ChangelogResult {
-    releases: MarketplaceChangelog;
-    error?: string;
-}
+import { hasUpdate } from './updates';
 
 const githubIcon = SpotifyPlus.Assets.image('assets/github.png');
-
-const loadChangelog = (source?: string | MarketplaceChangelog): ChangelogResult => {
-    if (!source) {
-        return { releases: [] };
-    }
-
-    try {
-        const value = typeof source === 'string' ? SpotifyPlus.Assets.readJson<unknown>(source) : source;
-        return { releases: parseMarketplaceChangelog(value) };
-    } catch (error) {
-        return { releases: [], error: error instanceof Error ? error.message : 'Unknown changelog error' };
-    }
-};
 
 interface Props {
     extension: MarketplaceExtension;
@@ -64,8 +47,7 @@ const ExtensionPage = ({ extension, onInstalledChanged }: Props) => {
     }, [extension.id]);
 
     const authors = extension.authors?.length ? extension.authors : [{ name: UNKNOWN_AUTHOR }];
-    const changelog = useMemo(() => loadChangelog(extension.changelog), [extension.changelog]);
-    const isInstalledVersion = installed?.version === extension.version;
+    const isInstalledVersion = !!installed && !hasUpdate(installed, extension);
     const installLabel = getInstallLabel(extension, installed, installing, installProgress,);
     const installDisabled = installing || uninstalling || isInstalledVersion || !extension.repository;
 
@@ -197,6 +179,8 @@ const ExtensionPage = ({ extension, onInstalledChanged }: Props) => {
                         )}
                     </View>
 
+                    {installed && hasUpdate(installed, extension) && <Text textColor={Colors.primary} fontSize={14} style={{ marginTop: 12 }}>Update available: v{installed.version} → v{extension.version}</Text>}
+
                     <SectionTitle title='About this extension' />
 
                     <Text textColor={Colors.onSurfaceVariant} fontSize={16} fontWeight='500' style={{ lineHeight: 24 }}>
@@ -209,7 +193,7 @@ const ExtensionPage = ({ extension, onInstalledChanged }: Props) => {
                         ))}
                     </View>
 
-                    <ChangelogCard hasSource={Boolean(extension.changelog)} result={changelog} />
+                    <ChangelogCard source={extension.changelog} baseUrl={extension.changelogBaseUrl} />
 
                     <InfoCard extension={extension} />
 
@@ -227,8 +211,7 @@ const getInstallLabel = (extension: MarketplaceExtension, installed: InstalledEx
     }
 
     if (!extension.repository) return 'Unavailable';
-    if (installed?.version === extension.version) return '✓  Installed';
-    if (installed) return '↓  Update';
+    if (installed) return hasUpdate(installed, extension) ? '↓  Update' : '✓  Installed';
 
     return '↓  Install';
 };
@@ -254,91 +237,6 @@ const FeatureChip = ({ label }: { label: string }) => (
         <Text textColor={Colors.onSurface} fontSize={14}>{label}</Text>
     </View>
 );
-
-const ChangelogCard = ({ hasSource, result, }: { hasSource: boolean; result: ChangelogResult; }) => (
-    <View style={{ marginTop: 32, padding: 24, borderRadius: 12, backgroundColor: Colors.surfaceContainer, borderWidth: 1, borderColor: Colors.outlineVariant }} >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }} >
-            <Text textColor={Colors.onSurface} fontSize={20} fontWeight='bold' >
-                Changelog
-            </Text>
-            {result.releases[0] && (
-                <Text textColor={Colors.onSurfaceVariant} fontSize={12} fontWeight='bold' >
-                    {formatReleaseDate(result.releases[0].release)}
-                </Text>
-            )}
-        </View>
-
-        {!hasSource && (
-            <ChangelogMessage text='No changelog available.' />
-        )}
-
-        {hasSource && result.error && (
-            <ChangelogMessage text="This extension's changelog could not be loaded." />
-        )}
-
-        {hasSource && !result.error && result.releases.length === 0 && (
-            <ChangelogMessage text='No changelog entries available.' />
-        )}
-
-        {result.releases.map((release, index) => (
-            <ChangelogReleaseView key={`${release.version}-${release.release}-${index}`} release={release} first={index === 0} />
-        ))}
-    </View>
-);
-
-const ChangelogMessage = ({ text }: { text: string }) => (
-    <Text textColor={Colors.onSurfaceVariant} fontSize={14} style={{ lineHeight: 20 }} >
-        {text}
-    </Text>
-);
-
-const ChangelogReleaseView = ({ release, first, }: { release: MarketplaceChangelogRelease; first: boolean; }) => (
-    <View style={{ marginTop: first ? 0 : 20, paddingTop: first ? 0 : 20, }} >
-        {!first && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: Colors.outlineVariant }} />
-        )}
-
-        <Text textColor={Colors.onSurface} fontSize={16} fontWeight='bold' >
-            v{release.version}
-        </Text>
-
-        {release.sections.map((section, index) => (
-            <View key={`${section.heading}-${index}`} style={{ marginTop: 16 }} >
-                <Text textColor={Colors.primary} fontSize={14} fontWeight='bold' style={{ marginBottom: 10 }} >
-                    {section.heading}
-                </Text>
-
-                {section.changes.map((change, changeIndex) => (
-                    <ChangelogChangeView key={`${typeof change === 'string' ? change : change.text}-${changeIndex}`} change={change} />
-                ))}
-            </View>
-        ))}
-    </View>
-);
-
-const ChangelogChangeView = ({ change, }: { change: MarketplaceChangelogChange; }) => {
-    const details = typeof change === 'string' ? { text: change } : change;
-
-    return (
-        <View style={{ marginBottom: 10 }}>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 7 }} />
-                <Text textColor={Colors.onSurfaceVariant} fontSize={14} style={{ flex: 1, lineHeight: 20 }} >
-                    {details.text}
-                </Text>
-            </View>
-
-            {details.subLines?.map((line, index) => (
-                <View key={`${line}-${index}`} style={{ flexDirection: 'row', gap: 8, marginTop: 6, marginLeft: 16 }} >
-                    <Text textColor={Colors.secondary} fontSize={13}>–</Text>
-                    <Text textColor={Colors.secondary} fontSize={13} style={{ flex: 1, lineHeight: 18 }} >
-                        {line}
-                    </Text>
-                </View>
-            ))}
-        </View>
-    );
-};
 
 const InfoCard = ({ extension }: Props) => (
     <View style={{ marginTop: 32, padding: 24, borderRadius: 12, backgroundColor: Colors.surfaceContainerHigh, borderWidth: 1, borderColor: Colors.outlineVariant }}>

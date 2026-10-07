@@ -1,5 +1,6 @@
 import { marketplaceManifestSchema } from './fetch-metadata';
 import { InstalledExtensionInfo, MarketplaceExtension, MarketplaceRepository } from './types/extension';
+import { isNewerVersion } from './updates';
 
 interface ExtensionInstallFile {
     path: string;
@@ -54,6 +55,10 @@ export const installMarketplaceExtension = async (extension: MarketplaceExtensio
     const { repository } = extension;
     const commit = await fetchCommit(repository);
     const manifest = await fetchPinnedManifest(repository, commit, extension.id);
+    const installed = listInstalledExtensions().find((item) => item.id === extension.id);
+    if (installed && !isNewerVersion(manifest.version, installed.version)) {
+        throw new Error('The repository no longer offers a newer version. Check for updates again.');
+    }
     const packagePaths = await resolvePackagePaths(repository, commit, manifest);
     const files = await downloadPackageFiles(repository, commit, packagePaths, onProgress);
 

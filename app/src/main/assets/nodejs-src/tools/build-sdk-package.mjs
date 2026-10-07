@@ -44,6 +44,7 @@ const nativeAnimationTypeFiles = [
 ];
 
 const internalTypeFiles = [
+    "target-api.d.ts",
     ...nativeAnimationTypeFiles,
     "components.d.ts",
     "legacy-animated.d.ts",
@@ -85,6 +86,7 @@ function unlinkIfExists(filePath) {
 
 function rewriteCommonTypeImports(text) {
     return text
+        .replace(/from ["']\.\.\/ui\/target-api["']/g, 'from "spotifyplus/internal/target-api"')
         .replace(/from "\.\.\/ui\/components"/g, 'from "spotifyplus/internal/components"')
         .replace(/from "\.\/components"/g, 'from "spotifyplus/internal/components"')
         .replace(/from "\.\.\/components"/g, 'from "spotifyplus/internal/components"')
@@ -221,12 +223,15 @@ function makePackageJson() {
         files: [
             ...publicFiles,
             "internal/*.d.ts",
+            "native-template",
         ],
         bin: {
             spotifyplus: "./dev.cjs",
         },
         dependencies: {
+            inquirer: sourcePackage.dependencies.inquirer,
             "@babel/core": sourcePackage.dependencies?.["@babel/core"] ?? "^7.29.0",
+            "@babel/plugin-transform-unicode-property-regex": sourcePackage.devDependencies["@babel/plugin-transform-unicode-property-regex"],
             "@babel/generator": sourcePackage.dependencies?.["@babel/generator"] ?? "^7.29.0",
             "@babel/plugin-transform-typescript": sourcePackage.dependencies?.["@babel/plugin-transform-typescript"] ?? "^7.28.6",
             esbuild: sourcePackage.dependencies?.esbuild ?? sourcePackage.devDependencies?.esbuild ?? "^0.28.2",
@@ -268,6 +273,7 @@ function makeIndexDts(scriptApiDts) {
     return [
         'export declare const SpotifyPlus: import("spotifyplus/internal/script-api").SpotifyPlusApi;',
         `export type { ${typeNames.join(", ")} } from "spotifyplus/internal/script-api";`,
+        'export type * from "spotifyplus/internal/target-api";',
         "",
     ].join("\n");
 }
@@ -305,7 +311,8 @@ function readExportedApiDeclarations(relativePath, variableNames = []) {
 
 function makeScriptApiDts() {
     return [
-        'import type { ContextMenu, OnClickCallback, PlatformData, Session, ShouldAddCallback, SideDrawerItem, SideOnClickCallback, SpotifyTrack } from "spotifyplus/entities";',
+        'import type { UIApi } from "spotifyplus/internal/target-api";',
+        'import type { ContextMenu, ContextMenuTypes, OnClickCallback, PlatformData, Session, ShouldAddCallback, SideDrawerItem, SideOnClickCallback, SpotifyTrack, MetadataAlbum, MetadataArtist, MetadataPlaylist } from "spotifyplus/entities";',
         'import type { EventHandler, SurfaceRenderer } from "spotifyplus/internal/script-registry";',
         "",
         readExportedApiDeclarations("loader/settings.d.ts"),
@@ -408,6 +415,7 @@ function writeTypes(outDir) {
         rewriteInternalSelfReferences(rewriteCommonTypeImports(readGenerated("ui/renderer.d.ts"))),
     );
     writeFile(outDir, "internal/script-registry.d.ts", rewriteInternalSelfReferences(makeScriptRegistryDts()));
+    writeFile(outDir, "internal/target-api.d.ts", readGenerated("ui/target-api.d.ts"));
     writeFile(
         outDir,
         "internal/script-api.d.ts",
@@ -461,8 +469,11 @@ async function bundleJs(outDir) {
             ...common,
             entryPoints: [path.join(root, "tools/dev-cli.mjs")],
             outfile: path.join(outDir, "dev.cjs"),
+            define: { "import.meta.url": "undefined" },
             external: [
+                "inquirer",
                 "@babel/core",
+                "@babel/plugin-transform-unicode-property-regex",
                 "@babel/generator",
                 "@babel/plugin-transform-typescript",
                 "esbuild",
@@ -500,6 +511,7 @@ async function buildPackage() {
     await bundleJs(primaryOutDir);
     writeTypes(primaryOutDir);
     writeFile(primaryOutDir, "package.json", makePackageJson());
+    fs.cpSync(path.join(root, "tools/native-template"), path.join(primaryOutDir, "native-template"), { recursive: true });
 
     ensureDir(mirrorOutDir);
     unlinkIfExists(path.join(mirrorOutDir, "index.js"));
@@ -507,6 +519,7 @@ async function buildPackage() {
     unlinkIfExists(path.join(mirrorOutDir, "runtime.d.ts"));
 
     for (const file of publicFiles) copyFile(primaryOutDir, mirrorOutDir, file);
+    fs.cpSync(path.join(primaryOutDir, "native-template"), path.join(mirrorOutDir, "native-template"), { recursive: true });
     for (const file of internalTypeFiles) copyFile(primaryOutDir, mirrorOutDir, path.join("internal", file));
 
     console.log(`Built SDK package in ${path.relative(root, primaryOutDir)}`);

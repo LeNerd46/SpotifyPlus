@@ -1,4 +1,5 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
+import { validateNativeApk } from './native-apk';
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
@@ -9,6 +10,9 @@ import { ErrorPacket, Packet, ResponsePacket } from '../core/protocol';
 import { RegisteredSurfaceRenderer, ScriptRegistry } from './script-registry';
 import { clearCommitListener, dispatchReactEvent, setCommitDispatcher, setCommitListener } from '../ui/renderer';
 import React from 'react';
+import { ComposeHeaderProbe, NowPlayingProbe } from '../ui/compose-header-probe';
+import { installPagePartsProbe } from '../ui/page-parts-probe';
+import { UITargetRegistry, NativeUITarget } from '../ui/target-registry';
 import { parseManifest, ScriptManifest } from './script-manifest';
 import type { ExtensionInstallRequest, LocalExtensionInfo, NavigationTarget } from './script-api';
 import type { ScriptTrust } from './script-loader';
@@ -30,7 +34,7 @@ interface ReloadableScriptLoader {
     loadScript(scriptDirectory: string, trust?: ScriptTrust): void;
     unloadFromRoot(root: string): void;
     preflightSource(scriptDirectory: string, manifest: ScriptManifest, source: string): ScriptManifest;
-    loadScriptFromSource(scriptDirectory: string, manifest: ScriptManifest, source: string, loadNative?: boolean, trust?: ScriptTrust): void;
+    loadScriptFromSource(scriptDirectory: string, manifest: ScriptManifest, source: string, loadNative?: boolean, trust?: ScriptTrust, nativeApkPath?: string): void;
 }
 
 export interface HostConfig {
@@ -52,6 +56,7 @@ interface HotReloadBundle {
     buildId: string;
     manifest: ScriptManifest;
     source: string;
+    nativeApk?: { path: string; data: string; size?: number };
     assets?: Array<{
         path: string;
         data: string;
@@ -76,6 +81,12 @@ interface ActiveSideDrawer {
 }
 
 export class HostRuntime {
+    callApiSync<T>(operation: string, args: object = {}): T {
+        return this.bridge.callApiSync<T>(operation, args);
+    }
+    requestApi<T>(operation: string, args: object = {}): Promise<T> {
+        return this.bridge.requestApi<T>(operation, args);
+    }
     readonly registry: ScriptRegistry;
     private readonly bridge: Bridge;
     private readonly pendingRequests = new Map<string, PendingRequest>();
@@ -98,6 +109,7 @@ export class HostRuntime {
 
     private message: string = '';
     private extensionSettings: ExtensionSettings[] = [];
+    private pendingUITargetSnapshot?: Set<string>;
 
     constructor(private readonly logger: Logger, private readonly config: HostConfig = {}) {
         this.registry = new ScriptRegistry(logger.child('Registry'), (scriptId, message, error) => {
@@ -120,10 +132,38 @@ export class HostRuntime {
         this.session.accessToken = this.bridge.getAccessToken();
 
         this.registerEventListeners();
+        const uiOrderFile = this.uiOrderFile();
+        if (uiOrderFile && fs.existsSync(uiOrderFile)) {
+            try { this.ui.setOrder(JSON.parse(fs.readFileSync(uiOrderFile, 'utf8'))); }
+            catch (error) { this.logger.warn('Could not load UI extension order', error); }
+        }
+        void this.requestApi<boolean>('ui.debugProbe').then(enabled => {
+            if (enabled) {
+                const api = this.ui.forExtension('__ui_probe', 1);
+                api.replace('contextMenu.header', ComposeHeaderProbe);
+                api.insertBefore('contextMenu.header', () => React.createElement('Text', {}, 'Before header proof'));
+                api.insertAfter('contextMenu.header', () => React.createElement('Text', {}, 'After header proof'));
+                api.overlay('contextMenu.header', () => React.createElement('Text', { textSizeSp: 10, gravity: 'right' }, 'Overlay proof'));
+                api.replace('nowPlaying.page', NowPlayingProbe);
+                for (const page of ['home.page', 'search.page', 'library.page', 'album.page', 'artist.page', 'playlist.page'] as const) {
+                    api.replace(page, ({ Original }) => React.createElement('View', { width: '100%', height: '100%' },
+                        React.createElement(Original), React.createElement('Text', { position: 'absolute', top: 70, textSizeSp: 12 }, `UI proof: ${page}`)));
+                }
+            }
+        }).catch(error => this.logger.warn('UI integration probe unavailable', error));
+        void this.requestApi<boolean>('ui.debugPartsProbe').then(enabled => {
+            if (enabled) installPagePartsProbe(this.ui.forExtension('__ui_parts_probe', 1),
+                () => { this.navigate('spotify:now-playing', 'spotify'); });
+        }).catch(error => this.logger.warn('UI parts probe unavailable', error));
 
         setCommitDispatcher((surfaceId, ops) => {
             this.bridge.commitSurface(surfaceId, ops);
         });
+        this.pendingUITargetSnapshot = new Set();
+        void this.requestApi<NativeUITarget[]>('ui.snapshot').then(targets => {
+            for (const target of targets) if (!this.pendingUITargetSnapshot?.has(target.id)) this.ui.open(target);
+        }).catch(error => this.logger.warn('Could not recover active UI targets', error))
+            .finally(() => { this.pendingUITargetSnapshot = undefined; });
 
         if (this.config.developerMode) {
             this.installNodeConsoleForwarding();
@@ -138,6 +178,29 @@ export class HostRuntime {
 
     sendEvent(name: string, payload: unknown = {}): void {
         this.bridge.send({ type: 'event', name, payload });
+    }
+
+    readonly ui = new UITargetRegistry({
+        request: (operation, data) => this.requestApi(operation, data),
+        registerSurface: id => this.bridge.registerSurface(id),
+        unregisterSurface: id => this.bridge.unregisterSurface(id),
+        report: (owner, error) => this.reportScriptError(owner, 'UI contribution failed', error),
+    });
+
+    private uiOrderFile(): string | undefined {
+        return this.config.installedRoot ? path.join(path.dirname(this.config.installedRoot), 'ui-extension-order.json') : undefined;
+    }
+    getUIExtensions(): Array<{ id: string; name: string }> {
+        return this.ui.owners().filter(id => !id.startsWith('__')).map(id => ({ id, name: this.registry.getScript(id)?.manifest.name ?? id }));
+    }
+    setUIExtensionOrder(order: string[]): void {
+        const file = this.uiOrderFile();
+        if (!file) throw new Error('UI order persistence is unavailable');
+        if (!Array.isArray(order) || order.some(id => typeof id !== 'string') || new Set(order).size !== order.length) throw new TypeError('Expected unique extension IDs');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file + '.tmp', JSON.stringify(order), 'utf8');
+        fs.renameSync(file + '.tmp', file);
+        this.ui.setOrder(order);
     }
 
     sendCommand(name: string, payload: unknown = {}): void {
@@ -163,7 +226,8 @@ export class HostRuntime {
     }
 
     async getTrack(uri: string): Promise<SpotifyTrack | null> {
-        return this.bridge.getTrack(uri);
+        const data = await this.requestApi<SpotifyTrackData | null>("track.get", { uri });
+        return data ? SpotifyTrack.from(data) : null;
     }
 
     getProgress(): number {
@@ -249,7 +313,7 @@ export class HostRuntime {
         this.bridge.storageSet(scriptId, key, value);
     }
 
-    async storageGet<T = any>(scriptId: string, key: string): Promise<T | null> {
+    storageGet<T = any>(scriptId: string, key: string): T | null {
         return this.bridge.storageGet<T>(scriptId, key);
     }
 
@@ -269,7 +333,7 @@ export class HostRuntime {
         this.bridge.storageWriteBinary(scriptId, path, data);
     }
 
-    async storageRead<T = any>(scriptId: string, path: string): Promise<{ type?: 'text' | 'json' | 'binary'; value?: T | string | null; data?: string | null } | null> {
+    storageRead<T = any>(scriptId: string, path: string): { type?: 'text' | 'json' | 'binary'; value?: T | string | null; data?: string | null } | null {
         return this.bridge.storageRead<T>(scriptId, path);
     }
 
@@ -289,7 +353,7 @@ export class HostRuntime {
         this.bridge.cacheWriteBinary(scriptId, path, data);
     }
 
-    async cacheRead<T = any>(scriptId: string, path: string): Promise<{ type?: 'text' | 'json' | 'binary'; value?: T | string | null; data?: string | null } | null> {
+    cacheRead<T = any>(scriptId: string, path: string): { type?: 'text' | 'json' | 'binary'; value?: T | string | null; data?: string | null } | null {
         return this.bridge.cacheRead<T>(scriptId, path);
     }
 
@@ -524,8 +588,11 @@ export class HostRuntime {
         }
     }
 
-    registerContextMenu(id: string, scriptId: string, title: string): void {
-        this.bridge.registerContextMenu(id, scriptId, title);
+    registerContextMenu(id: string, scriptId: string, menu: import('../core/models').ContextMenu): void {
+        void this.bridge.requestApi('menu.register', {
+            id, scriptId, title: menu.name, types: menu.types,
+            hasCallback: !!menu.shouldAdd, disabled: menu.disabled,
+        }).catch(error => this.logger.error('Failed to register context menu', error));
     }
 
     registerSideDrawer(id: string, scriptId: string, title: string, iconRegistrationJson?: string): void {
@@ -533,6 +600,29 @@ export class HostRuntime {
     }
 
     registerEventListeners(): void {
+        this.bridge.on('ui.target', payload => {
+            const target = payload as NativeUITarget;
+            this.pendingUITargetSnapshot?.add(target.id);
+            this.ui.open(target);
+        });
+        this.bridge.on('ui.close', payload => {
+            const { id } = payload as { id: string };
+            this.pendingUITargetSnapshot?.add(id);
+            this.ui.close(id);
+        });
+        this.bridge.on('ui.failed', payload => {
+            const data = payload as { id: string; surfaceId: string; error: string };
+            this.ui.fail(data.id, data.surfaceId, data.error);
+        });
+        const spotifyEvents = new Set(['contextChanged', 'songChanged', 'playPause', 'trackSeeked', 'shuffleChanged', 'repeatChanged', 'deviceChanged']);
+        this.bridge.on('spotify.event', (event: { name: string; payload: unknown }) => {
+            if (event && spotifyEvents.has(event.name)) void this.registry.broadcastSpotifyEvent(event.name, event.payload);
+        });
+        this.bridge.on('menu.visibility', (payload: { requestId: string; ids: string[]; uri: string; contextUri: string }) => {
+            const visible = this.registry.evaluateContextMenus(payload.ids, payload.uri, payload.contextUri);
+            void this.bridge.requestApi('menu.visibilityResult', { requestId: payload.requestId, visible })
+                .catch(error => this.logger.error('Failed to return context menu visibility', error));
+        });
         this.bridge.on('menu.press', payload => {
             const data = payload as { scriptId: string; id: string; uri: string; };
             if (!data) {
@@ -616,17 +706,16 @@ export class HostRuntime {
     }
 
     unregisterScript(scriptId: string): void {
+        this.ui?.unregister(scriptId);
         const surfaceIds = this.registry.unregisterScript(scriptId);
         for (const surfaceId of surfaceIds) {
-            clearCommitListener(surfaceId);
-            const surface = this.activeSurfaces.get(surfaceId);
-            if (surface) clearCommitListener(surface.type);
+            if (!this.registry.hasMountedSurface(surfaceId)) clearCommitListener(surfaceId);
         }
         this.bridge.unregisterScript(scriptId);
     }
 
     private renderSurface(surface: Surface, scriptId?: string): void {
-        const renderers = this.registry.getSurfaceRenderers(surface.id);
+        const renderers = this.registry.getSurfaceRenderers(surface.type);
         for (const renderer of renderers) {
             if (scriptId && renderer.scriptId !== scriptId) continue;
             this.renderSurfaceRenderer(renderer, surface);
@@ -638,7 +727,7 @@ export class HostRuntime {
             const element = renderer.renderer(surface as any);
             this.bridge.registerSurface(surface.id);
 
-            setCommitListener(surface.type, ops => {
+            setCommitListener(surface.id, ops => {
                 this.bridge.commitSurface(surface.id, ops);
             });
 
@@ -678,15 +767,15 @@ export class HostRuntime {
             if (trust === 'elevated' && !this.config.allowElevatedHotReload) {
                 throw new Error(`Hot reload is not allowed for elevated script ${payload.scriptId} in this build`);
             }
-            if (bundle.manifest.native) this.bridge.log(`Hot reload for ${payload.scriptId} is reloading JavaScript only; native code remains from the original load`);
-
             const scriptDirectory = this.scriptLoader.getScriptDirectory(payload.scriptId);
             const sideDrawerToRemount = this.activeSideDrawer?.scriptId === payload.scriptId ? { ...this.activeSideDrawer } : null;
             const manifest = this.scriptLoader.preflightSource(scriptDirectory, bundle.manifest, bundle.source);
             const validatedBundle = { ...bundle, manifest };
-            this.writeHotReloadAssets(scriptDirectory, validatedBundle);
+            const nativeApkPath = this.writeHotReloadAssets(scriptDirectory, validatedBundle);
             this.unregisterScript(payload.scriptId);
-            this.scriptLoader.loadScriptFromSource(scriptDirectory, manifest, bundle.source, false, trust);
+            // Unregistering also removes native components. Register the plugin
+            // again before executing JS, even when only TypeScript changed.
+            this.scriptLoader.loadScriptFromSource(scriptDirectory, manifest, bundle.source, true, trust, nativeApkPath);
 
             for (const surface of this.activeSurfaces.values()) {
                 this.renderSurface(surface, payload.scriptId);
@@ -705,12 +794,46 @@ export class HostRuntime {
         }
     }
 
-    private writeHotReloadAssets(scriptDirectory: string, bundle: HotReloadBundle): void {
+    private writeHotReloadAssets(scriptDirectory: string, bundle: HotReloadBundle): string | undefined {
         const root = path.resolve(scriptDirectory);
         const entryDirectory = path.resolve(root, path.dirname(bundle.manifest.main));
         assertPathInside(root, entryDirectory);
         const patterns = bundle.manifest.assets.map(normalizeAssetPattern);
         let totalBytes = 0;
+        const files = new Map<string, Buffer>();
+        const entryPath = path.resolve(root, bundle.manifest.main);
+        assertPathInside(root, entryPath);
+        const manifestPath = path.join(root, 'manifest.json');
+        const snapshotRoot = path.join(root, '.spotifyplus-native');
+        if (entryPath === manifestPath || isPathInside(snapshotRoot, entryPath)) {
+            throw new Error('Hot reload main entry conflicts with runtime files');
+        }
+
+        let nativeApkPath: string | undefined;
+        let nativeDestination: string | undefined;
+        if (bundle.manifest.native) {
+            const native = bundle.nativeApk;
+            if (!native) throw new Error('Native hot reload requires the compiled APK. Update the SpotifyPlus SDK and run dev again.');
+            const nativePath = normalizeHotReloadAssetPath(native.path);
+            if (nativePath !== bundle.manifest.native.apk) throw new Error('Hot reload native APK path does not match manifest.native.apk');
+            const bytes = Buffer.from(native.data, 'base64');
+            if (native.size !== undefined && bytes.byteLength !== native.size) throw new Error('Hot reload native APK size mismatch');
+            if (bytes.byteLength > 32 * 1024 * 1024) throw new Error('Hot reload native APK exceeds the 32 MB limit');
+            validateNativeApk(bytes, nativePath);
+            nativeDestination = path.resolve(entryDirectory, nativePath);
+            assertPathInside(root, nativeDestination);
+            if (nativeDestination === entryPath || nativeDestination === manifestPath || isPathInside(snapshotRoot, nativeDestination)) {
+                throw new Error('Hot reload native APK conflicts with runtime files');
+            }
+            files.set(nativeDestination, bytes);
+            // ART must never reopen a loaded DEX path with different contents.
+            // Keep each APK revision immutable and use a fresh class loader.
+            const hash = createHash('sha256').update(bytes).digest('hex');
+            nativeApkPath = path.join(snapshotRoot, `${hash}.apk`);
+            if (!fs.existsSync(nativeApkPath)) files.set(nativeApkPath, bytes);
+        } else if (bundle.nativeApk) {
+            throw new Error('Hot reload native APK is not declared in manifest.native');
+        }
 
         for (const asset of bundle.assets ?? []) {
             const normalizedPath = normalizeHotReloadAssetPath(asset.path);
@@ -727,21 +850,40 @@ export class HostRuntime {
 
             const destination = path.resolve(entryDirectory, ...normalizedPath.split('/'));
             assertPathInside(root, destination);
-            fs.mkdirSync(path.dirname(destination), { recursive: true });
-            fs.writeFileSync(destination, bytes);
+            if (destination === entryPath || destination === manifestPath || destination === nativeDestination || isPathInside(snapshotRoot, destination)) {
+                throw new Error(`Hot reload asset conflicts with runtime files: ${normalizedPath}`);
+            }
+            files.set(destination, bytes);
         }
 
-        fs.writeFileSync(
-            path.join(root, 'manifest.json'),
-            `${JSON.stringify(bundle.manifest, null, 2)}\n`,
-            'utf8',
-        );
+        // Validate the entire payload before replacing files or unloading the
+        // running extension. Persist JS too, so a changed main path stays valid.
+        files.set(entryPath, Buffer.from(bundle.source, 'utf8'));
+        files.set(manifestPath, Buffer.from(`${JSON.stringify(bundle.manifest, null, 2)}\n`, 'utf8'));
+        for (const [destination, bytes] of files) {
+            fs.mkdirSync(path.dirname(destination), { recursive: true });
+            const temporary = `${destination}.${randomUUID()}.tmp`;
+            try {
+                fs.writeFileSync(temporary, bytes);
+                // Native APKs may have been made read-only by the Java loader;
+                // replace the inode rather than modifying loaded code in place.
+                fs.renameSync(temporary, destination);
+            } finally {
+                fs.rmSync(temporary, { force: true });
+            }
+        }
+        return nativeApkPath;
     }
 
     private startHotReloadServer(port = 37846): void {
         if (this.hotReloadServer) return;
 
         const server = http.createServer((request, response) => {
+            if (request.method === 'GET' && request.url === '/dev-capabilities') {
+                response.writeHead(200, { 'content-type': 'application/json' });
+                response.end(JSON.stringify({ nativeHotReload: true }));
+                return;
+            }
             if (request.method === 'GET' && request.url === '/dev-logs') {
                 this.attachDevLogClient(request, response);
                 return;
@@ -757,7 +899,7 @@ export class HostRuntime {
             request.setEncoding('utf8');
             request.on('data', chunk => {
                 body += chunk;
-                if (body.length > 32 * 1024 * 1024) {
+                if (body.length > 96 * 1024 * 1024) {
                     request.destroy(new Error('Hot reload payload is too large'));
                 }
             });
@@ -910,11 +1052,11 @@ export class HostRuntime {
                 }
                 if (packet.name === 'react.surfaceEvent') {
                     const payload = packet.payload as Surface;
-                    const renderers = this.registry.getSurfaceRenderers(payload.id);
+                    const renderers = this.registry.getSurfaceRenderers(payload.type);
 
                     for (const renderer of renderers) {
                         const element = renderer.renderer(payload as any);
-                        setCommitListener(payload.type, ops => {
+                        setCommitListener(payload.id, ops => {
                             this.sendCommand('react.commit', { surfaceId: payload.id, ops });
                         });
 
@@ -1162,6 +1304,7 @@ function writeInstallPackage(
         if (!allowed) throw new Error(`Extension package contains undeclared file ${relativePath}`);
 
         const bytes = installFileBuffer(file.data, relativePath);
+        if (relativePath === nativePath) validateNativeApk(bytes, relativePath);
         if (bytes.byteLength > MAX_INSTALL_FILE_BYTES) {
             throw new Error(`Extension package file exceeds the 64 MB limit: ${relativePath}`);
         }

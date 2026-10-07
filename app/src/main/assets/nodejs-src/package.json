@@ -124,11 +124,14 @@
         "generate:sdk-react": "node tools/generate-react-sdk.mjs",
         "transform:runtime-scripts": "node tools/transform-emitted-scripts.mjs",
         "build:sdk-package": "node tools/build-sdk-package.mjs",
-        "build": "npm run clean:runtime-js && npm run generate:sdk-react && tsc -p tsconfig.json && npm run transform:runtime-scripts && npm run build:sdk-package",
-        "test": "node --test tools/tests/worklet-transform.test.mjs tools/tests/extension-build.test.mjs tools/tests/extension-assets.test.mjs tools/tests/extension-event-emitter.test.mjs tools/tests/cli-options.test.mjs tools/tests/runtime-bootstrap.test.mjs tools/tests/fetch-globals.test.mjs tools/tests/shareable-types.test.mjs tools/tests/hot-reload-policy.test.mjs tools/tests/dev-source-map.test.mjs tools/tests/logger-format.test.mjs tools/tests/navigation-compatibility.test.mjs",
+        "build": "npm run clean:runtime-js && npm run generate:sdk-react && tsc -p tsconfig.json && npm run transform:runtime-scripts && npm run build:sdk-package && node tools/package-runtime-dependencies.mjs",
+        "test": "node --test tools/tests/runtime-packaging.test.mjs tools/tests/spotify-api.test.mjs tools/tests/worklet-transform.test.mjs tools/tests/extension-build.test.mjs tools/tests/extension-assets.test.mjs tools/tests/extension-event-emitter.test.mjs tools/tests/cli-options.test.mjs tools/tests/create-native.test.mjs tools/tests/runtime-bootstrap.test.mjs tools/tests/fetch-globals.test.mjs tools/tests/shareable-types.test.mjs tools/tests/hot-reload-policy.test.mjs tools/tests/dev-source-map.test.mjs tools/tests/logger-format.test.mjs tools/tests/navigation-compatibility.test.mjs",
+        "test:ui": "node --test tools/tests/surface-isolation.test.mjs tools/tests/ui-targets.test.mjs tools/tests/android-back.test.mjs",
+        "test:native": "node --test tools/tests/native-apk.test.mjs tools/tests/native-hot-reload.test.mjs",
         "test:sdk-types": "tsc -p tools/tests/fixtures/sdk-consumer/tsconfig.json && tsc -p tools/tests/fixtures/sdk-consumer/tsconfig.node10.json"
     },
     "devDependencies": {
+        "@babel/plugin-transform-unicode-property-regex": "^7.29.7",
         "@types/node": "^22.19.17",
         "@types/react-reconciler": "^0.33.0",
         "typescript": "^5.9.3"
@@ -138,6 +141,7 @@
         "@babel/generator": "^7.29.0",
         "@babel/plugin-transform-typescript": "^7.28.6",
         "esbuild": "^0.28.2",
+        "inquirer": "^12.11.1",
         "react": "^19.2.4",
         "react-reconciler": "^0.33.0",
         "scheduler": "^0.27.0",

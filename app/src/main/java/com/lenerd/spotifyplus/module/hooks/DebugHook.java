@@ -1,5 +1,7 @@
 package com.lenerd.spotifyplus.module.hooks;
 
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -54,15 +56,23 @@ public class DebugHook extends SpotifyHook {
         return null;
     }
 
-    private boolean navigate(String rawUri, String target) {
-        if (currentActivity == null || rawUri == null || rawUri.isBlank()) return false;
+    private boolean navigate(String rawUri, String target) throws ReflectiveOperationException {
+        Activity activity = currentActivity;
+        if (activity == null || activity.isFinishing() || activity.isDestroyed() || rawUri == null || rawUri.isBlank()) return false;
 
         Uri uri = Uri.parse(rawUri);
         if (uri.getScheme() == null || uri.getScheme().isBlank()) return false;
 
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        // NowPlayingActivity has no ACTION_VIEW filter. Match Spotify's own launch
+        // factory, without a shared-element transition from an extension-owned view.
+        boolean nowPlaying = ("spotify".equals(target) || "auto".equals(target))
+                && ("spotify:now-playing".equals(rawUri) || "spotify:now-playing-view".equals(rawUri));
+        Intent intent = nowPlaying
+                ? (Intent) classLoader.loadClass("p.ig5").getDeclaredMethod("C", Context.class, boolean.class)
+                    .invoke(null, activity, false)
+                : new Intent(Intent.ACTION_VIEW, uri);
         if ("spotify".equals(target)) {
-            intent.setPackage(currentActivity.getPackageName());
+            intent.setPackage(activity.getPackageName());
         } else if ("external".equals(target)) {
             String scheme = uri.getScheme();
             if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) return false;
@@ -72,7 +82,7 @@ public class DebugHook extends SpotifyHook {
                 Intent.ACTION_MAIN,
                 Intent.CATEGORY_APP_BROWSER
             );
-            ResolveInfo browser = currentActivity.getPackageManager().resolveActivity(
+            ResolveInfo browser = activity.getPackageManager().resolveActivity(
                 browserSelector,
                 PackageManager.MATCH_DEFAULT_ONLY
             );
@@ -83,11 +93,11 @@ public class DebugHook extends SpotifyHook {
             return false;
         }
 
-        if (intent.resolveActivity(currentActivity.getPackageManager()) == null) return false;
+        if (intent.resolveActivity(activity.getPackageManager()) == null) return false;
 
-        currentActivity.runOnUiThread(() -> {
+        activity.runOnUiThread(() -> {
             try {
-                currentActivity.startActivity(intent);
+                if (!activity.isFinishing() && !activity.isDestroyed()) activity.startActivity(intent);
             } catch (Exception e) {
                 logError("Failed to navigate to " + rawUri, e);
             }

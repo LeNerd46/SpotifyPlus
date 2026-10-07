@@ -53,11 +53,11 @@ test("hot reload preserves trust and waits before acknowledging success", () => 
     );
     assert.match(
         hostRuntimeSource,
-        /writeHotReloadAssets\(scriptDirectory, validatedBundle\)/,
+        /const nativeApkPath = this\.writeHotReloadAssets\(scriptDirectory, validatedBundle\)/,
     );
     assert.match(
         hostRuntimeSource,
-        /loadScriptFromSource\(scriptDirectory, manifest, bundle\.source, false, trust\)/,
+        /loadScriptFromSource\(scriptDirectory, manifest, bundle\.source, true, trust, nativeApkPath\)/,
     );
     assert.match(hostRuntimeSource, /await this\.handleHotReload\(/);
     assert.doesNotMatch(hostRuntimeSource, /void this\.handleHotReload\(/);
@@ -116,7 +116,7 @@ test("assets and native packages resolve beside the manifest main entry", () => 
     );
     assert.match(
         scriptLoaderSource,
-        /path\.resolve\(entryDirectory, manifest\.native\.apk\)/,
+        /nativeApkPath \?\? path\.resolve\(entryDirectory, manifest\.native\.apk\)/,
     );
     assert.match(
         hostRuntimeSource,

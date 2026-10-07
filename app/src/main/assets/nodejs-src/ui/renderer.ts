@@ -10,6 +10,7 @@ const HOST_CONTEXT = {};
 let currentUpdatePriority = DefaultEventPriority;
 
 type RegisteredEventHandler = {
+    nodeId: number;
     eventName: string;
     handler: Function;
 };
@@ -82,7 +83,7 @@ function getEventPreviewId(handler: Function): number {
 
 function registerEventHandler(nodeId: number, eventName: string, handler: Function): number {
     const id = nextEventId++;
-    eventHandlers.set(id, { eventName, handler });
+    eventHandlers.set(id, { nodeId, eventName, handler });
 
     let ids = nodeEventIds.get(nodeId);
     if (!ids) {
@@ -159,6 +160,7 @@ function normalizeEventPayload(eventName: string, payload: any) {
 export function dispatchReactEvent(eventId: number, payload?: any) {
     const entry = eventHandlers.get(eventId);
     if (!entry) return;
+    if (payload?.surfaceId !== undefined && nodeSurfaceIds.get(entry.nodeId) !== payload.surfaceId) return;
 
     try {
         entry.handler(normalizeEventPayload(entry.eventName, payload));
@@ -498,6 +500,7 @@ export function setCommitListener(surfaceId: string, listener: CommitListener) {
 
 export function clearCommitListener(surfaceId: string) {
     commitListeners.delete(surfaceId);
+    registeredSurfaceAssets.delete(surfaceId);
 }
 
 function assignSurfaceId(instance: HostNode | TextNode, surfaceId: string) {

@@ -14,8 +14,12 @@ Xposed module to modify your Spotify app on your Android phone.
 
 Extension developers can bundle scoped images, fonts, audio, data, and other files. See [Extension assets](scripts/ASSETS.md) for manifest declarations, runtime APIs, font families, and hot reload behavior.
 
+Create a native extension project with `npx spotifyplus create-native` (or `npx spotifyplus create-native my-plugin`). The Inquirer prompts ask for Java or Kotlin, an Android namespace, and a new project directory. The project includes a Gradle wrapper, a compile-only SpotifyPlus SDK in `lib`, and sample `NativePlugin`, `ExampleComponent`, and `ExampleView` classes, with no activity. Open it in Android Studio using JDK 21 and Android SDK Platform 35, then build with `./gradlew :app:assembleDebug` (`gradlew.bat :app:assembleDebug` on Windows). Its README explains how to attach the APK to your extension manifest.
+
+`spotifyplus dev` sends the compiled `manifest.native.apk` with every JavaScript reload and registers the native plugin before executing the new bundle. Native source compilation is separate: rebuild your Java/Kotlin project and copy the resulting APK to the declared path in the extension project root. Dev watches that APK and sends it automatically, with no Spotify restart. The phone places the APK and assets beside `manifest.main` (including `dist/index.js`); Android loads each APK revision from an immutable snapshot using a fresh class loader. Both the phone's SpotifyPlus runtime and the development SDK must support native hot reload; the CLI checks compatibility before sending a native extension. APKs are limited to 32 MB, and declared assets to 20 MB. This reloads SDK plugins that register components; process-wide hooks or manually loaded `.so` libraries may still require a restart.
+
 > [!NOTE]
-> The latest recommended version of Spotify to use is v9.1.28.2252. Spotify Plus is not guaranteed to work past this version
+> The latest recommended version of Spotify to use is v9.1.82.2160. Spotify Plus is not guaranteed to work past this version
 
 ## Building locally
 
@@ -35,3 +39,5 @@ For only a debug APK, use `.\gradlew.bat assembleDebug`. The APK is written to `
 
 ## Resources and Feedback
 Join the Spotify Plus community! We have a Telegram channel where you can get updates, discuss the module, and give feedback and discuss directly. You can join [here](https://t.me/spotifypluscool)
+
+See [the modern API reference](docs/modern-api.md) for the 9.1.82.2160 extension APIs, events, and device validation checklist.

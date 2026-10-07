@@ -104,6 +104,8 @@ class SpotifyPlusEngine
     void TogglePlay();
     void SkipNext();
     void SkipPrevious();
+    bool RequestApi(const std::string& id, const std::string& operation, const std::string& arguments);
+    StorageValueResult CallApiSync(const std::string& operation, const std::string& arguments);
 
     // Non-surface API
 

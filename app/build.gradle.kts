@@ -161,6 +161,7 @@ val buildNodeAssets by tasks.registering(Exec::class) {
         exclude("tools/tests/**")
     })
     outputs.dirs(
+        nodeAssetsOutputDir.dir("node_modules"),
         nodeAssetsOutputDir.dir("bridge"),
         nodeAssetsOutputDir.dir("core"),
         nodeAssetsOutputDir.dir("loader"),
@@ -182,6 +183,7 @@ val extensionCompilerInputs = files(
     nodeAssetsSourceDir.file("tools/dev-cli.mjs"),
     nodeAssetsSourceDir.file("tools/extension-build.mjs"),
     nodeAssetsSourceDir.file("tools/worklet-transform.mjs"),
+    nodeAssetsSourceDir.file("tools/unicode-regex.mjs"),
 )
 
 val installLyricsExtensionDependencies by tasks.registering(Exec::class) {
@@ -362,7 +364,8 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    compileOnly(files("$rootDir/libxposed/api-100.aar"))
+    compileOnly("io.github.libxposed:api:102.0.0")
+    testImplementation("io.github.libxposed:api:102.0.0")
     implementation(files("$rootDir/libxposed/service-100.aar"))
     implementation(files("$rootDir/libxposed/interface-100.aar"))
 
@@ -370,12 +373,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.android.flexbox:flexbox:3.0.0")
     implementation("com.google.code.gson:gson:2.13.1")
-    implementation("com.mikhaellopez:circleview:1.4.1")
-    implementation("com.github.pemistahl:lingua:1.2.2")
     implementation("com.google.android.material:material:1.13.0")
-    implementation("androidx.media3:media3-exoplayer:1.9.3")
-    implementation("androidx.media3:media3-ui:1.9.3")
-    implementation("androidx.media3:media3-exoplayer-hls:1.9.3")
     implementation("org.jsoup:jsoup:1.21.2")
 
     implementation("com.facebook.yoga:yoga:3.2.1")
@@ -384,5 +382,4 @@ dependencies {
 
     implementation(project(":spotifyplus-sdk"))
 
-    compileOnly("de.robv.android.xposed:api:82")
 }

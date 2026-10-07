@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
+    "test": "node --test ../../app/src/main/assets/nodejs-src/tools/tests/marketplace-markdown.test.mjs ../../app/src/main/assets/nodejs-src/tools/tests/marketplace-metadata.test.mjs ../../app/src/main/assets/nodejs-src/tools/tests/marketplace-updates.test.mjs",
     "build": "node ../../app/src/main/assets/nodejs-src/tools/dev-cli.mjs build . --entry src/index.tsx --outfile ../../app/src/main/assets/nodejs/elevated/marketplace/index.js"
   },
   "dependencies": {
+    "entities": "^6.0.1",
+    "marked": "^15.0.12",
     "spotifyplus": "^0.1.9",
     "zod": "^4.4.3"
   },

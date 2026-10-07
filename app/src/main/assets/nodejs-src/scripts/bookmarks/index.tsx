@@ -9,7 +9,7 @@ import ExampleScriptView from './CustomScriptViewTest';
 console.log('Loading bookmarks!');
 const main = async () => {
     //@ts-expect-error
-    let bookmarks: string[] = await SpotifyPlus.Platform.Storage.read<string[]>('bookmarkss.json') || [];
+    let bookmarks: string[] = SpotifyPlus.Platform.Storage.read<string[]>('bookmarkss.json') || [];
 
     //@ts-expect-error
     new SpotifyPlus.SideDrawer('Marketplace', () => {

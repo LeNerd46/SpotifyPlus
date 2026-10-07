@@ -5,7 +5,7 @@ import { ExtensionSettingItemRenderer } from './settings-components';
 import { ExtensionSetting, ExtensionSettingItem, ExtensionSettingSection, ExtensionSettings } from './settings';
 import { AndroidBackButtonEvent } from 'spotifyplus';
 
-type Page = 'home' | 'extensions' | 'developer' | 'about';
+type Page = 'home' | 'extensions' | 'developer' | 'about' | 'ui-order';
 
 interface DevExtension {
     id: string;
@@ -31,6 +31,8 @@ const SPOTIFY_PLUS_VERSION = '0.10.0';
 const MARKETPLACE_VERSION = '0.1.0';
 
 const Elevated = (globalThis as any).__spotifyplus_elevated__ as {
+    getUIExtensions?: () => Array<{ id: string; name: string }>;
+    setUIExtensionOrder?: (order: string[]) => void;
     getDeveloperMode?: () => boolean;
     setDeveloperMode?: (enabled: boolean) => void;
     pickLocalExtensionsFolder?: () => boolean;
@@ -55,6 +57,7 @@ const App = () => {
     const [devExtensions, setDevExtensions] = useState<DevExtension[]>(readLocalExtensions);
 
     const title = useMemo(() => {
+        if (page === 'ui-order') return 'UI extension order';
         if (page === 'extensions') return 'Extensions';
         if (page === 'developer') return 'Developer';
         if (page === 'about') return 'About';
@@ -110,6 +113,7 @@ const App = () => {
             {page === 'home' && (
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}>
                     <SettingsCategory icon='⬡' title='Extensions' subtitle='Extension settings' onPress={() => setPage('extensions')} />
+                    <SettingsCategory icon='↕' title='UI extension order' subtitle='Choose replacement priority and insertion order' onPress={() => setPage('ui-order')} />
                     <SettingsCategory icon='⌘' title='Developer' subtitle='Developer mode • Local extensions' onPress={() => setPage('developer')} />
                     <SettingsCategory icon='ⓘ' title='About' subtitle='Version • GitHub' onPress={() => setPage('about')} />
                 </ScrollView>
@@ -122,8 +126,34 @@ const App = () => {
             )}
 
             {page === 'about' && <AboutPage />}
+            {page === 'ui-order' && <UIOrderPage />}
         </View>
     );
+};
+
+const UIOrderPage = () => {
+    const [extensions, setExtensions] = useState(() => Elevated?.getUIExtensions?.() ?? []);
+    const [error, setError] = useState('');
+    const move = (index: number, direction: number) => {
+        const destination = index + direction;
+        if (destination < 0 || destination >= extensions.length) return;
+        const next = [...extensions];
+        [next[index], next[destination]] = [next[destination], next[index]];
+        try { Elevated?.setUIExtensionOrder?.(next.map(extension => extension.id)); setExtensions(next); setError(''); }
+        catch (error) { setError(String(error)); }
+    };
+    return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+        <Text style={{ color: '#b3b3b3', marginBottom: 16 }}>The first eligible replacement wins. Insertions follow this order. Changes apply immediately and are saved.</Text>
+        {extensions.length === 0 && <Text style={{ color: '#ffffff' }}>No extensions have registered UI contributions yet.</Text>}
+        {extensions.map((extension, index) => <View key={extension.id} style={{ padding: 12, marginBottom: 12, backgroundColor: '#202020', borderRadius: 12 }}>
+            <Text style={{ color: '#ffffff', fontSize: 18 }}>{index + 1}. {extension.name}</Text>
+            <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                <Pressable onPress={() => move(index, -1)} style={{ padding: 12 }}><Text style={{ color: '#1ed760' }}>Move up</Text></Pressable>
+                <Pressable onPress={() => move(index, 1)} style={{ padding: 12 }}><Text style={{ color: '#1ed760' }}>Move down</Text></Pressable>
+            </View>
+        </View>)}
+        {!!error && <Text style={{ color: '#ff7777' }}>{error}</Text>}
+    </ScrollView>;
 };
 
 interface HeaderProps {

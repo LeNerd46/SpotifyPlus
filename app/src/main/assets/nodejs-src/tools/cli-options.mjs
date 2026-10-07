@@ -12,7 +12,7 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
     const args = [...argv];
     let command = "dev";
 
-    if (args[0] === "dev" || args[0] === "build") command = args.shift();
+    if (["dev", "build", "create-native"].includes(args[0])) command = args.shift();
     else if (args[0] === "help") {
         args.shift();
         args.unshift("--help");
@@ -32,6 +32,17 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
         sourcemap: false,
     };
     const positional = [];
+
+    if (command === "create-native") {
+        for (const argument of args) {
+            if (argument === "--help" || argument === "-h") options.help = true;
+            else if (argument.startsWith("-")) throw new Error(`Unknown option ${argument}`);
+            else positional.push(argument);
+        }
+        if (positional.length > 1) throw new Error("Expected at most one project directory");
+        options.projectDir = positional[0] ? path.resolve(cwd, positional[0]) : undefined;
+        return options;
+    }
 
     for (let index = 0; index < args.length; index++) {
         const argument = args[index];

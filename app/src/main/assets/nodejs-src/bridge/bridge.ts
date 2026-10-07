@@ -1,4 +1,5 @@
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { Logger } from '../core/logger';
 import { Packet, parsePacket, stringify } from '../core/protocol';
 import EventEmitter from 'events';
@@ -16,6 +17,8 @@ const CACHE_SCRIPT_ID_PREFIX = 'spotifyplus-cache:';
 const FILE_DELETE_SCRIPT_ID_PREFIX = 'spotifyplus-delete:';
 
 interface NativeBridge {
+    callApiSync(operation: string, argumentsJson: string): string;
+    requestApi(id: string, operation: string, argumentsJson: string): void;
     sendToJava(json: string): void;
     pollFromJava(): string | undefined;
 
@@ -99,11 +102,45 @@ interface NativeBridge {
 }
 
 export class Bridge extends EventEmitter {
+    /** Local calls return through JNI; they never enter the asynchronous request queue. */
+    callApiSync<T>(operation: string, args: object = {}): T {
+        const json = JSON.stringify(args).replace(/[\u007f-\uffff]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+        const response = JSON.parse(this.addon.callApiSync(operation, json));
+        if (response.error) throw new Error(response.error);
+        return response.result as T;
+    }
+    private readonly apiPending = new Map<string, (response: { id: string; error?: string; result?: unknown }) => void>();
+    requestApi<T>(operation: string, args: object = {}): Promise<T> {
+        const id = randomUUID();
+        return new Promise<T>((resolve, reject) => {
+            const finish = (response: { id: string; error?: string; result?: T }) => {
+                if (response.id !== id) return;
+                clearTimeout(timeout);
+                this.apiPending.delete(id);
+                if (response.error) reject(new Error(response.error));
+                else resolve(response.result as T);
+            };
+            const timeout = setTimeout(() => {
+                this.apiPending.delete(id);
+                reject(new Error(`Spotify API timed out: ${operation}; a pending mutation may still complete`));
+            }, 30000);
+            this.apiPending.set(id, finish as (response: { id: string; error?: string; result?: unknown }) => void);
+            try {
+                const json = JSON.stringify(args).replace(/[\u007f-\uffff]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+                this.addon.requestApi(id, operation, json);
+            } catch (error) {
+                clearTimeout(timeout);
+                this.apiPending.delete(id);
+                reject(error);
+            }
+        });
+    }
     private readonly addon: NativeBridge;
     private pollingHandle: NodeJS.Timeout | null = null;
 
     constructor(private readonly logger: Logger) {
         super();
+        this.on('spotify.api.result', response => this.apiPending.get(response.id)?.(response));
         const addonPath = path.join(__dirname, '..', 'spotifyplus_bridge.node');
         this.logger.info(`Loading addon from ${addonPath}`);
         this.addon = require(addonPath) as NativeBridge;

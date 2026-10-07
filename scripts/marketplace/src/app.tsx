@@ -3,11 +3,12 @@ import { SpotifyPlus, type AndroidBackButtonEvent } from 'spotifyplus';
 import { Image, Pressable, ScrollView, Text, View } from 'spotifyplus/react';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'spotifyplus/react/reanimated';
 import Colors from './colors';
-import { getAuthorNames, MarketplaceExtension, PLACEHOLDER_IMAGE } from './types/extension';
+import { getAuthorNames, InstalledExtensionInfo, MarketplaceExtension, PLACEHOLDER_IMAGE } from './types/extension';
 import ExtensionPage from './extension-page';
 import InstalledPage from './installed-page';
 import SearchPage from './search';
-import { fetchManifest, fetchRepos } from './fetch-metadata';
+import { loadCatalog } from './catalog';
+import { hasUpdate } from './updates';
 import { listInstalledExtensions } from './install-extension';
 
 export const placeholderImage = SpotifyPlus.Assets.image(PLACEHOLDER_IMAGE);
@@ -27,7 +28,8 @@ const App = () => {
     const [selectedExtension, setSelectedExtension] = useState<MarketplaceExtension | null>(null);
     const [searchActive, setSearchActive] = useState(false);
     const [installedActive, setInstalledActive] = useState(false);
-    const [installedCount, setInstalledCount] = useState(0);
+    const [installed, setInstalled] = useState<InstalledExtensionInfo[]>([]);
+    const [checkError, setCheckError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [extensions, setExtensions] = useState<MarketplaceExtension[]>([]);
     const navigationStateRef = useRef({ installedActive, searchActive, selectedExtension });
@@ -36,9 +38,9 @@ const App = () => {
 
     const refreshInstalledCount = () => {
         try {
-            setInstalledCount(listInstalledExtensions().length);
+            setInstalled(listInstalledExtensions());
         } catch {
-            setInstalledCount(0);
+            setInstalled([]);
         }
     };
 
@@ -46,31 +48,23 @@ const App = () => {
         refreshInstalledCount();
     }, []);
 
-    useEffect(() => {
-        const getExtensions = async () => {
-            const repos = await fetchRepos();
-            const items: MarketplaceExtension[] = [];
+    const checkCatalog = async (retry = false) => {
+        setLoading(true);
+        setCheckError(null);
+        try {
+            const result = await loadCatalog(retry);
+            setExtensions(result.extensions);
+            if (result.incomplete) setCheckError('Some extensions could not be checked for updates.');
+        } catch (error) {
+            setCheckError(error instanceof Error ? error.message : 'Could not check for extension updates.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            for (const repo of repos.items) {
-                const manifest = await fetchManifest(repo.owner.login, repo.name, repo.default_branch, repo.stargazers_count, repo.license?.spdx_id ?? 'No license');
+    useEffect(() => { void checkCatalog(); }, []);
 
-
-                if (manifest?.length) {
-                    items.push(...manifest.map((extension) => ({
-                        ...extension,
-                        archived: repo.archived,
-                        lastUpdated: repo.pushed_at,
-                        created: repo.created_at
-                    })));
-                }
-            }
-
-            items.sort((a, b) => b.stars - a.stars);
-            return items;
-        };
-
-        getExtensions().then((res) => { setExtensions(res); setLoading(res ? false : true) });
-    }, []);
+    const updatesCount = installed.filter((item) => hasUpdate(item, extensions.find((extension) => extension.id === item.id))).length;
 
     useEffect(() => {
         const handleBack = (event: AndroidBackButtonEvent) => {
@@ -105,7 +99,7 @@ const App = () => {
         return (
             <View style={{ flex: 1, backgroundColor: Colors.background }}>
                 <Header showBack onBack={() => setInstalledActive(false)} />
-                <InstalledPage extensions={extensions} onInstalledChanged={refreshInstalledCount} onSelectExtension={setSelectedExtension} />
+                <InstalledPage extensions={extensions} checking={loading} checkError={checkError} onCheckUpdates={() => void checkCatalog(true)} onInstalledChanged={refreshInstalledCount} onSelectExtension={setSelectedExtension} />
             </View>
         );
     }
@@ -119,19 +113,15 @@ const App = () => {
         );
     }
 
-    if (loading) {
-        return (
-            <View style={{ flex: 1, backgroundColor: Colors.background }}>
-                <Text style={{ flex: 1, justifyContent: 'center' }}>Loading...</Text>
-            </View>
-        );
-    }
-
     return (
         <View style={{ flex: 1, backgroundColor: Colors.background }}>
-            <Header onClose={() => SpotifyPlus.Surfaces.close()} onSearch={() => setSearchActive(true)} onInstalled={() => setInstalledActive(true)} />
+            <Header updatesCount={updatesCount} onClose={() => SpotifyPlus.Surfaces.close()} onSearch={() => setSearchActive(true)} onInstalled={() => setInstalledActive(true)} />
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 64 }} >
+                {(loading || checkError) && <View style={{ padding: 16 }}>
+                    <Text textColor={Colors.onSurfaceVariant}>{loading ? 'Checking for extension updates…' : checkError}</Text>
+                    {!loading && <Pressable onPress={() => void checkCatalog(true)} style={{ paddingVertical: 12 }}><Text textColor={Colors.primary}>Try again</Text></Pressable>}
+                </View>}
                 <View style={{ paddingHorizontal: 16, paddingTop: 24 }}>
                     <Text textColor={Colors.onSurface} fontSize={30} fontWeight='bold' style={{ lineHeight: 36 }} >
                         Make Spotify yours.
@@ -173,6 +163,7 @@ const App = () => {
 };
 
 interface HeaderProps {
+    updatesCount?: number;
     showBack?: boolean;
     onBack?: () => void;
     onClose?: () => void;
@@ -180,7 +171,7 @@ interface HeaderProps {
     onInstalled?: () => void;
 }
 
-const Header = ({ showBack = false, onBack, onClose, onSearch, onInstalled }: HeaderProps) => (
+const Header = ({ showBack = false, updatesCount = 0, onBack, onClose, onSearch, onInstalled }: HeaderProps) => (
     <View style={{ height: 64, marginTop: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface }} >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {showBack && (
@@ -211,6 +202,9 @@ const Header = ({ showBack = false, onBack, onClose, onSearch, onInstalled }: He
                         justifyContent: 'center'
                     })} >
                         <Image source={downloadIcon} width={18} height={18} />
+                        {updatesCount > 0 && <View style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text textColor={Colors.onPrimary} fontSize={10} fontWeight='bold'>{updatesCount > 99 ? '99+' : updatesCount}</Text>
+                        </View>}
                     </Pressable>
 
                     <Pressable onPress={onSearch} style={({ pressed }) => ({

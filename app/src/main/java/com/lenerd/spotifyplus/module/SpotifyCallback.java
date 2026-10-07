@@ -1,64 +1,54 @@
 package com.lenerd.spotifyplus.module;
 
-import android.util.Log;
-
+import io.github.libxposed.api.XposedInterface;
 import java.lang.reflect.Member;
-import java.lang.reflect.Method;
+import java.util.function.Consumer;
 
+/** Per-invocation state for the extension helpers, backed by the modern hook chain. */
 public final class SpotifyCallback {
     private final Member member;
     private final Object thisObject;
     private final Object[] args;
-    private final Object result;
-    private final Object returnObject;
-    private final Method returnMethod;
-    private final Method resultMethod;
-    private final Throwable throwable;
+    private Object result;
+    private Throwable throwable;
+    private boolean skipOriginal;
 
-    public SpotifyCallback(Member member, Object thisObject, Object[] args, Object result, Object returnObject, Method returnMethod, Method resultMethod, Throwable throwable) {
-        this.member = member;
-        this.thisObject = thisObject;
-        this.args = args;
-        this.result = result;
-        this.returnObject = returnObject;
-        this.returnMethod = returnMethod;
-        this.resultMethod = resultMethod;
-        this.throwable = throwable;
+    private SpotifyCallback(XposedInterface.Chain chain) {
+        member = chain.getExecutable();
+        thisObject = chain.getThisObject();
+        // API 102 exposes an immutable list. Helpers mutate this copy before proceeding.
+        args = chain.getArgs().toArray();
     }
 
-    public Member getMember() {
-        return member;
+    static Object intercept(XposedInterface.Chain chain, Consumer<SpotifyCallback> before,
+                            Consumer<SpotifyCallback> after) throws Throwable {
+        SpotifyCallback callback = new SpotifyCallback(chain);
+        before.accept(callback);
+        if (!callback.skipOriginal) {
+            try {
+                callback.result = chain.proceed(callback.args);
+            } catch (Throwable error) {
+                callback.throwable = error;
+            }
+        }
+        after.accept(callback);
+        if (callback.throwable != null) throw callback.throwable;
+        return callback.result;
     }
 
-    public Object[] getArgs() {
-        return args;
-    }
-
-    public Object getThisObject() {
-        return thisObject;
-    }
-
-    public Object getResult() {
-        return result;
-    }
+    public Member getMember() { return member; }
+    public Object[] getArgs() { return args; }
+    public Object getThisObject() { return thisObject; }
+    public Object getResult() { return result; }
+    public Throwable getThrowable() { return throwable; }
 
     public void returnAndSkip(Object result) {
-        try {
-            returnMethod.invoke(returnObject, result);
-        } catch(Exception e) {
-            Log.e("SpotifyPlus", e.getMessage(), e);
-        }
+        skipOriginal = true;
+        setResult(result);
     }
 
     public void setResult(Object result) {
-        try {
-            resultMethod.invoke(returnObject, result);
-        } catch(Exception e) {
-            Log.e("SpotifyPlus", e.getMessage(), e);
-        }
-    }
-
-    public Throwable getThrowable() {
-        return throwable;
+        this.result = result;
+        throwable = null;
     }
 }

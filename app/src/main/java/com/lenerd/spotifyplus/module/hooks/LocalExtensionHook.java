@@ -13,9 +13,6 @@ import com.lenerd.spotifyplus.module.SpotifyCallback;
 import com.lenerd.spotifyplus.module.SpotifyHook;
 import com.lenerd.spotifyplus.module.scripting.SpotifyNativeBridge;
 
-import io.github.libxposed.api.XposedInterface;
-import io.github.libxposed.api.annotations.AfterInvocation;
-import io.github.libxposed.api.annotations.XposedHooker;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -26,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 
-@XposedHooker
 public class LocalExtensionHook extends SpotifyHook {
     private static final String TAG = "SpotifyPlus:LocalExtensions";
     private static final String PREFS = "spotifyplus_elevated";
@@ -44,12 +40,6 @@ public class LocalExtensionHook extends SpotifyHook {
     @Override
     protected void beforeHook(SpotifyCallback callback) { }
 
-    @AfterInvocation
-    public static void after(XposedInterface.AfterHookCallback callback) {
-        LocalExtensionHook hook = getHook(LocalExtensionHook.class);
-        if (hook == null) return;
-        hook.afterHook(buildCallback(callback));
-    }
 
     @Override
     protected void afterHook(SpotifyCallback callback) {

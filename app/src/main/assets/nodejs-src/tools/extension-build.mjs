@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
+import { spotifyPlusDependencyRegexPlugin } from './unicode-regex.mjs';
 import {
     SPOTIFYPLUS_WORKLET_BUNDLE_MARKER,
     spotifyPlusWorkletsPlugin,
@@ -244,6 +245,16 @@ export async function readDeclaredAssets(scriptDir, manifest) {
     return assets;
 }
 
+// Like assets, the source APK lives in the extension project root; the runtime
+// places it beside manifest.main, including when that entry is under dist/.
+export async function readNativePackage(scriptDir, manifest) {
+    if (!manifest.native) return undefined;
+    const relativePath = normalizeAssetPath(manifest.native.apk, "manifest.native.apk");
+    const data = await fs.readFile(path.join(path.resolve(scriptDir), ...relativePath.split("/")));
+    if (data.byteLength > 32 * 1024 * 1024) throw new Error("Hot reload native APK exceeds the 32 MB limit");
+    return { path: relativePath, data: data.toString("base64"), size: data.byteLength };
+}
+
 export async function readManifest(scriptDir) {
     const absoluteScriptDir = path.resolve(scriptDir);
     const manifestPath = path.join(absoluteScriptDir, "manifest.json");
@@ -313,6 +324,7 @@ export async function bundleExtension(options = {}) {
     const plugins = [...(options.plugins ?? [])];
 
     plugins.unshift(userModulePermissionsPlugin());
+    plugins.push(spotifyPlusDependencyRegexPlugin());
 
     if (isApi2) {
         plugins.unshift(spotifyPlusWorkletsPlugin({
@@ -343,16 +355,9 @@ export async function bundleExtension(options = {}) {
         write,
     });
 
-    let manifestOutfile = null;
     let assetOutfiles = [];
     let nativeOutfile = null;
     if (write) {
-        manifestOutfile = path.join(path.dirname(outfile), "manifest.json");
-        const sourceManifestPath = path.join(scriptDir, "manifest.json");
-        if (path.normalize(sourceManifestPath) !== path.normalize(manifestOutfile)) {
-            await fs.mkdir(path.dirname(manifestOutfile), { recursive: true });
-            await fs.copyFile(sourceManifestPath, manifestOutfile);
-        }
         assetOutfiles = await copyDeclaredAssets(scriptDir, path.dirname(outfile), manifest);
         nativeOutfile = await copyNativePackage(scriptDir, path.dirname(outfile), manifest);
     }
@@ -367,7 +372,7 @@ export async function bundleExtension(options = {}) {
         buildId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         entryPath,
         manifest,
-        manifestOutfile,
+        manifestOutfile: null,
         assetOutfiles,
         nativeOutfile,
         outfile,

@@ -20,6 +20,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -75,6 +80,8 @@ public class ScriptManager implements BridgeMessageListener {
             AssetManager moduleAssets = Utils.getModuleAssetManager();
             if (moduleAssets == null) throw new IllegalStateException("Module assets not available");
 
+            removeRetiredBundledExtension(projectDir, "scripts/ui-showcase");
+            removeRetiredBundledExtension(projectDir, "elevated/liquid-glass");
             getAssetFolder(moduleAssets, "nodejs", projectDir.getAbsolutePath());
             copyNodeAddon(moduleAssets, projectDir);
         } catch (Exception e) {
@@ -110,6 +117,27 @@ public class ScriptManager implements BridgeMessageListener {
             SpotifyNativeBridge bridge = new SpotifyNativeBridge(activity.getClassLoader(), marketplaceScripts, optimizedDirectory, activity);
             initializeNativeBridge(bridge, new String[]{"node", hostFile.getAbsolutePath(), hostConfig.toString()});
         }).start();
+    }
+
+    private void removeRetiredBundledExtension(File projectDir, String relativePath) throws IOException {
+        File retired = new File(projectDir, relativePath);
+        if (!retired.exists()) return;
+        Path root = projectDir.getCanonicalFile().toPath();
+        if (!retired.getCanonicalFile().toPath().startsWith(root)) {
+            throw new IOException("Retired extension cache is outside host directory: " + retired);
+        }
+        // Only module-owned caches are retired; installed and local extensions live elsewhere.
+        Files.walkFileTree(retired.toPath(), new SimpleFileVisitor<Path>() {
+            @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+            @Override public FileVisitResult postVisitDirectory(Path directory, IOException error) throws IOException {
+                if (error != null) throw error;
+                Files.delete(directory);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     private void getAssetFolder(AssetManager assetManager, String assetPath, String outPath) throws IOException {

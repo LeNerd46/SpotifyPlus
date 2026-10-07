@@ -6,6 +6,16 @@
 
 static constexpr const char* TAG = "SpotifyPlus::Exports";
 
+extern "C" void SpotifyPlus_CallApiSync(const char* operation, const char* arguments, StorageValueResult* result)
+{
+    if (result) *result = SpotifyPlusEngine::Get().CallApiSync(operation ? operation : "", arguments ? arguments : "{}");
+}
+
+extern "C" bool SpotifyPlus_RequestApi(const char* id, const char* operation, const char* arguments)
+{
+    return SpotifyPlusEngine::Get().RequestApi(id, operation, arguments);
+}
+
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*)
 {
     __android_log_print(ANDROID_LOG_INFO, TAG, "JNI_OnLoad vm=%p", vm);
@@ -27,7 +37,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_lenerd_spotifyplus_module_scripting_S
     std::string typeStr = typeChars ? typeChars : "";
     std::string payloadStr = payloadChars ? payloadChars : "";
 
-    __android_log_write(ANDROID_LOG_INFO, TAG, payloadChars);
 
     if (typeChars) env->ReleaseStringUTFChars(type, typeChars);
     if (payloadChars) env->ReleaseStringUTFChars(payload, payloadChars);

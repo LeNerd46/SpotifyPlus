@@ -6,12 +6,26 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { bundleExtension, readDeclaredAssets } from "../extension-build.mjs";
+import { bundleExtension, readDeclaredAssets, readNativePackage } from "../extension-build.mjs";
 
 const execFileAsync = promisify(execFile);
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.join(testsDir, "fixtures");
 const toolsDir = path.resolve(testsDir, "..");
+
+test("dev reads the compiled native APK from the project root for nested main entries", async t => {
+    const scriptDir = await fs.mkdtemp(path.join(os.tmpdir(), "spotifyplus-dev-apk-"));
+    t.after(() => fs.rm(scriptDir, { recursive: true, force: true }));
+    await fs.writeFile(path.join(scriptDir, "plugin.apk"), Buffer.from([1, 2, 3]));
+    const manifest = { main: "dist/index.js", native: { apk: "plugin.apk" } };
+    const payload = await readNativePackage(scriptDir, manifest);
+    assert.equal(payload.path, "plugin.apk");
+    assert.equal(payload.size, 3);
+    assert.deepEqual(Buffer.from(payload.data, "base64"), Buffer.from([1, 2, 3]));
+    assert.equal(await readNativePackage(scriptDir, { main: "index.js" }), undefined);
+    await assert.rejects(readNativePackage(scriptDir, { native: { apk: "../plugin.apk" } }), /cannot escape/);
+    await assert.rejects(readNativePackage(scriptDir, { native: { apk: "missing.apk" } }), /ENOENT/);
+});
 
 test("API 2 bundles are stamped and transformed", async () => {
     const scriptDir = path.join(fixturesDir, "api2");
@@ -76,13 +90,11 @@ test("spotifyplus build writes through the shared builder", async t => {
         outfile,
     ]);
     const output = await fs.readFile(outfile, "utf8");
-    const emittedManifest = JSON.parse(await fs.readFile(path.join(temporaryDir, "manifest.json"), "utf8"));
 
     assert.match(stdout, /built tools\.api2/);
     assert.match(output, /__spotifyplus_worklet_bundle__/);
     assert.match(output, /__spotifyPlusWorklet/);
-    assert.equal(emittedManifest.api, 2);
-    assert.equal(emittedManifest.id, "tools.api2");
+    await assert.rejects(fs.access(path.join(temporaryDir, "manifest.json")), { code: "ENOENT" });
 });
 
 test("declared extension assets are copied beside the bundle", async t => {

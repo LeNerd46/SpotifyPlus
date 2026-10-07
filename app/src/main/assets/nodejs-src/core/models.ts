@@ -124,6 +124,8 @@ export interface Session {
 
 export type ContextMenuRegister = (menu: ContextMenu) => void;
 export type OnClickCallback = (uri: string) => void;
+export type ContextMenuType = "track" | "artist" | "album" | "playlist";
+export type ContextMenuTypes = ContextMenuType | readonly ContextMenuType[];
 export type ShouldAddCallback = (uri: string, contextUri: string) => boolean;
 
 export class ContextMenu {
@@ -132,13 +134,19 @@ export class ContextMenu {
     public name: string;
     readonly onClick: OnClickCallback;
     readonly shouldAdd?: ShouldAddCallback;
+    readonly types?: readonly ContextMenuType[];
     // Icon
     public disabled: boolean;
 
-    constructor(name: string, onClick: OnClickCallback, shouldAdd?: ShouldAddCallback, disabled?: boolean, registerThing?: ContextMenuRegister) {
+    constructor(name: string, onClick: OnClickCallback, shouldAdd?: ShouldAddCallback, disabled?: boolean, registerThing?: ContextMenuRegister, types?: ContextMenuTypes) {
         this.name = name;
         this.onClick = onClick;
         this.shouldAdd = shouldAdd;
+        const values = types === undefined ? undefined : typeof types === 'string' ? [types] : [...types];
+        if (values?.some(type => !['track', 'artist', 'album', 'playlist'].includes(type))) {
+            throw new TypeError('Invalid context menu type');
+        }
+        this.types = values === undefined ? undefined : Object.freeze([...new Set(values)]);
         this.disabled = disabled ?? false;
         this.registerThing = registerThing;
     }
@@ -213,4 +221,87 @@ export class Uri {
 export type Surface = {
     id: string;
     type: string;
+}
+
+/** Normalized views of Spotify's internal metadata. The original response remains in raw. */
+export interface MetadataImage { fileId: string; size: string; width: number; height: number; url: string; }
+export interface MetadataArtistRef { uri: string; name: string; }
+export interface MetadataDisc { number: number; tracks: string[]; }
+export interface MetadataDate { year: number; month: number; day: number; }
+export interface MetadataAlbum {
+    uri: string; name: string; image: string; images: MetadataImage[]; artists: MetadataArtistRef[];
+    label: string; type: string; popularity: number; date: MetadataDate; discs: MetadataDisc[];
+    raw: Record<string, any>;
+}
+export interface MetadataArtist {
+    uri: string; name: string; image: string; images: MetadataImage[]; popularity: number;
+    topTracks: Array<{ country: string; tracks: string[] }>;
+    albums: string[]; singles: string[]; compilations: string[]; appearsOn: string[];
+    raw: Record<string, any>;
+}
+export interface MetadataPlaylistItem { uri: string; addedBy: string; timestamp: string; itemId: string; }
+export interface MetadataPlaylist {
+    uri: string; revision: string; name: string; picture: string; description: string;
+    ownerUsername: string; length: number; position: number; truncated: boolean;
+    timestamp: string; createdAt: string; isUserCreated: boolean; canEditItems: boolean; canEditMetadata: boolean;
+    items: MetadataPlaylistItem[]; raw: Record<string, any>;
+}
+
+const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const list = (value: unknown): any[] => Array.isArray(value) ? value : [];
+const text = (value: unknown): string => typeof value === 'string' ? value : '';
+
+/** Metadata uses 128-bit hexadecimal GIDs; extension consumers use Spotify base62 URIs. */
+export function gidToUri(kind: 'track' | 'album' | 'artist', gid: unknown): string {
+    if (typeof gid !== 'string' || !/^[0-9a-fA-F]{32}$/.test(gid)) return '';
+    let value = BigInt(`0x${gid}`);
+    let id = '';
+    do { id = ALPHABET[Number(value % 62n)] + id; value /= 62n; } while (value > 0n);
+    return `spotify:${kind}:${id.padStart(22, '0')}`;
+}
+
+function images(group: any): MetadataImage[] {
+    return list(group?.image).filter(image => typeof image?.file_id === 'string' && /^[a-fA-F0-9]{40}$/.test(image.file_id)).map(image => ({
+        fileId: image.file_id, size: text(image.size), width: Number(image.width) || 0,
+        height: Number(image.height) || 0, url: `https://i.scdn.co/image/${image.file_id}`
+    }));
+}
+function preferredImage(entries: MetadataImage[]): string { return (entries.find(image => image.size === 'LARGE') ?? entries[0])?.url ?? ''; }
+function albumGroup(group: unknown): string[] { return list(group).flatMap(item => list(item?.album).map(album => gidToUri('album', album?.gid)).filter(Boolean)); }
+
+export function parseMetadataAlbum(raw: Record<string, any>, requestedUri: string): MetadataAlbum {
+    const artwork = images(raw.cover_group);
+    return {
+        uri: text(raw.canonical_uri) || requestedUri, name: text(raw.name), image: preferredImage(artwork), images: artwork,
+        artists: list(raw.artist).map(artist => ({ uri: gidToUri('artist', artist?.gid), name: text(artist?.name) })),
+        label: text(raw.label), type: text(raw.type), popularity: Number(raw.popularity) || 0,
+        date: { year: Number(raw.date?.year) || 0, month: Number(raw.date?.month) || 0, day: Number(raw.date?.day) || 0 },
+        discs: list(raw.disc).map(disc => ({ number: Number(disc?.number) || 0, tracks: list(disc?.track).map(track => gidToUri('track', track?.gid)).filter(Boolean) })), raw
+    };
+}
+
+export function parseMetadataArtist(raw: Record<string, any>, requestedUri: string): MetadataArtist {
+    const artwork = images(raw.portrait_group);
+    return {
+        uri: requestedUri, name: text(raw.name), image: preferredImage(artwork), images: artwork,
+        popularity: Number(raw.popularity) || 0,
+        topTracks: list(raw.top_track).map(group => ({ country: text(group?.country), tracks: list(group?.track).map(track => gidToUri('track', track?.gid)).filter(Boolean) })),
+        albums: albumGroup(raw.album_group), singles: albumGroup(raw.single_group),
+        compilations: albumGroup(raw.compilation_group), appearsOn: albumGroup(raw.appears_on_group), raw
+    };
+}
+
+export function parseMetadataPlaylist(raw: Record<string, any>, requestedUri: string): MetadataPlaylist {
+    const attributes = raw.attributes ?? {};
+    const contents = raw.contents ?? {};
+    const capabilities = raw.capabilities ?? {};
+    return {
+        uri: requestedUri, revision: text(raw.revision), name: text(attributes.name),
+        // This is an opaque encoded picture value, NOT an image URL.
+        picture: text(attributes.picture), description: text(attributes.description), ownerUsername: text(raw.ownerUsername),
+        length: Number(raw.length) || 0, position: Number(contents.pos) || 0, truncated: Boolean(contents.truncated),
+        timestamp: text(raw.timestamp), createdAt: text(raw.createdAt), isUserCreated: Boolean(raw.isUserCreated),
+        canEditItems: Boolean(capabilities.canEditItems), canEditMetadata: Boolean(capabilities.canEditMetadata),
+        items: list(contents.items).map(item => ({ uri: text(item?.uri), addedBy: text(item?.attributes?.addedBy), timestamp: text(item?.attributes?.timestamp), itemId: text(item?.attributes?.itemId) })), raw
+    };
 }

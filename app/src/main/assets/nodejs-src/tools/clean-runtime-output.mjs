@@ -11,6 +11,8 @@ if (emittedRoot !== expectedRoot || path.basename(emittedRoot) !== "nodejs") {
 }
 
 const generatedDirectories = [
+    "elevated/liquid-glass",
+    "node_modules",
     "bridge",
     "core",
     "loader",

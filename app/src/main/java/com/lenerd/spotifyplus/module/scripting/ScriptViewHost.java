@@ -25,6 +25,11 @@ import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -122,6 +127,11 @@ public class ScriptViewHost {
     private final Set<Integer> activelyDraggingSeekBars = new HashSet<>();
 
     private final String surfaceId;
+    private final java.util.function.Supplier<View> originalView;
+    private final boolean intrinsicHeight;
+    private boolean disposed;
+    private boolean commitFailed;
+    private boolean nativeContentMounted;
     private final ViewGroup hostRoot;
     public final Context context;
     public final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -172,7 +182,18 @@ public class ScriptViewHost {
     private final Map<Integer, Integer> nativeChildrenStartIndexes = new HashMap<>();
 
     public ScriptViewHost(String surfaceId, ViewGroup root) {
+        this(surfaceId, root, null);
+    }
+
+    /** A target host may expose one native content slot and measure to its content. */
+    public ScriptViewHost(String surfaceId, ViewGroup root, java.util.function.Supplier<View> originalView) {
+        this(surfaceId, root, originalView, true);
+    }
+
+    public ScriptViewHost(String surfaceId, ViewGroup root, java.util.function.Supplier<View> originalView, boolean intrinsicHeight) {
         Context context = root.getContext();
+        this.originalView = originalView;
+        this.intrinsicHeight = originalView != null && intrinsicHeight;
 
         ensureNativeLibraries(context);
 
@@ -315,6 +336,11 @@ public class ScriptViewHost {
             queuedOpsNeedInvalidate = true;
         } catch (Exception e) {
             Log.e(TAG, "Failed applying op=" + item.optString("op") + " id=" + item.opt("id"), e);
+            if (surfaceId.startsWith("ui:") && !commitFailed) {
+                commitFailed = true;
+                queuedOps.clear();
+                mainHandler.post(() -> UITargets.renderFailed(surfaceId, e.toString()));
+            }
         }
     }
 
@@ -328,6 +354,7 @@ public class ScriptViewHost {
 
     private void drainQueuedOps() {
         opDrainScheduled = false;
+        if (disposed || commitFailed) return;
         if (!attached && !surfaceView.isAttachedToWindow()) return;
 
         long startNs = System.nanoTime();
@@ -373,6 +400,7 @@ public class ScriptViewHost {
     }
 
     public void applyOps(JSONArray ops) {
+        if (disposed || commitFailed) return;
         try {
             for (int i = 0; i < ops.length(); i++) queuedOps.addLast(ops.getJSONObject(i));
             scheduleQueuedOpsDrain();
@@ -573,6 +601,7 @@ public class ScriptViewHost {
         }
 
         if (affectsInheritedTextProps) applyInheritedTextPropsToDescendants(node);
+        if (isTextNode(node)) rebuildTextChildren(node);
     }
 
     private void updateText(JSONObject op) throws Exception {
@@ -637,6 +666,7 @@ public class ScriptViewHost {
 
     private boolean propsAffectLayout(JSONObject props) {
         if (props == null) return false;
+        if (props.has("fontWeight") || props.has("fontStyle") || props.has("fontFamily") || props.has("textStyle")) return true;
         String[] keys = {"display", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection", "justifyContent", "alignItems", "alignSelf", "alignContent", "flexWrap", "overflow", "position", "top", "bottom", "left", "right", "start", "end", "margin", "marginHorizontal", "marginVertical", "marginLeft", "marginTop", "marginRight", "marginBottom", "marginStart", "marginEnd", "padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingTop", "paddingRight", "paddingBottom", "paddingStart", "paddingEnd", "borderWidth", "borderLeftWidth", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderStartWidth", "borderEndWidth", "gap", "rowGap", "columnGap", "aspectRatio", "text", "textSizeSp", "maxLines", "minLines", "lines", "singleLine", "lineSpacingExtra", "lineSpacingMultiplier", "maxLength"};
         for (String key : keys) if (props.has(key)) return true;
         return false;
@@ -3479,6 +3509,12 @@ public class ScriptViewHost {
             return;
         }
 
+        // Nested Text is virtual: the outer TextView measures and draws its spans.
+        if (isTextNode(parent) && isTextNode(child)) {
+            rebuildTextChildren(parent);
+            return;
+        }
+
         if (parentIsVirtualizedList) {
             ((YogaVirtualizedList) parent.view).registerCell(child);
         } else if (parent.yogaNode != null && parent.yogaNode.isMeasureDefined()) {
@@ -3507,20 +3543,19 @@ public class ScriptViewHost {
         int index = parent.children.indexOf(child);
         if (index < 0) return;
         boolean parentIsVirtualizedList = parent.view instanceof YogaVirtualizedList;
+        boolean inlineText = isTextNode(parent) && isTextNode(child);
         if (parentIsVirtualizedList && !child.isRawText) {
             ((YogaVirtualizedList) parent.view).unregisterCell(child);
-        } else if (!child.isRawText && parent.yogaNode != null && child.yogaNode != null) {
+        } else if (!inlineText && !child.isRawText && parent.yogaNode != null && child.yogaNode != null) {
             int yogaIndex = countYogaChildrenBefore(parent, index);
             if (yogaIndex >= 0 && yogaIndex < parent.yogaNode.getChildCount()) parent.yogaNode.removeChildAt(yogaIndex);
         }
-        if (child.isRawText) {
-            rebuildTextChildren(parent);
-            dirtyIfNeeded(parent);
-        } else if (child.view != null) {
+        if (!child.isRawText && child.view != null) {
             detachFromParent(child.view);
         }
         parent.children.remove(index);
         child.parent = null;
+        if (child.isRawText || inlineText) rebuildTextChildren(parent);
 
         RenderNode radioGroup = findNearestRadioGroup(parent);
         if (radioGroup != null) syncRadioGroup(radioGroup);
@@ -3541,11 +3576,90 @@ public class ScriptViewHost {
 
     private void rebuildTextChildren(RenderNode parent) {
         if (!(parent.view instanceof TextView textView)) return;
+        if (isTextNode(parent)) {
+            while (isTextNode(parent.parent)) parent = parent.parent;
+            textView = (TextView) parent.view;
+            SpannableStringBuilder builder = new SpannableStringBuilder();
+            appendNestedText(parent, builder, resolveTextViewProps(parent, new JSONObject()), null, textView.getTypeface());
+            textView.setText(builder);
+            boolean hasLinks = builder.getSpans(0, builder.length(), ClickableSpan.class).length > 0;
+            // Selection config can replace the movement method, so install it after setText.
+            textView.setMovementMethod(hasLinks ? LinkMovementMethod.getInstance()
+                : textView.isTextSelectable() ? android.text.method.ArrowKeyMovementMethod.getInstance() : null);
+            dirtyIfNeeded(parent);
+            return;
+        }
         StringBuilder builder = new StringBuilder();
         for (RenderNode child : parent.children) if (child.isRawText && child.text != null) builder.append(child.text);
         String text = builder.toString();
         textView.setText(text);
         dirtyIfNeeded(parent);
+    }
+
+    private static boolean isTextNode(RenderNode node) {
+        return node != null && ("Text".equals(node.type) || "TextView".equals(node.type));
+    }
+
+    private void appendNestedText(RenderNode node, SpannableStringBuilder out, JSONObject inherited,
+                                  RenderNode pressTarget, Typeface fallback) {
+        JSONObject style = inherited;
+        if (!node.isRawText) {
+            try {
+                JSONObject own = copyJson(getEffectiveProps(node));
+                inherited = copyJson(inherited);
+                String inheritedTextStyle = inherited.optString("textStyle", "");
+                if (!inherited.has("fontWeight") && inheritedTextStyle.contains("bold")) inherited.put("fontWeight", "bold");
+                if (!inherited.has("fontStyle") && inheritedTextStyle.contains("italic")) inherited.put("fontStyle", "italic");
+                String textStyle = own.optString("textStyle", "");
+                if (!own.has("fontWeight") && textStyle.contains("bold")) own.put("fontWeight", "bold");
+                if (!own.has("fontStyle") && textStyle.contains("italic")) own.put("fontStyle", "italic");
+                if ("normal".equals(textStyle)) {
+                    if (!own.has("fontWeight")) own.put("fontWeight", "normal");
+                    if (!own.has("fontStyle")) own.put("fontStyle", "normal");
+                }
+                String decoration = own.optString("textDecorationLine", "");
+                if (!decoration.isEmpty() && !"none".equals(decoration)) {
+                    own.put("textDecorationLine", inherited.optString("textDecorationLine", "") + " " + decoration);
+                }
+                style = mergeJson(inherited, own);
+            } catch (Exception error) { Log.w(TAG, "Failed resolving nested Text style", error); }
+            if (isTextNode(node.parent)
+                && (getEventId(node.props, "onPress") != null || getEventId(node.props, "onClick") != null)) pressTarget = node;
+        }
+        if (!node.isRawText && !node.children.isEmpty()) {
+            for (RenderNode child : node.children) {
+                if (child.isRawText || isTextNode(child)) appendNestedText(child, out, style, pressTarget, fallback);
+            }
+            return;
+        }
+        String text = node.isRawText ? node.text : getEffectiveProps(node).optString("text", "");
+        if (text == null || text.isEmpty()) return;
+        int start = out.length();
+        out.append(text);
+        String textStyle = style.optString("textStyle", "");
+        int weight = parseFontWeight(style.opt("fontWeight"), textStyle.contains("bold") ? 700 : 400);
+        boolean italic = style.has("fontStyle") ? "italic".equals(style.optString("fontStyle")) : textStyle.contains("italic");
+        Typeface typeface = ExtensionAssetRegistry.resolveTypeface(style.opt("fontFamily"), weight, italic, fallback);
+        float size = style.has("textSizeSp") ? TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+            (float) parseDouble(style.opt("textSizeSp"), 14), context.getResources().getDisplayMetrics()) : 0;
+        out.setSpan(new NestedTextSpan(typeface, size, parseColor(style.opt("textColor")),
+            parseColor(style.opt("backgroundColor")), style.optString("textDecorationLine", "")),
+            start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (pressTarget != null) {
+            RenderNode target = pressTarget;
+            out.setSpan(new ClickableSpan() {
+                @Override public void updateDrawState(TextPaint paint) { /* NestedTextSpan supplies the style. */ }
+                @Override public void onClick(View widget) {
+                    Integer eventId = getEventId(target.props, "onPress");
+                    String eventName = "onPress";
+                    if (eventId == null) { eventId = getEventId(target.props, "onClick"); eventName = "onClick"; }
+                    if (eventId != null && !isDispatchSuppressed(target.id)) {
+                        try { sendEventToNode(target.id, eventName, eventId, basePayload(target.id)); }
+                        catch (Exception error) { Log.w(TAG, "Failed dispatching inline Text press", error); }
+                    }
+                }
+            }, start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
     }
 
     private void addChildViewToAndroidParent(RenderNode parent, RenderNode child, int index) {
@@ -3747,14 +3861,15 @@ public class ScriptViewHost {
         }
 
         for (RenderNode child : node.children) {
-            if (!child.isRawText && child.yogaNode != null) {
+            if (!child.isRawText && child.yogaNode != null && !(isTextNode(node) && isTextNode(child))) {
                 newYogaNode.addChildAt(child.yogaNode, newYogaNode.getChildCount());
             }
         }
 
         node.yogaNode = newYogaNode;
 
-        if (node.parent != null && node.parent.yogaNode != null && oldYogaNode != null) {
+        if (node.parent != null && node.parent.yogaNode != null && oldYogaNode != null
+            && !(isTextNode(node.parent) && isTextNode(node))) {
             int index = countYogaChildrenBefore(node.parent, node.parent.children.indexOf(node));
             if (index >= 0 && index < node.parent.yogaNode.getChildCount()) {
                 node.parent.yogaNode.removeChildAt(index);
@@ -3765,6 +3880,7 @@ public class ScriptViewHost {
 
     private boolean shouldUseMeasureFunction(RenderNode node) {
         if (node.isRawText || node.view == null) return false;
+        if (isTextNode(node)) return true;
         if (node.view instanceof YogaVirtualizedList) return true;
         if (node.view instanceof YogaLayoutView) return false;
         if (node.view instanceof YogaScrollContainer) return false;
@@ -3787,6 +3903,16 @@ public class ScriptViewHost {
     }
 
     private View createViewForType(RenderNode node) {
+        if (node.type.equals("NativePart")) {
+            // Lease after the commit: a replacement owner may create its slot before the old one is removed.
+            return new OriginalSlot(context, node);
+        }
+        if (node.type.equals("NativeOriginal")) {
+            if (originalView == null) throw new IllegalStateException("Original is only available inside a native UI target");
+            // Lease the native content after the whole commit, when deleted slots are gone.
+            // React can create the new owner's slot before destroying the previous owner's slot.
+            return new OriginalSlot(context, node);
+        }
         if (node.type.startsWith("native:")) {
             String componentName = node.type.substring("native:".length());
             return createNativeView(node, componentName);
@@ -3877,6 +4003,9 @@ public class ScriptViewHost {
     private void calculateRootYogaLayout(int widthMeasureSpec, int heightMeasureSpec) {
         float availableWidth = toYogaAvailableSize(widthMeasureSpec);
         float availableHeight = toYogaAvailableSize(heightMeasureSpec);
+        if (intrinsicHeight && View.MeasureSpec.getMode(heightMeasureSpec) != View.MeasureSpec.EXACTLY) {
+            availableHeight = YogaConstants.UNDEFINED;
+        }
         surfaceNode.yogaNode.calculateLayout(availableWidth, availableHeight);
     }
 
@@ -3887,6 +4016,7 @@ public class ScriptViewHost {
     }
 
     private void measureChildrenForNode(RenderNode node) {
+        if (isTextNode(node)) return;
         for (RenderNode child : node.children) {
             if (child.isRawText || child.view == null || child.yogaNode == null) continue;
             int width = Math.max(0, Math.round(child.yogaNode.getLayoutWidth()));
@@ -3954,6 +4084,7 @@ public class ScriptViewHost {
     }
 
     private void layoutChildrenForNode(RenderNode node) {
+        if (isTextNode(node)) return;
         for (RenderNode child : node.children) {
             if (child.isRawText || child.view == null || child.yogaNode == null) continue;
             int left = Math.round(child.yogaNode.getLayoutX());
@@ -4790,6 +4921,7 @@ public class ScriptViewHost {
         if (props.has("maxLength"))
             view.setFilters(new InputFilter[]{new InputFilter.LengthFilter(props.optInt("maxLength", Integer.MAX_VALUE))});
         applyTextShadowProps(view, props);
+        if (isTextNode(node) && (!node.children.isEmpty() || props.has("textDecorationLine"))) rebuildTextChildren(node);
         dirtyIfNeeded(node);
     }
 
@@ -5093,6 +5225,18 @@ public class ScriptViewHost {
     }
 
     private void detachFromParent(View view) {
+        if (originalView != null) {
+            View original = originalView.get();
+            android.view.ViewParent ancestor = original.getParent();
+            while (ancestor != null) {
+                if (ancestor == view) {
+                    NativeContentMover.move(original, hostRoot, intrinsicHeight ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.MATCH_PARENT);
+                    original.setVisibility(View.GONE);
+                    break;
+                }
+                ancestor = ancestor.getParent();
+            }
+        }
         if (view.getParent() instanceof ViewGroup parent) parent.removeView(view);
     }
 
@@ -6932,6 +7076,9 @@ public class ScriptViewHost {
             host.measureChildrenForNode(node);
             int measuredWidth = View.MeasureSpec.getMode(widthMeasureSpec) == View.MeasureSpec.UNSPECIFIED ? host.computeContentWidth(node) : View.MeasureSpec.getSize(widthMeasureSpec);
             int measuredHeight = View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED ? host.computeContentHeight(node) : View.MeasureSpec.getSize(heightMeasureSpec);
+            if (host.intrinsicHeight && View.MeasureSpec.getMode(heightMeasureSpec) != View.MeasureSpec.EXACTLY) {
+                measuredHeight = View.resolveSize(host.computeContentHeight(node), heightMeasureSpec);
+            }
             setMeasuredDimension(measuredWidth, measuredHeight);
         }
     }
@@ -8045,32 +8192,105 @@ public class ScriptViewHost {
     }
 
     private void forceLayoutNow() {
+        if (disposed || commitFailed) return;
         int width = hostRoot.getWidth();
         int height = hostRoot.getHeight();
 
-        if (width <= 0 || height <= 0) {
+        if (width <= 0 || (!intrinsicHeight && height <= 0)) {
             hostRoot.post(this::forceLayoutNow);
             return;
         }
 
         Map<Integer, ViewGeometry> previousGeometries = captureGeometryTransitions();
 
+        java.util.Set<String> mountedParts = new java.util.HashSet<>();
+        for (RenderNode node : nodes.values()) {
+            if (!node.type.equals("NativePart")) continue;
+            RenderNode ancestor = node;
+            while (ancestor.parent != null) ancestor = ancestor.parent;
+            if (ancestor != surfaceNode) continue;
+            String partId = node.props.optString("partId");
+            try {
+                if (!mountedParts.add(partId)) throw new IllegalStateException("Mount each NativePart only once per target");
+                ViewGroup slot = (ViewGroup) node.view;
+                if (slot.getChildCount() == 0) NativeContentMover.move(UITargets.createPart(surfaceId, partId), slot,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+            } catch (RuntimeException error) {
+                Log.e(TAG, "Failed to mount native part " + partId, error);
+                commitFailed = true;
+                UITargets.renderFailed(surfaceId, error.toString());
+                return;
+            }
+        }
+
+        if (originalView != null) {
+            ViewGroup slot = null;
+            for (RenderNode node : nodes.values()) {
+                if (!node.type.equals("NativeOriginal")) continue;
+                RenderNode ancestor = node;
+                while (ancestor.parent != null) ancestor = ancestor.parent;
+                if (ancestor != surfaceNode) continue;
+                if (slot != null) {
+                    commitFailed = true;
+                    UITargets.renderFailed(surfaceId, "Original can only be mounted once per target");
+                    return;
+                }
+                slot = (ViewGroup) node.view;
+            }
+            View original = originalView.get();
+            nativeContentMounted = slot != null;
+            if (slot != null && original.getParent() != slot) {
+                original.setVisibility(View.VISIBLE);
+                try { NativeContentMover.move(original, slot, intrinsicHeight ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.MATCH_PARENT); }
+                catch (RuntimeException error) {
+                    commitFailed = true;
+                    UITargets.renderFailed(surfaceId, error.toString());
+                    return;
+                }
+            }
+        }
+
         forceAndroidLayoutTree(surfaceNode);
         surfaceView.forceLayout();
 
         int widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY);
-        int heightSpec = View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY);
+        int heightSpec = View.MeasureSpec.makeMeasureSpec(intrinsicHeight ? 0 : height,
+                intrinsicHeight ? View.MeasureSpec.UNSPECIFIED : View.MeasureSpec.EXACTLY);
 
         surfaceView.measure(widthSpec, heightSpec);
         measureChildrenForNodeRecursive(surfaceNode);
-        surfaceView.layout(0, 0, width, height);
+        surfaceView.layout(0, 0, width, intrinsicHeight ? surfaceView.getMeasuredHeight() : height);
 
         layoutChildrenForNodeRecursive(surfaceNode);
         startGeometryTransitions(previousGeometries);
         invalidateTree(surfaceNode);
 
+        if (originalView != null) {
+            // The fallback stays visible until the complete React tree has measured successfully.
+            View original = originalView.get();
+            if (!intrinsicHeight && !nativeContentMounted) {
+                // Fragment containers must remain discoverable by their native resource ID.
+                original.setVisibility(View.GONE);
+                if (original.getParent() != hostRoot) {
+                    if (original.getParent() instanceof ViewGroup parent) parent.removeView(original);
+                    hostRoot.addView(original, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                }
+            } else if (original.getParent() == hostRoot) hostRoot.removeView(original);
+            hostRoot.requestLayout();
+        }
+
         surfaceView.invalidate();
         hostRoot.invalidate();
+    }
+
+    private final class OriginalSlot extends android.widget.FrameLayout {
+        private final RenderNode node;
+        OriginalSlot(Context context, RenderNode node) { super(context); this.node = node; }
+        @Override public void requestLayout() {
+            // Native recomposition can change intrinsic height without a React prop update.
+            if (node != null && !disposed) dirtyIfNeeded(node);
+            super.requestLayout();
+        }
     }
 
     private void forceAndroidLayoutTree(RenderNode node) {
@@ -8092,6 +8312,14 @@ public class ScriptViewHost {
     }
 
     public void dispose() {
+        if (originalView != null) {
+            View original = originalView.get();
+            try { NativeContentMover.move(original, hostRoot, intrinsicHeight ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.MATCH_PARENT); }
+            catch (RuntimeException error) { Log.e(TAG, "Unable to preserve native content while disposing target", error); }
+            original.setVisibility(View.VISIBLE);
+        }
+        disposed = true;
+        queuedOps.clear();
         if (surfaceView.getParent() instanceof ViewGroup parent) {
             parent.removeView(surfaceView);
         }

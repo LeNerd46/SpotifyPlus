@@ -42,7 +42,7 @@ export class ScriptRegistry {
     private readonly menus = new Map<string, RegisteredContextMenu>();
     private readonly sideDrawerItems = new Map<string, RegisteredSideDrawer>();
     private readonly renderers = new Map<string, RegisteredSurfaceRenderer[]>();
-    private readonly mountedSurfaces = new Map<string, RenderRoot>();
+    private readonly mountedSurfaces = new Map<string, { scriptId: string; surfaceId: string; root: RenderRoot }>();
     private readonly cleanupCallbacks = new Map<string, Set<() => void>>();
 
     constructor(
@@ -82,16 +82,16 @@ export class ScriptRegistry {
         }
 
         const surfaceIds = new Set<string>();
-        for (const [key, root] of this.mountedSurfaces.entries()) {
-            if (!key.startsWith(`${scriptId}:`)) continue;
+        for (const [key, mounted] of this.mountedSurfaces.entries()) {
+            if (mounted.scriptId !== scriptId) continue;
             try {
-                root.unmount();
+                mounted.root.unmount();
             } catch (error) {
                 this.logger.error(`Failed to unmount ${key}`, error);
             }
 
             this.mountedSurfaces.delete(key);
-            surfaceIds.add(key.slice(scriptId.length + 1));
+            surfaceIds.add(mounted.surfaceId);
         }
 
         const cleanups = this.cleanupCallbacks.get(scriptId);
@@ -139,6 +139,12 @@ export class ScriptRegistry {
         if (!emitter) return;
 
         await emitter.emit(eventName, payload);
+    }
+
+    /** Native Spotify events fan out; an extension's custom emit never calls this. */
+    async broadcastSpotifyEvent(eventName: string, payload: unknown): Promise<void> {
+        await Promise.all(Array.from(this.extensionEventEmitters.values(), emitter =>
+            emitter.emit(eventName, structuredClone(payload))));
     }
 
     on(scriptId: string, eventName: string, handler: EventHandler): void {
@@ -207,6 +213,26 @@ export class ScriptRegistry {
         this.menus.set(id, { scriptId, id, menu });
     }
 
+    evaluateContextMenus(ids: readonly string[], uri: string, contextUri: string): string[] {
+        const visible: string[] = [];
+        for (const id of ids) {
+            const entry = this.menus.get(id);
+            if (!entry || entry.menu.disabled) continue;
+            try {
+                const result: unknown = entry.menu.shouldAdd ? entry.menu.shouldAdd(uri, contextUri) : true;
+                if (result === true) visible.push(id);
+                // Reject async predicates without allowing a rejected Promise to escape the event handler.
+                if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+                    void Promise.resolve(result).catch(error =>
+                        this.logger.error(`Async context menu visibility failed for script ${entry.scriptId}`, error));
+                }
+            } catch (error) {
+                this.logger.error(`Context menu visibility failed for script ${entry.scriptId}`, error);
+            }
+        }
+        return visible;
+    }
+
     emitContextMenuPress(scriptId: string, id: string, uri: string): void {
         const menu = this.menus.get(id);
         menu?.menu.onClick(uri);
@@ -252,35 +278,48 @@ export class ScriptRegistry {
     }
 
     mountSurface(scriptId: string, surface: Surface, element: React.ReactElement): void {
-        const key = `${scriptId}:${surface.id}`;
+        const key = JSON.stringify([scriptId, surface.id]);
         const existing = this.mountedSurfaces.get(key);
-        if (existing) existing.unmount();
+        if (existing) {
+            existing.root.render(element);
+            return;
+        }
 
-        const root = createRoot(surface.type);
-        root.render(element);
-        this.mountedSurfaces.set(key, root);
+        const root = createRoot(surface.id);
+        this.mountedSurfaces.set(key, { scriptId, surfaceId: surface.id, root });
+        try {
+            root.render(element);
+        } catch (error) {
+            this.mountedSurfaces.delete(key);
+            root.unmount();
+            throw error;
+        }
     }
 
     trackMountedRoot(scriptId: string, surfaceId: string, root: RenderRoot): void {
-        const key = `${scriptId}:${surfaceId}`;
+        const key = JSON.stringify([scriptId, surfaceId]);
         const existing = this.mountedSurfaces.get(key);
-        if (existing) existing.unmount();
-        this.mountedSurfaces.set(key, root);
+        if (existing && existing.root !== root) existing.root.unmount();
+        this.mountedSurfaces.set(key, { scriptId, surfaceId, root });
     }
 
     unmountSurface(scriptId: string, surfaceId: string): void {
-        const key = `${scriptId}:${surfaceId}`;
-        const root = this.mountedSurfaces.get(key);
-        root?.unmount();
+        const key = JSON.stringify([scriptId, surfaceId]);
+        const mounted = this.mountedSurfaces.get(key);
+        mounted?.root.unmount();
         this.mountedSurfaces.delete(key);
     }
 
     unmountAllSurfaces(surfaceId: string): void {
-        this.mountedSurfaces.forEach((root, key) => {
-            if (key.endsWith(`:${surfaceId}`)) {
-                root.unmount();
+        this.mountedSurfaces.forEach((mounted, key) => {
+            if (mounted.surfaceId === surfaceId) {
+                mounted.root.unmount();
                 this.mountedSurfaces.delete(key);
             }
         });
+    }
+
+    hasMountedSurface(surfaceId: string): boolean {
+        return Array.from(this.mountedSurfaces.values()).some(mounted => mounted.surfaceId === surfaceId);
     }
 }

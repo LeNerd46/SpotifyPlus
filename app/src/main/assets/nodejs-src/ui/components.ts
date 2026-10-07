@@ -298,6 +298,7 @@ export interface TextStyle extends LayoutStyle, TransformStyle {
     fontWeight?: FontWeightValue;
     fontStyle?: FontStyleValue;
     fontFamily?: FontFamilySource;
+    textDecorationLine?: 'none' | 'underline' | 'line-through' | 'underline line-through';
     textAlign?: TextAlignValue;
     lineHeight?: number;
     letterSpacing?: number;
@@ -464,6 +465,7 @@ export interface TextProps extends CommonViewProps {
     fontWeight?: FontWeightValue;
     fontStyle?: FontStyleValue;
     fontFamily?: FontFamilySource;
+    textDecorationLine?: TextStyle['textDecorationLine'];
     textAlign?: TextAlignValue;
     lineHeight?: number;
     letterSpacing?: number;

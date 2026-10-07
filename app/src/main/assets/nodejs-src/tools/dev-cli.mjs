@@ -13,7 +13,8 @@ import {
     createDevSourceMapper,
     formatDevLogEntry,
 } from "./dev-source-map.mjs";
-import { bundleExtension, readDeclaredAssets } from "./extension-build.mjs";
+import { bundleExtension, readDeclaredAssets, readNativePackage } from "./extension-build.mjs";
+import { runCreateNative } from "./create-native.mjs";
 
 const execFile = promisify(execFileCallback);
 const RUNTIME_PORT = 37846;
@@ -41,6 +42,7 @@ const WATCH_EXTENSIONS = new Set([
     ".m4a",
     ".mp4",
     ".webm",
+    ".apk",
 ]);
 const IGNORED_DIRECTORIES = new Set(["node_modules", ".git", "dist", "build", ".gradle"]);
 
@@ -54,6 +56,11 @@ function printHelp() {
     console.log(`Usage:
   spotifyplus dev [extensionDir] [options]
   spotifyplus build [extensionDir] [options]
+  spotifyplus create-native [projectDir]
+
+Create native:
+  Prompts for Java or Kotlin, an Android namespace, and a new project directory.
+  Downloads the SpotifyPlus SDK and creates an Android plugin project.
 
 Build options:
   --entry <path>          source entry, relative to the extension directory
@@ -66,6 +73,9 @@ Dev options:
   --device <serial>       adb device serial
   --port <port>           forwarded hot reload port (default: ${DEFAULT_DEV_PORT})
   --debounce-ms <ms>      file change debounce (default: 150)
+
+Dev sends manifest.native.apk with each reload and watches the compiled APK.
+Build native code separately and copy its APK to the declared path.
 
 All commands:
   --help, -h              show this help
@@ -89,12 +99,24 @@ async function adb(options, args) {
 
 async function postHotReloadBundle(port, buildInfo) {
     const assets = await readDeclaredAssets(buildInfo.scriptDir, buildInfo.manifest);
-    const body = JSON.stringify({
+    const nativeApk = await readNativePackage(buildInfo.scriptDir, buildInfo.manifest);
+    if (nativeApk) {
+        const capabilities = JSON.parse(await requestRuntime(port, "GET", "/dev-capabilities"));
+        if (capabilities.nativeHotReload !== true) {
+            throw new Error("This phone's SpotifyPlus runtime does not support native hot reload. Install the updated SpotifyPlus build before running dev.");
+        }
+    }
+    return requestRuntime(port, "POST", "/hot-reload", {
         buildId: buildInfo.buildId,
         manifest: buildInfo.manifest,
         source: buildInfo.source,
         assets,
+        nativeApk,
     });
+}
+
+async function requestRuntime(port, method, requestPath, payload) {
+    const body = payload === undefined ? "" : JSON.stringify(payload);
 
     return new Promise((resolve, reject) => {
         const request = http.request({
@@ -103,8 +125,8 @@ async function postHotReloadBundle(port, buildInfo) {
                 "content-type": "application/json; charset=utf-8",
             },
             host: "127.0.0.1",
-            method: "POST",
-            path: "/hot-reload",
+            method,
+            path: requestPath,
             port,
         }, response => {
             response.setEncoding("utf8");
@@ -124,6 +146,9 @@ async function postHotReloadBundle(port, buildInfo) {
                     responsePayload = JSON.parse(responseBody);
                 } catch { }
                 const error = new Error(
+                    requestPath === "/dev-capabilities" && status === 404
+                        ? "This phone's SpotifyPlus runtime does not support native hot reload. Install the updated SpotifyPlus build before running dev."
+                        :
                     responsePayload?.error
                         ? `SpotifyPlus runtime returned HTTP ${status}: ${responsePayload.error}`
                         : `SpotifyPlus runtime returned HTTP ${status}: ${responseBody}`,
@@ -140,7 +165,7 @@ async function postHotReloadBundle(port, buildInfo) {
             connectionError.runtimeUnavailable = true;
             reject(connectionError);
         });
-        request.setTimeout(5000, () => {
+        request.setTimeout(30000, () => {
             request.destroy(new Error(`Timed out connecting to SpotifyPlus runtime on forwarded port ${port}`));
         });
         request.end(body);
@@ -395,6 +420,10 @@ async function run() {
     const options = parseCliArgs(process.argv.slice(2));
     if (options.help) {
         printHelp();
+        return;
+    }
+    if (options.command === "create-native") {
+        await runCreateNative(options);
         return;
     }
     if (options.command === "build") {

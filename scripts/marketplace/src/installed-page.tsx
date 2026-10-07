@@ -5,14 +5,18 @@ import Colors from './colors';
 import { installMarketplaceExtension, InstallProgress, listInstalledExtensions, uninstallMarketplaceExtension } from './install-extension';
 import { InstalledExtensionInfo, MarketplaceExtension } from './types/extension';
 import { placeholderImage } from './app';
+import { hasUpdate } from './updates';
 
 interface Props {
+    checking: boolean;
+    checkError: string | null;
+    onCheckUpdates: () => void;
     extensions: MarketplaceExtension[];
     onInstalledChanged: () => void;
     onSelectExtension: (extension: MarketplaceExtension) => void;
 }
 
-const InstalledPage = ({ extensions, onInstalledChanged, onSelectExtension, }: Props) => {
+const InstalledPage = ({ extensions, checking, checkError, onCheckUpdates, onInstalledChanged, onSelectExtension, }: Props) => {
     const [installed, setInstalled] = useState<InstalledExtensionInfo[]>([]);
 
     const catalogById = useMemo(() => {
@@ -37,6 +41,9 @@ const InstalledPage = ({ extensions, onInstalledChanged, onSelectExtension, }: P
         onInstalledChanged();
     };
 
+    const updates = installed.filter((item) => hasUpdate(item, catalogById.get(item.id)));
+    const otherInstalled = installed.filter((item) => !hasUpdate(item, catalogById.get(item.id)));
+
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 80 }} >
             <Text textColor={Colors.onSurface} fontSize={28} fontWeight='bold' >
@@ -45,6 +52,17 @@ const InstalledPage = ({ extensions, onInstalledChanged, onSelectExtension, }: P
             <Text textColor={Colors.onSurfaceVariant} fontSize={14} style={{ marginTop: 6, marginBottom: 24, lineHeight: 20 }} >
                 Manage your installed extensions
             </Text>
+
+            <View style={{ marginBottom: 24, gap: 12 }}>
+                <Text textColor={Colors.onSurface} fontSize={21} fontWeight='bold'>Updates{updates.length ? ` (${updates.length})` : ''}</Text>
+                <Text textColor={Colors.onSurfaceVariant} fontSize={14}>
+                    {checking ? 'Checking for updates…' : checkError ?? (updates.length ? 'New versions are ready to install.' : 'No updates found.')}
+                </Text>
+                <ActionButton label={checking ? 'Checking…' : 'Check for updates'} disabled={checking} onPress={onCheckUpdates} />
+                {updates.map((item) => <InstalledExtensionCard key={item.id} installed={item} extension={catalogById.get(item.id)} onChanged={changed} onSelectExtension={onSelectExtension} />)}
+            </View>
+
+            {otherInstalled.length > 0 && <Text textColor={Colors.onSurface} fontSize={21} fontWeight='bold' style={{ marginBottom: 12 }}>Installed</Text>}
 
             {installed.length === 0 ? (
                 <View style={{ padding: 24, borderRadius: 16, backgroundColor: Colors.surfaceContainer, borderWidth: 1, borderColor: Colors.outlineVariant }} >
@@ -57,7 +75,7 @@ const InstalledPage = ({ extensions, onInstalledChanged, onSelectExtension, }: P
                 </View>
             ) : (
                 <View style={{ gap: 12 }}>
-                    {installed.map((item) => (
+                    {otherInstalled.map((item) => (
                         <InstalledExtensionCard key={item.id} installed={item} extension={catalogById.get(item.id)} onChanged={changed} onSelectExtension={onSelectExtension} />
                     ))}
                 </View>
@@ -79,7 +97,7 @@ const InstalledExtensionCard = ({ installed, extension, onChanged, onSelectExten
     const [uninstalling, setUninstalling] = useState(false);
     const [confirmUninstall, setConfirmUninstall] = useState(false);
     const [progress, setProgress] = useState<InstallProgress | null>(null);
-    const updateAvailable = extension?.repository && extension.version !== installed.version;
+    const updateAvailable = hasUpdate(installed, extension);
 
     useEffect(() => {
         setImageFailed(false);

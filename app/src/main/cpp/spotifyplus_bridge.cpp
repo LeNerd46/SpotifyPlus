@@ -27,6 +27,10 @@ typedef void (*PauseFn)();
 typedef void (*TogglePlayFn)();
 typedef void (*SkipNextFn)();
 typedef void (*SkipPreviousFn)();
+typedef bool (*RequestApiFn)(const char*, const char*, const char*);
+static RequestApiFn g_requestApi = nullptr;
+typedef void (*CallApiSyncFn)(const char*, const char*, StorageValueResult*);
+static CallApiSyncFn g_callApiSync = nullptr;
 
 typedef void (*ToastFn)(const char* text, bool longLength);
 typedef bool (*NavigateFn)(const char* uri, const char* target);
@@ -240,6 +244,8 @@ static bool resolve_symbols()
     g_pause = (PauseFn)dlsym(g_nativeLibHandle, "SpotifyPlus_Pause");
     g_togglePlay = (TogglePlayFn)dlsym(g_nativeLibHandle, "SpotifyPlus_TogglePlay");
     g_skipNext = (SkipNextFn)dlsym(g_nativeLibHandle, "SpotifyPlus_SkipNext");
+    g_requestApi = (RequestApiFn)dlsym(g_nativeLibHandle, "SpotifyPlus_RequestApi");
+    g_callApiSync = (CallApiSyncFn)dlsym(g_nativeLibHandle, "SpotifyPlus_CallApiSync");
     g_skipPrevious = (SkipPreviousFn)dlsym(g_nativeLibHandle, "SpotifyPlus_SkipPrevious");
 
     g_toast = (ToastFn)dlsym(g_nativeLibHandle, "SpotifyPlus_Toast");
@@ -460,6 +466,46 @@ static napi_value getPlaybackPosition(napi_env env, napi_callback_info)
 
     double position = g_getPlaybackPosition();
     napi_create_double(env, position, &result);
+    return result;
+}
+
+static napi_value callApiSync(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value args[2];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc != 2) { napi_throw_type_error(env, nullptr, "callApiSync requires operation and JSON arguments"); return nullptr; }
+    for (size_t i = 0; i < 2; ++i) {
+        napi_valuetype type;
+        napi_typeof(env, args[i], &type);
+        if (type != napi_string) { napi_throw_type_error(env, nullptr, "callApiSync arguments must be strings"); return nullptr; }
+    }
+    if (!resolve_symbols() || !g_callApiSync) { napi_throw_error(env, nullptr, "Synchronous Spotify API bridge is unavailable; update SpotifyPlus"); return nullptr; }
+    StorageValueResult response{false, ""};
+    g_callApiSync(GetStringArg(env, args[0]).c_str(), GetStringArg(env, args[1]).c_str(), &response);
+    if (!response.found) { napi_throw_error(env, nullptr, "Synchronous Spotify API call failed"); return nullptr; }
+    napi_value result;
+    napi_create_string_utf8(env, response.value.c_str(), response.value.size(), &result);
+    return result;
+}
+
+static napi_value requestApi(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value args[3];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc != 3) { napi_throw_type_error(env, nullptr, "requestApi requires id, operation and JSON arguments"); return nullptr; }
+    for (size_t i = 0; i < 3; ++i) {
+        napi_valuetype type;
+        napi_typeof(env, args[i], &type);
+        if (type != napi_string) { napi_throw_type_error(env, nullptr, "requestApi arguments must be strings"); return nullptr; }
+    }
+    if (!resolve_symbols() || !g_requestApi) { napi_throw_error(env, nullptr, "Spotify API bridge is unavailable; update SpotifyPlus"); return nullptr; }
+    if (!g_requestApi(GetStringArg(env, args[0]).c_str(), GetStringArg(env, args[1]).c_str(), GetStringArg(env, args[2]).c_str())) {
+        napi_throw_error(env, nullptr, "Could not enqueue Spotify API request"); return nullptr;
+    }
+    napi_value result;
+    napi_get_undefined(env, &result);
     return result;
 }
 
@@ -1315,6 +1361,11 @@ static napi_value init(napi_env env, napi_value exports)
     napi_set_named_property(env, exports, "getPlaybackPosition", fn);
 
     napi_create_function(env, "seek", NAPI_AUTO_LENGTH, seek, nullptr, &fn);
+    napi_value apiFn;
+    napi_create_function(env, "requestApi", NAPI_AUTO_LENGTH, requestApi, nullptr, &apiFn);
+    napi_set_named_property(env, exports, "requestApi", apiFn);
+    napi_create_function(env, "callApiSync", NAPI_AUTO_LENGTH, callApiSync, nullptr, &apiFn);
+    napi_set_named_property(env, exports, "callApiSync", apiFn);
     napi_set_named_property(env, exports, "seek", fn);
 
     napi_create_function(env, "play", NAPI_AUTO_LENGTH, play, nullptr, &fn);

@@ -103,6 +103,11 @@ public class SpotifyNativeBridge {
     private final File scriptDirectory;
     private final File optimizedDirectory;
     private final Context context;
+    private final SpotifyServices services;
+    private final java.util.concurrent.ExecutorService apiExecutor = new java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.ArrayBlockingQueue<>(64),
+            runnable -> new Thread(runnable, "SpotifyPlus-API"));
 
     public static class StorageReadResult {
         public boolean found;
@@ -127,6 +132,8 @@ public class SpotifyNativeBridge {
         this.scriptDirectory = scriptDirectory;
         this.optimizedDirectory = optimizedDirectory;
         this.context = context;
+        UITargets.initialize(context);
+        this.services = new SpotifyServices(classLoader, context);
         WorkletRuntimeManager.getInstance().attachContext(context);
     }
 
@@ -142,6 +149,103 @@ public class SpotifyNativeBridge {
         } catch (Throwable e) {
             Log.e(TAG, "Failed to invoke handler " + type + ":" + id, e);
             return null;
+        }
+    }
+
+    /** Local operations return directly to Node through JNI, including failures. */
+    public String callApiSync(String operation, String arguments) {
+        JSONObject response = new JSONObject();
+        try {
+            Object result = services.executeSync(operation, new JSONObject(arguments));
+            response.put("result", result == null ? JSONObject.NULL : result);
+        } catch (Throwable error) {
+            try { response.put("error", uiErrorMessage(error)); }
+            catch (org.json.JSONException impossible) { throw new IllegalStateException(impossible); }
+        }
+        return asciiJson(response);
+    }
+
+    /** Enqueues operations that need network, stream loading, or main-thread UI work. */
+    public void requestApi(String id, String operation, String arguments) {
+        if (operation.startsWith("ui.")) {
+            mainHandler.post(() -> {
+                try {
+                    if (operation.equals("ui.debugProbe") || operation.equals("ui.debugPartsProbe")) {
+                        File directory = context.getExternalFilesDir(null);
+                        sendApiResult(id, com.lenerd.spotifyplus.BuildConfig.DEBUG && directory != null
+                                && new File(directory, operation.equals("ui.debugProbe") ? "spotifyplus-ui-probe" : "spotifyplus-ui-parts-probe").isFile(), null);
+                    } else {
+                        Object result = UITargets.execute(operation, new JSONObject(arguments));
+                        if (result instanceof java.util.concurrent.CompletionStage<?> pending) {
+                            pending.whenComplete((value, error) -> sendApiResult(id, value,
+                                    error == null ? null : uiErrorMessage(error)));
+                        } else sendApiResult(id, result, null);
+                    }
+                }
+                catch (Exception error) { sendApiResult(id, null, uiErrorMessage(error)); }
+            });
+            return;
+        }
+        // Menu replies must bypass the API executor: menu construction can be waiting on main.
+        if (operation.equals("menu.register") || operation.equals("menu.visibilityResult")) {
+            try {
+                JSONObject data = new JSONObject(arguments);
+                invokeHandler("menu", operation.substring(5), data);
+                sendApiResult(id, null, null);
+            } catch (Exception error) {
+                sendApiResult(id, null, error.getMessage());
+            }
+            return;
+        }
+        long queuedAt = android.os.SystemClock.elapsedRealtime();
+        try {
+            apiExecutor.execute(() -> {
+                try {
+                    if (android.os.SystemClock.elapsedRealtime() - queuedAt > 25000)
+                        throw new IllegalStateException("Spotify API request expired before execution");
+                    Object result = services.execute(operation, new JSONObject(arguments));
+                    sendApiResult(id, result, null);
+                } catch (Throwable error) {
+                    while (error instanceof java.lang.reflect.InvocationTargetException && error.getCause() != null) error = error.getCause();
+                    sendApiResult(id, null, error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName());
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException error) {
+            sendApiResult(id, null, "Spotify API request queue is full");
+        }
+    }
+
+    // JNI uses modified UTF-8. Escape UTF-16 units before crossing the native event bridge.
+    public static void sendJsonEvent(String name, JSONObject value) {
+        String payload = asciiJson(value);
+        mainHandler.post(() -> sendEvent(name, payload));
+    }
+
+    private static String asciiJson(JSONObject value) {
+        String json = value.toString();
+        StringBuilder ascii = new StringBuilder(json.length());
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c >= 127) ascii.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
+            else ascii.append(c);
+        }
+        return ascii.toString();
+    }
+
+    private static String uiErrorMessage(Throwable error) {
+        while (error.getCause() != null && (error instanceof java.lang.reflect.InvocationTargetException
+                || error instanceof java.util.concurrent.CompletionException)) error = error.getCause();
+        return error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+    }
+
+    private void sendApiResult(String id, Object result, String error) {
+        try {
+            JSONObject response = new JSONObject().put("id", id);
+            if (error == null) response.put("result", result == null ? JSONObject.NULL : result);
+            else response.put("error", error);
+            sendJsonEvent("spotify.api.result", response);
+        } catch (Exception errorWritingResponse) {
+            Log.e(TAG, "Could not send API response", errorWritingResponse);
         }
     }
 
@@ -667,13 +771,24 @@ public class SpotifyNativeBridge {
 
     public void unregisterSurface(String surfaceId) {
         if (!registeredSurfaces.remove(surfaceId)) return;
+        if ("sideDrawer".equals(surfaceId)) {
+            // The queued React unmount commit is rejected once registration is
+            // removed. Dispose the overlay explicitly on the main thread.
+            ScriptViewHost destination = surfaceHosts.remove(surfaceId);
+            mainHandler.post(() -> {
+                if (destination != null) destination.dispose();
+            });
+        }
         invokeHandler("side", "surfaceClosed", surfaceId);
     }
 
     public void commitSurface(String surfaceId, String opsJson) {
         if (!registeredSurfaces.contains(surfaceId)) return;
+        ScriptViewHost destination = surfaceHosts.get(surfaceId);
+        if (destination == null) return;
 
         mainHandler.post(() -> {
+            if (!registeredSurfaces.contains(surfaceId) || surfaceHosts.get(surfaceId) != destination) return;
             try {
                 applySurfaceOpsNow(surfaceId, new JSONArray(opsJson));
             } catch (Exception e) {
@@ -765,6 +880,14 @@ public class SpotifyNativeBridge {
     }
 
     public static void attachSurfaceHost(String surfaceId, ViewGroup root) {
+        attachSurfaceHost(surfaceId, root, null);
+    }
+
+    public static void attachSurfaceHost(String surfaceId, ViewGroup root, java.util.function.Supplier<android.view.View> original) {
+        attachSurfaceHost(surfaceId, root, original, true);
+    }
+
+    public static void attachSurfaceHost(String surfaceId, ViewGroup root, java.util.function.Supplier<android.view.View> original, boolean intrinsicHeight) {
         Runnable attach = () -> {
             var existing = surfaceHosts.get(surfaceId);
             if (existing != null) {
@@ -772,7 +895,7 @@ public class SpotifyNativeBridge {
                 existing.dispose();
             }
 
-            surfaceHosts.put(surfaceId, new ScriptViewHost(surfaceId, root));
+            surfaceHosts.put(surfaceId, new ScriptViewHost(surfaceId, root, original, intrinsicHeight));
         };
 
         if (Looper.myLooper() == Looper.getMainLooper()) attach.run();
@@ -790,7 +913,11 @@ public class SpotifyNativeBridge {
     }
 
     public static void applySurfaceOps(String surfaceId, JSONArray ops) {
-        mainHandler.post(() -> applySurfaceOpsNow(surfaceId, ops));
+        ScriptViewHost destination = surfaceHosts.get(surfaceId);
+        if (destination == null) return;
+        mainHandler.post(() -> {
+            if (surfaceHosts.get(surfaceId) == destination) applySurfaceOpsNow(surfaceId, ops);
+        });
     }
 
     private static void applySurfaceOpsNow(String surfaceId, JSONArray ops) {

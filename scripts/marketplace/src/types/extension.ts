@@ -24,26 +24,6 @@ export interface InstalledExtensionInfo {
     installedAt: string;
 }
 
-export interface MarketplaceChangelogChangeDetails {
-    text: string;
-    subLines?: string[];
-}
-
-export type MarketplaceChangelogChange = string | MarketplaceChangelogChangeDetails;
-
-export interface MarketplaceChangelogSection {
-    heading: string;
-    changes: MarketplaceChangelogChange[];
-}
-
-export interface MarketplaceChangelogRelease {
-    version: string;
-    release: string;
-    sections: MarketplaceChangelogSection[];
-}
-
-export type MarketplaceChangelog = MarketplaceChangelogRelease[];
-
 export interface MarketplaceExtension {
     id: string;
     name: string;
@@ -54,7 +34,10 @@ export interface MarketplaceExtension {
     authors?: MarketplaceAuthor[];
     tags?: string[];
     preview?: string;
-    changelog?: string | MarketplaceChangelog;
+    /** Markdown body of the repository's latest GitHub release. */
+    changelog?: string;
+    /** Repository root at the release tag, for relative Markdown links and images. */
+    changelogBaseUrl?: string;
     assets?: string[];
     native?: MarketplaceNativeExtension;
     githubUrl?: string;
@@ -93,7 +76,7 @@ export const mockExtensions: MarketplaceExtension[] = [
             'themes',
             'translation',
         ],
-        changelog: 'assets/changelogs/beautiful-lyrics.json',
+        changelog: '## 1.0.0\n\n- Added **synchronized lyrics**.\n- Added custom themes and translation support.',
         api: 2,
         assets: [
             'assets/**/*',

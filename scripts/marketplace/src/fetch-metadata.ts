@@ -1,10 +1,9 @@
 import { SpotifyPlus } from "spotifyplus";
 import z from "zod";
-import { parseMarketplaceChangelog } from "./changelog";
 import { MarketplaceExtension } from "./types/extension";
-import { placeholderImage } from "./app";
 
 const CACHE_TTL = 15 * 60 * 1000;
+const MANIFEST_CACHE_VERSION = 4;
 
 const authorSchema = z.object({
     name: z.string(),
@@ -27,7 +26,6 @@ export const marketplaceManifestSchema = z.object({
     authors: z.array(authorSchema).optional(),
     tags: z.array(z.string()).optional(),
     preview: z.string().optional(),
-    changelog: z.string().optional(),
     assets: z.array(z.string()).optional(),
     branch: z.string().optional(),
     native: nativeSchema.optional(),
@@ -37,14 +35,15 @@ export const marketplaceManifestSchema = z.object({
     banner: z.string().optional(),
 });
 
-export async function fetchRepos(page = 1) {
+export async function fetchRepos(page = 1, fresh = false) {
     let url = `https://api.github.com/search/repositories?q=topic:spotifyplus-extensions&per_page=100`;
     if (page) url += `&page=${page}`;
 
-    const cache: any = await SpotifyPlus.Platform.Storage.Cache.read(`page-${page}`);
+    const cache: any = fresh ? null : SpotifyPlus.Platform.Storage.Cache.read(`page-${page}`);
     const repos: any = cache ? JSON.parse(cache) : await fetch(url).then((res) => res.json()).catch(() => null);
 
-    if (!repos.items) {
+    if (!repos?.items) {
+        if (fresh) throw new Error('Could not check for extension updates. Please try again.');
         SpotifyPlus.toast('Failed to fetch extensions', 'long');
         return { items: [] };
     }
@@ -64,7 +63,7 @@ export async function searchRepos(query: string, page = 1) {
 
     const repos = await fetch(url).then((res) => res.json()).catch(() => null);
 
-    if (!repos.items) {
+    if (!repos?.items) {
         SpotifyPlus.toast('Failed to fetch extensions', 'long');
         return { items: [] };
     }
@@ -76,15 +75,15 @@ export async function searchRepos(query: string, page = 1) {
     };
 }
 
-export async function fetchManifest(user: string, repo: string, branch: string, starCount: number, license: string) {
+export async function fetchManifest(user: string, repo: string, branch: string, starCount: number, license: string, fresh = false) {
     try {
-        const cache = JSON.parse(await SpotifyPlus.Platform.Storage.Cache.read(`${user}-${repo}`) as string ?? 'null');
-        if (cache && Date.now() - cache.fetchedAt < CACHE_TTL) {
+        const cache = fresh ? null : JSON.parse(SpotifyPlus.Platform.Storage.Cache.read(`${user}-${repo}`) as string ?? 'null');
+        if (cache?.schemaVersion === MANIFEST_CACHE_VERSION && Date.now() - cache.fetchedAt < CACHE_TTL) {
             return cache.data as MarketplaceExtension[];
         }
 
         const url = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/manifest.json`;
-        const response = await fetch(url).then((res) => res.json()).catch(() => null);
+        const response = await fetch(url).then((res) => res.ok === false ? null : res.json()).catch(() => null);
         if (!response) return null;
         const manifests = Array.isArray(response) ? response : [response];
 
@@ -96,18 +95,9 @@ export async function fetchManifest(user: string, repo: string, branch: string, 
             return [];
         });
 
-        const manifestsArray: MarketplaceExtension[] = await Promise.all(parsedManifests.map(async (manifest: any) => {
+        const latestRelease = parsedManifests.length ? await fetchLatestRelease(user, repo) : undefined;
+        const manifestsArray: MarketplaceExtension[] = parsedManifests.map((manifest: any) => {
             const selectedBranch = manifest.branch || branch;
-            const rawChangelog = manifest.changelog?.endsWith('.json') ? await fetch(`https://raw.githubusercontent.com/${user}/${repo}/${selectedBranch}/${manifest.changelog}`).then((res) => res.json()).catch(() => null) : null;
-            let changelog;
-
-            if (rawChangelog) {
-                try {
-                    changelog = parseMarketplaceChangelog(rawChangelog);
-                } catch (error) {
-                    console.warn(`Invalid changelog from ${user}/${repo}`, error);
-                }
-            }
 
             const item: MarketplaceExtension = {
                 id: manifest.id,
@@ -119,8 +109,11 @@ export async function fetchManifest(user: string, repo: string, branch: string, 
 
                 authors: formatAuthors(manifest.authors, user),
                 tags: manifest.tags,
-                preview: manifest.preview ?? placeholderImage,
-                changelog: changelog,
+                preview: resolveRepositoryAsset(manifest.preview, user, repo, selectedBranch),
+                changelog: latestRelease?.body,
+                changelogBaseUrl: latestRelease
+                    ? `https://raw.githubusercontent.com/${user}/${repo}/${encodeURIComponent(latestRelease.tag ?? selectedBranch)}/`
+                    : undefined,
                 assets: manifest.assets,
                 native: manifest.native,
                 githubUrl: `https://www.github.com/${user}/${repo}`,
@@ -135,9 +128,10 @@ export async function fetchManifest(user: string, repo: string, branch: string, 
             }
 
             return item;
-        }));
+        });
 
         SpotifyPlus.Platform.Storage.Cache.write(`${user}-${repo}`, JSON.stringify({
+            schemaVersion: MANIFEST_CACHE_VERSION,
             fetchedAt: Date.now(),
             data: manifestsArray
         }));
@@ -148,6 +142,26 @@ export async function fetchManifest(user: string, repo: string, branch: string, 
         return null;
     }
 }
+
+/** One release request per repository, even when its manifest lists multiple extensions. */
+const fetchLatestRelease = async (user: string, repo: string): Promise<{ body: string; tag?: string } | undefined> => {
+    try {
+        const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/releases/latest`, {
+            headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (response.status === 404) return undefined;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const release = await response.json() as { body?: unknown; tag_name?: unknown } | null;
+        if (typeof release?.body !== 'string' || !release.body.trim()) return undefined;
+        return {
+            body: release.body,
+            tag: typeof release.tag_name === 'string' && release.tag_name.trim() ? release.tag_name : undefined,
+        };
+    } catch (error) {
+        console.warn(`Could not load latest release from ${user}/${repo}`, error);
+        return undefined;
+    }
+};
 
 const formatAuthors = (authors: { name: string, url: string }[], user: string) => {
     let parsedAuthors: { name: string, url: string }[] = [];
@@ -168,6 +182,7 @@ const formatAuthors = (authors: { name: string, url: string }[], user: string) =
 }
 
 const sanitizeUrl = (url: string) => {
+    if (!url) return url;
     const u = decodeURI(url).trim().toLowerCase();
     if (u.startsWith("javascript:") || u.startsWith("data:") || u.startsWith("vbscript:")) return "about:blank";
     return url;

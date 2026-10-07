@@ -22,6 +22,7 @@ import {
 } from './script-manifest';
 import { HostRuntime } from './host-runtime';
 import { resolveFetchGlobals } from './fetch-globals';
+import { validateNativeApk } from './native-apk';
 import { createRoot, setCommitListener } from '../ui/renderer';
 import React from 'react';
 
@@ -46,7 +47,7 @@ export class ScriptLoader {
 
     loadFromRoot(root: string, trust: ScriptTrust = 'user'): void {
         if (!fs.existsSync(root)) {
-            this.logger.warn(`Scripts root does not exist: ${root}`);
+            this.logger.info(`No extensions directory yet: ${root}`);
             return;
         }
 
@@ -84,10 +85,10 @@ export class ScriptLoader {
         this.executeScript(scriptDirectory, manifest, entryPath, source, true, trust);
     }
 
-    loadScriptFromSource(scriptDirectory: string, manifest: ScriptManifest, source: string, loadNative = false, trust: ScriptTrust = this.getScriptTrust(manifest.id)): void {
+    loadScriptFromSource(scriptDirectory: string, manifest: ScriptManifest, source: string, loadNative = false, trust: ScriptTrust = this.getScriptTrust(manifest.id), nativeApkPath?: string): void {
         const validatedManifest = this.preflightSource(scriptDirectory, manifest, source);
         const entryPath = path.resolve(scriptDirectory, validatedManifest.main);
-        this.executeScript(scriptDirectory, validatedManifest, entryPath, source, loadNative, trust);
+        this.executeScript(scriptDirectory, validatedManifest, entryPath, source, loadNative, trust, nativeApkPath);
     }
 
     preflightSource(scriptDirectory: string, manifest: ScriptManifest, source: string): ScriptManifest {
@@ -116,7 +117,7 @@ export class ScriptLoader {
         return path.join(root, scriptId);
     }
 
-    private executeScript(scriptDirectory: string, manifest: ScriptManifest, entryPath: string, source: string, loadNative: boolean, trust: ScriptTrust): void {
+    private executeScript(scriptDirectory: string, manifest: ScriptManifest, entryPath: string, source: string, loadNative: boolean, trust: ScriptTrust, nativeApkPath?: string): void {
         const previousDirectory = this.scriptDirectories.get(manifest.id);
         const previousTrust = this.scriptTrust.get(manifest.id);
         const entryDirectory = path.dirname(entryPath);
@@ -379,9 +380,10 @@ export class ScriptLoader {
 
         try {
             if (manifest.native && loadNative) {
-                const apkPath = path.resolve(entryDirectory, manifest.native.apk);
+                const apkPath = nativeApkPath ?? path.resolve(entryDirectory, manifest.native.apk);
                 assertPathInsideScript(scriptDirectory, apkPath);
                 if (!fs.existsSync(apkPath)) throw new Error(`Native APK file not found: ${apkPath}`);
+                validateNativeApk(fs.readFileSync(apkPath), manifest.native.apk);
 
                 this.runtime.loadApk(manifest.id, apkPath, manifest.native.pluginClass);
             }

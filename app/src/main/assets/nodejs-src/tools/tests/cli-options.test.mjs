@@ -38,3 +38,14 @@ test("legacy directory-only invocation still means dev", () => {
     assert.equal(options.command, "dev");
     assert.equal(options.scriptDir, path.join(cwd, "extension"));
 });
+
+test("create-native accepts an optional project directory and help", () => {
+    const cwd = path.resolve("workspace");
+    const options = parseCliArgs(["create-native", "my-plugin"], cwd);
+    assert.equal(options.command, "create-native");
+    assert.equal(options.projectDir, path.join(cwd, "my-plugin"));
+    assert.equal(parseCliArgs(["create-native"], cwd).projectDir, undefined);
+    assert.equal(parseCliArgs(["create-native", "--help"], cwd).help, true);
+    assert.throws(() => parseCliArgs(["create-native", "one", "two"], cwd), /one project directory/);
+    assert.throws(() => parseCliArgs(["create-native", "--port", "4000"], cwd), /Unknown option/);
+});

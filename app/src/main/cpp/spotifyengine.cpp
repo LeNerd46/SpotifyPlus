@@ -2252,3 +2252,69 @@ void SpotifyPlusEngine::SetWorkletSourceActive(
     if (configValue) env->DeleteLocalRef(configValue);
     DetachIfNeeded(didAttach);
 }
+
+StorageValueResult SpotifyPlusEngine::CallApiSync(const std::string& operation, const std::string& arguments)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    bool didAttach = false;
+    JNIEnv* env = GetEnv(&didAttach);
+    if (!env || !EnsureBridgeLocked(env)) {
+        if (env && env->ExceptionCheck()) env->ExceptionClear();
+        DetachIfNeeded(didAttach);
+        return {false, ""};
+    }
+    jobject bridge = env->NewLocalRef(m_bridge);
+    // Player state hooks may publish events while Java waits for a local RPC acknowledgement.
+    lock.unlock();
+    jclass cls = env->GetObjectClass(bridge);
+    jmethodID method = env->GetMethodID(cls, "callApiSync", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+    jstring op = nullptr;
+    jstring args = nullptr;
+    jstring response = nullptr;
+    StorageValueResult result{false, ""};
+    if (method && !env->ExceptionCheck()) {
+        op = env->NewStringUTF(operation.c_str());
+        args = env->NewStringUTF(arguments.c_str());
+        if (!env->ExceptionCheck()) response = static_cast<jstring>(env->CallObjectMethod(bridge, method, op, args));
+        if (!env->ExceptionCheck() && response) {
+            result.value = JStringToStdString(env, response);
+            result.found = !env->ExceptionCheck();
+        }
+    }
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (response) env->DeleteLocalRef(response);
+    if (args) env->DeleteLocalRef(args);
+    if (op) env->DeleteLocalRef(op);
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(bridge);
+    DetachIfNeeded(didAttach);
+    return result;
+}
+
+bool SpotifyPlusEngine::RequestApi(const std::string& id, const std::string& operation, const std::string& arguments)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    bool didAttach = false;
+    JNIEnv* env = GetEnv(&didAttach);
+    if (!env || !EnsureBridgeLocked(env)) { DetachIfNeeded(didAttach); return false; }
+    jobject bridge = env->NewLocalRef(m_bridge);
+    lock.unlock(); // Java may synchronously report an error back through EmitEvent.
+    jclass cls = env->GetObjectClass(bridge);
+    jmethodID method = env->GetMethodID(cls, "requestApi", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    bool ok = method != nullptr && !env->ExceptionCheck();
+    if (ok) {
+        jstring requestId = env->NewStringUTF(id.c_str());
+        jstring op = env->NewStringUTF(operation.c_str());
+        jstring args = env->NewStringUTF(arguments.c_str());
+        if (!env->ExceptionCheck()) env->CallVoidMethod(bridge, method, requestId, op, args);
+        ok = !env->ExceptionCheck();
+        env->DeleteLocalRef(requestId);
+        env->DeleteLocalRef(op);
+        env->DeleteLocalRef(args);
+    }
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(bridge);
+    DetachIfNeeded(didAttach);
+    return ok;
+}

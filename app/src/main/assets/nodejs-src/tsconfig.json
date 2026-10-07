@@ -27,6 +27,7 @@
     "rootDir": "./", /* Specify the root folder within your source files. */
     "baseUrl": ".",
     "paths": {
+      "spotifyplus": ["loader/script-api.ts"],
       "spotifyplus/react": ["sdk/components.ts"],
       "spotifyplus/react/animated": ["sdk/animated.ts"],
       "spotifyplus/react/reanimated": ["sdk/reanimated.ts"],

@@ -48,5 +48,5 @@ data class ManagerUiState(
     ),
     val statusMessage: String = "Waiting for status check...",
     val isSpotifyInstalled: Boolean = true,
-    val spotifyVersionName: String = "9.1.28.2522"
+    val spotifyVersionName: String = "9.1.82.2160"
 )
