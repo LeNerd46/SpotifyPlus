@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const NATIVE_SDK_URL = "https://github.com/LeNerd46/SpotifyPlus/releases/latest/download/spotifyplus-sdk.aar";
+export const NATIVE_SDK_URL = "https://github.com/LeNerd46/SpotifyPlus/releases/download/v0.10-preview-1/spotifyplus-sdk.aar";
 
 // Both languages share the namespace, so avoid identifiers reserved by either one.
 const RESERVED_WORDS = new Set((

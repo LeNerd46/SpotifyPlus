@@ -27,7 +27,7 @@ export interface LocalExtensionInfo {
     installedAt: string;
 }
 
-const SPOTIFY_PLUS_VERSION = '0.10.0';
+const SPOTIFY_PLUS_VERSION = '0.10.0-preview-1';
 const MARKETPLACE_VERSION = '0.1.0';
 
 const Elevated = (globalThis as any).__spotifyplus_elevated__ as {
@@ -430,6 +430,7 @@ const AboutPage = () => {
 
             <AboutLink title='GitHub' onPress={() => SpotifyPlus.Navigation.open('https://github.com/lenerd/spotifyplus')} />
             <AboutLink title='Telegram' onPress={() => SpotifyPlus.Navigation.open('https://t.me/spotifyplus')} />
+            <AboutLink title='Discord' onPress={() => SpotifyPlus.Navigation.open('https://discord.gg/A98SNReGWD')} />
 
             <View style={{ marginTop: 28, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ flex: 1, color: '#ffffff', fontSize: 15 }}>Made With ❤️ By</Text>
